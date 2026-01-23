@@ -44,8 +44,8 @@ output_master_scalars_file <- function() {
   }
 
   computed_external <- c(
-    sci_2021_2026_country_corr() #,
-    #sci_2021_2026_zcta_corr()
+    sci_2021_2026_country_corr(),
+    sci_2021_2026_zcta_corr()
   )
 
   for (k in names(computed_external)) {

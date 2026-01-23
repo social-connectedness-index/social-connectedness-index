@@ -43,11 +43,9 @@ country_sci_2026 = file.path(
   "country_all.csv"
 )
 
-zcta_2026_shard_ids <- c("20", "40", "60", "80", "J0")
-
-zcta_sci_2026_shards <- file.path(
+zcta_sci_2026_shards = file.path(
   sci_2026_dir,
-  paste0("us_zcta_all_shard_", zcta_2026_shard_ids, ".csv")
+  paste0("us_zcta_all_shard_", 0:9, ".csv")
 )
 
 scalar_output_fp = "output/scalars.txt"
