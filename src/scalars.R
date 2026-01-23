@@ -44,7 +44,8 @@ output_master_scalars_file <- function() {
   }
 
   computed_external <- c(
-    sci_2021_2026_corr()
+    sci_2021_2026_country_corr() #,
+    #sci_2021_2026_zcta_corr()
   )
 
   for (k in names(computed_external)) {
@@ -70,9 +71,7 @@ output_master_scalars_file <- function() {
 }
 
 
-sci_2021_2026_corr <- function() {
-  # country–country SCI
-
+sci_2021_2026_country_corr <- function() {
   sci_2021_country <- read_tsv(
     country_sci_2021,
     show_col_types = FALSE
@@ -99,8 +98,15 @@ sci_2021_2026_corr <- function() {
     use = "complete.obs"
   )
 
-  # ZCTA-ZCTA
+  sci_country_corr_scalar <- c(
+    sci_country_corr_2021_2026 = formatC(country_corr, format = "f", digits = 2)
+  )
 
+  return(sci_country_corr_scalar)
+}
+
+
+sci_2021_2026_zcta_corr <- function() {
   sci_2021_zcta <- zcta_sci_2021_shards %>%
     lapply(function(fp) {
       read_tsv(fp, show_col_types = FALSE) %>%
@@ -131,10 +137,9 @@ sci_2021_2026_corr <- function() {
     use = "complete.obs"
   )
 
-  sci_corr_scalars <- c(
-    sci_country_corr_2021_2026 = as.character(country_corr),
-    sci_zcta_corr_2021_2026 = as.character(zcta_corr)
+  sci_zcta_corr_scalar <- c(
+    sci_zcta_corr_2021_2026 = formatC(zcta_corr, format = "f", digits = 2)
   )
 
-  return(sci_corr_scalars)
+  return(sci_zcta_corr_scalar)
 }
