@@ -40,7 +40,9 @@ run_maps_from_specs <- function(
       shape_region_key = shape_region_key,
       shape_country_key = shape_country_key,
       breaks = spec$breaks,
-      region_name = spec_name
+      region_name = spec_name,
+      xlim = spec$xlim,
+      ylim = spec$ylim
     )
   })
 }
@@ -58,7 +60,9 @@ create_region_to_regions_map <- function(
   map_width_in = 30,
   map_height_in = 20,
   breaks = NA,
-  region_name = NA
+  region_name = NA,
+  xlim = NA,
+  ylim = NA
 ) {
   shapes <- shapefile %>%
     filter(
@@ -106,7 +110,9 @@ create_region_to_regions_map <- function(
     borders_data = borders_data,
     name = "Likelihood of Friendship",
     highlight_sf = user_region_sf,
-    breaks = breaks
+    breaks = breaks,
+    xlims = xlim,
+    ylims = ylim
   )
 
   ggsave(

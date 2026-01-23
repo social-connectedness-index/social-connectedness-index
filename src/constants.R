@@ -288,6 +288,7 @@ north_america_iso2_codes = c(
   "JM", # JAM → Jamaica
   "US" # USA → United States
 )
+
 africa_iso2_codes = c(
   "AO", # AGO → Angola
   "BJ", # BEN → Benin
@@ -354,17 +355,20 @@ south_asia_iso2_codes = c(
   "LK" # LKA → Sri Lanka
 )
 
-
 india_specs <- list(
   varanasi = list(
     selected_user_region = "IND.34.75_1",
     selected_friend_countries = south_asia_iso2_codes,
-    breaks = NA
+    breaks = NA,
+    xlim = c(60, 98),
+    ylim = c(5, 37)
   ),
   amritsar = list(
     selected_user_region = "IND.28.1_1",
     selected_friend_countries = south_asia_iso2_codes,
-    breaks = NA
+    breaks = NA,
+    xlim = c(60, 98),
+    ylim = c(5, 37)
   )
 )
 
@@ -372,6 +376,28 @@ africa_specs <- list(
   cairo = list(
     selected_user_region = "EGY.11_1",
     selected_friend_countries = africa_iso2_codes,
-    breaks = NA
+    breaks = NA,
+    xlim = c(-26, 58),
+    ylim = c(-35, 35)
+  )
+)
+
+brazil_specs <- list(
+  rio = list(
+    selected_user_region = "BRA.19.68_2",
+    selected_friend_countries = south_america_iso2_codes,
+    breaks = NA,
+    xlim = c(-33, -85),
+    ylim = c(12, -55)
+  )
+)
+
+argentina_specs <- list(
+  buenos_aires = list(
+    selected_user_region = "ARG.5_1",
+    selected_friend_countries = south_america_iso2_codes,
+    breaks = NA,
+    xlim = c(-33, -85),
+    ylim = c(12, -55)
   )
 )
