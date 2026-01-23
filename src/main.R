@@ -69,7 +69,7 @@ run_maps_from_specs(
 )
 
 run_maps_from_specs(
-  map_specs = argentina_specs,
-  sci_df_path = "data/gadm1_all.csv",
+  map_specs = chile_specs,
+  sci_df_path = "data/gadm2_all_shard_DO.csv",
   sf_path = gadm1_shapefile_path
 )

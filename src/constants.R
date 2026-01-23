@@ -373,8 +373,15 @@ india_specs <- list(
 )
 
 africa_specs <- list(
-  cairo = list(
+  map1 = list(
     selected_user_region = "EGY.11_1",
+    selected_friend_countries = africa_iso2_codes,
+    breaks = NA,
+    xlim = c(-26, 58),
+    ylim = c(-35, 35)
+  ),
+  map2 = list(
+    selected_user_region = "EGY.6_1",
     selected_friend_countries = africa_iso2_codes,
     breaks = NA,
     xlim = c(-26, 58),
@@ -383,8 +390,29 @@ africa_specs <- list(
 )
 
 brazil_specs <- list(
-  rio = list(
-    selected_user_region = "BRA.19.68_2",
+  brasilia = list(
+    selected_user_region = "BRA.7.1_2",
+    selected_friend_countries = south_america_iso2_codes,
+    breaks = NA,
+    xlim = c(-33, -85),
+    ylim = c(12, -55)
+  ),
+  sao_paulo = list(
+    selected_user_region = "BRA.25.565_2",
+    selected_friend_countries = south_america_iso2_codes,
+    breaks = NA,
+    xlim = c(-33, -85),
+    ylim = c(12, -55)
+  ),
+  manaus = list(
+    selected_user_region = "BRA.4.38_2",
+    selected_friend_countries = south_america_iso2_codes,
+    breaks = NA,
+    xlim = c(-33, -85),
+    ylim = c(12, -55)
+  ),
+  curitiba = list(
+    selected_user_region = "BRA.16.95_2",
     selected_friend_countries = south_america_iso2_codes,
     breaks = NA,
     xlim = c(-33, -85),
@@ -392,8 +420,8 @@ brazil_specs <- list(
   )
 )
 
-argentina_specs <- list(
-  buenos_aires = list(
+chile_specs <- list(
+  santiago = list(
     selected_user_region = "ARG.5_1",
     selected_friend_countries = south_america_iso2_codes,
     breaks = NA,
