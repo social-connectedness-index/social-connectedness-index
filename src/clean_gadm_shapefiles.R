@@ -72,6 +72,10 @@ process_gadm_level <- function(
   simplify_pct = NULL
 ) {
   gadm_sf = gadm_sf %>%
+    filter(
+      st_geometry_type(geometry) %in% c("POLYGON", "MULTIPOLYGON")
+    ) %>%
+    st_make_valid() %>%
     mutate(
       country = clean_disputed_gids(!!sym(country_col)),
       key = clean_disputed_gids(!!sym(key_col)),

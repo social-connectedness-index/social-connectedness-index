@@ -24,14 +24,10 @@ library(wbstats)
 library(weights)
 
 source_files = list(
-  # utils
-  "src/utils/constants.R",
-  "src/utils/plotting_utils.R",
-  # data_prep
-  "src/data_prep/clean_gadm_shapefiles.R",
-  "src/data_prep/clean_geoboundaries.R",
-  # analysis
-  "src/analysis/create_maps.R"
+  "src/clean_gadm_shapefiles.R",
+  "src/constants.R",
+  "src/create_maps.R",
+  "src/mapping_utils.R"
 )
 
 r_setup <- function(source_files_list = source_files) {
@@ -49,22 +45,16 @@ create_dir_if_not_exists <- function(d) {
   }
 }
 create_dir_if_not_exists(gadm_shapefiles_output_dir)
-create_dir_if_not_exists(intermediate_shapefiles_dir)
-create_dir_if_not_exists(figures_dir)
+create_dir_if_not_exists(cleaned_shapefiles_dir)
 create_dir_if_not_exists(maps_dir)
 
 #load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
-#load_geoboundaries_shapefiles(geoboundaries_gpkg_input)
 
-create_region_to_regions_map(
-  sci_dataset_path = "data/input/gadm1_all.csv",
-  shapefile_path = gadm1_shapefile_path,
-  selected_user_region = "IND.20_1",
-  selected_friend_countries = c("IN", "PK"),
-  maps_dir = maps_dir,
-  dataset_region_key = "friend_region",
-  shape_region_key = "key",
-  shape_country_key = "country",
-  borders_shapefile_path = NULL,
-  reverse_color_scale = FALSE
+run_maps_from_specs(
+  map_specs = india_specs,
+  sci_df_path = "data/gadm2_all_shard_LV.csv",
+  sf_path = gadm2_shapefile_path
 )
+
+names <- read_csv("data/gadm2_names.csv") %>%
+  filter(country == "IN")
