@@ -113,7 +113,7 @@ create_region_to_regions_map <- function(
     filename = file.path(
       maps_dir,
       str_glue(
-        "{region_name}_to_{paste(selected_friend_countries, collapse = '_')}.png"
+        "{region_name}.png"
       )
     ),
     plot = g,

@@ -56,5 +56,8 @@ run_maps_from_specs(
   sf_path = gadm2_shapefile_path
 )
 
-names <- read_csv("data/gadm2_names.csv") %>%
-  filter(country == "IN")
+run_maps_from_specs(
+  map_specs = africa_specs,
+  sci_df_path = "data/gadm1_all.csv",
+  sf_path = gadm1_shapefile_path
+)

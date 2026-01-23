@@ -2,21 +2,21 @@ base_font_family = "Helvetica"
 base_dpi = 120
 
 map_colors <- c(
-  "#ffffff",
-  "#f9fdf8",
-  "#f1faef",
-  "#e5f5e0",
-  "#d6efcf",
-  "#c7e9c0",
-  "#b4e2b0",
-  "#a1d99b",
-  "#8fcf89",
-  "#74c476",
-  "#58b868",
-  "#41ab5d",
-  "#2f964f",
-  "#238b45",
-  "#00441b"
+  "#f7fbf7",
+  "#f2faf2",
+  "#ebf7ea",
+  "#e1f3de",
+  "#d3edd0",
+  "#c3e7c1",
+  "#b1dfb0",
+  "#9ed69d",
+  "#8ccc89",
+  "#73c376",
+  "#5bb866",
+  "#42a85a",
+  "#2f944d",
+  "#1f7f40",
+  "#0b5a2b"
 )
 
 get_label_for_plotting <- function(x, var_dict) {
@@ -156,8 +156,8 @@ create_map <- function(
     map <- map +
       geom_sf(
         data = highlight_sf,
-        fill = "#FFFF00",
-        color = "white",
+        fill = "#FF0000",
+        color = NA,
         size = 10
       )
   }
@@ -166,7 +166,7 @@ create_map <- function(
     map <- map +
       geom_sf(
         data = borders_data,
-        size = 0.25,
+        size = 0.50,
         fill = "transparent",
         color = "gray20"
       )
