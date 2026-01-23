@@ -27,7 +27,8 @@ source_files = list(
   "src/clean_gadm_shapefiles.R",
   "src/constants.R",
   "src/create_maps.R",
-  "src/mapping_utils.R"
+  "src/mapping_utils.R",
+  "src/scalars.R"
 )
 
 r_setup <- function(source_files_list = source_files) {
@@ -52,24 +53,26 @@ create_dir_if_not_exists(maps_dir)
 
 run_maps_from_specs(
   map_specs = africa_specs,
-  sci_df_path = "data/gadm1_all.csv",
+  sci_df_path = "data/sci_2026/gadm1_all.csv",
   sf_path = gadm1_shapefile_path
 )
 
 run_maps_from_specs(
   map_specs = india_specs,
-  sci_df_path = "data/gadm2_all_shard_LV.csv",
+  sci_df_path = "data/sci_2026/gadm2_all_shard_LV.csv",
   sf_path = gadm2_shapefile_path
 )
 
 run_maps_from_specs(
   map_specs = brazil_specs,
-  sci_df_path = "data/gadm2_all_shard_BY.csv",
+  sci_df_path = "data/sci_2026/gadm2_all_shard_BY.csv",
   sf_path = gadm2_shapefile_path
 )
 
 run_maps_from_specs(
   map_specs = chile_specs,
-  sci_df_path = "data/gadm2_all_shard_DO.csv",
+  sci_df_path = "data/sci_2026/gadm2_all_shard_DO.csv",
   sf_path = gadm1_shapefile_path
 )
+
+output_master_scalars_file()

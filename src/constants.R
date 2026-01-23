@@ -18,6 +18,42 @@ gadm1_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm1.shp")
 gadm2_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm2.shp")
 gadm3_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm3.shp")
 
+sci_2021_dir = file.path(
+  data_dir,
+  "sci_2021"
+)
+
+country_sci_2021 = file.path(
+  sci_2021_dir,
+  "countries-countries-fb-social-connectedness-index-october-2021.tsv"
+)
+
+zcta_sci_2021_shards = file.path(
+  sci_2021_dir,
+  paste0("zcta_zcta_shard", 0:9, ".tsv")
+)
+
+sci_2026_dir = file.path(
+  data_dir,
+  "sci_2026"
+)
+
+country_sci_2026 = file.path(
+  sci_2026_dir,
+  "country_all.csv"
+)
+
+zcta_2026_shard_ids <- c("20", "40", "60", "80", "J0")
+
+zcta_sci_2026_shards <- file.path(
+  sci_2026_dir,
+  paste0("us_zcta_all_shard_", zcta_2026_shard_ids, ".csv")
+)
+
+scalar_output_fp = "output/scalars.txt"
+internal_scalars_fp = file.path(data_dir, "internal_scalars.txt")
+external_scalars_fp = file.path(data_dir, "external_scalars.txt")
+
 main_var_dict = c(
   "scaled_sci" = "Social Connectedness Index"
 )
