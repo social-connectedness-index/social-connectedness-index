@@ -45,7 +45,7 @@ output_master_scalars_file <- function() {
 
   computed_external <- c(
     sci_2021_2026_country_corr(),
-    sci_2021_2026_zcta_corr()
+    sci_2021_2026_counties_corr()
   )
 
   for (k in names(computed_external)) {
@@ -106,24 +106,20 @@ sci_2021_2026_country_corr <- function() {
 }
 
 
-sci_2021_2026_zcta_corr <- function() {
-  sci_2021_zcta <- zcta_sci_2021_shards %>%
-    lapply(function(fp) {
-      read_tsv(fp, show_col_types = FALSE) %>%
-        mutate(
-          user_loc = as.character(user_loc),
-          fr_loc = as.character(fr_loc)
-        )
-    }) %>%
-    bind_rows()
+sci_2021_2026_counties_corr <- function() {
+  sci_2021_counties <- read_tsv(
+    counties_sci_2021,
+    show_col_types = FALSE
+  )
 
-  sci_2026_zcta <- zcta_sci_2026_shards %>%
-    lapply(read_csv, show_col_types = FALSE) %>%
-    bind_rows()
+  sci_2026_counties <- read_csv(
+    counties_sci_2026,
+    show_col_types = FALSE
+  )
 
-  zcta_merged <- sci_2021_zcta %>%
+  counties_merged <- sci_2021_counties %>%
     inner_join(
-      sci_2026_zcta,
+      sci_2026_counties,
       by = c(
         "user_loc" = "user_region",
         "fr_loc" = "friend_region"
@@ -131,15 +127,19 @@ sci_2021_2026_zcta_corr <- function() {
       suffix = c("_2021", "_2026")
     )
 
-  zcta_corr <- cor(
-    zcta_merged[["scaled_sci_2021"]],
-    zcta_merged[["scaled_sci_2026"]],
+  counties_corr <- cor(
+    counties_merged[["scaled_sci_2021"]],
+    counties_merged[["scaled_sci_2026"]],
     use = "complete.obs"
   )
 
-  sci_zcta_corr_scalar <- c(
-    sci_zcta_corr_2021_2026 = formatC(zcta_corr, format = "f", digits = 2)
+  sci_counties_corr_scalar <- c(
+    sci_counties_corr_2021_2026 = formatC(
+      counties_corr,
+      format = "f",
+      digits = 2
+    )
   )
 
-  return(sci_zcta_corr_scalar)
+  return(sci_counties_corr_scalar)
 }

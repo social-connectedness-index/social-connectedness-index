@@ -28,9 +28,9 @@ country_sci_2021 = file.path(
   "countries-countries-fb-social-connectedness-index-october-2021.tsv"
 )
 
-zcta_sci_2021_shards = file.path(
+counties_sci_2021 = file.path(
   sci_2021_dir,
-  paste0("zcta_zcta_shard", 0:9, ".tsv")
+  "county_county.tsv"
 )
 
 sci_2026_dir = file.path(
@@ -43,9 +43,9 @@ country_sci_2026 = file.path(
   "country_all.csv"
 )
 
-zcta_sci_2026_shards = file.path(
+counties_sci_2026 = file.path(
   sci_2026_dir,
-  paste0("us_zcta_all_shard_", 0:9, ".csv")
+  "counties_all.csv"
 )
 
 scalar_output_fp = "output/scalars.txt"
