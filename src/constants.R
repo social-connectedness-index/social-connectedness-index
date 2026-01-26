@@ -1,5 +1,6 @@
 data_dir <- "data"
 
+output_dir <- file.path("output")
 maps_dir <- file.path("output", "maps")
 
 input_shapefiles_dir = file.path(data_dir, "input_shapefiles")
@@ -51,10 +52,6 @@ counties_sci_2026 = file.path(
 scalar_output_fp = "output/scalars.txt"
 internal_scalars_fp = file.path(data_dir, "internal_scalars.txt")
 external_scalars_fp = file.path(data_dir, "external_scalars.txt")
-
-main_var_dict = c(
-  "scaled_sci" = "Social Connectedness Index"
-)
 
 iso3_sovereign_iso3_xwalk = c(
   "AIA" = "GBR", # Anguilla

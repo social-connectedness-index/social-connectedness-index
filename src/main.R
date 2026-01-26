@@ -1,27 +1,8 @@
-library(broom)
 library(countrycode)
-library(DescTools)
-library(fixest)
-library(ggh4x)
-library(ggpubr)
-library(ggrepel)
-library(grid)
-library(gridExtra)
-library(gtable)
-library(haven)
-library(ipumsr)
-library(kableExtra)
-library(lwgeom)
-library(readxl)
-library(rgeoboundaries)
 library(rmapshaper)
-library(scales)
 library(sf)
-library(tidycensus)
 library(tidyverse)
-library(tools)
 library(wbstats)
-library(weights)
 
 source_files = list(
   "src/clean_gadm_shapefiles.R",
@@ -36,7 +17,6 @@ r_setup <- function(source_files_list = source_files) {
     source(source_file)
   }
   sf_use_s2(FALSE)
-  setFixest_dict(main_var_dict)
 }
 r_setup()
 
@@ -47,9 +27,10 @@ create_dir_if_not_exists <- function(d) {
 }
 create_dir_if_not_exists(gadm_shapefiles_output_dir)
 create_dir_if_not_exists(cleaned_shapefiles_dir)
+create_dir_if_not_exists(output_dir)
 create_dir_if_not_exists(maps_dir)
 
-#load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
+load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
 
 run_maps_from_specs(
   map_specs = india_specs,
