@@ -2,21 +2,21 @@ base_font_family = "Helvetica"
 base_dpi = 120
 
 map_colors <- c(
-  "#f7fbf7",
-  "#f2faf2",
-  "#ebf7ea",
-  "#e1f3de",
-  "#d3edd0",
-  "#c3e7c1",
-  "#b1dfb0",
-  "#9ed69d",
-  "#8ccc89",
-  "#73c376",
-  "#5bb866",
-  "#42a85a",
-  "#2f944d",
-  "#1f7f40",
-  "#0b5a2b"
+  "#d1dfe5",
+  "#c7d9e2",
+  "#bed3de",
+  "#b5ccda",
+  "#acc6d7",
+  "#a3bfd3",
+  "#99b7cd",
+  "#8fafc6",
+  "#85a7c0",
+  "#799eb8",
+  "#6c95b0",
+  "#5f8aa5",
+  "#4d7d96",
+  "#366f89",
+  "#10617b"
 )
 
 get_label_for_plotting <- function(x, var_dict) {
