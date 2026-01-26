@@ -52,26 +52,26 @@ create_dir_if_not_exists(maps_dir)
 #load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
 
 run_maps_from_specs(
-  map_specs = africa_specs,
-  sci_df_path = "data/sci_2026/gadm1_all.csv",
-  sf_path = gadm1_shapefile_path
-)
-
-run_maps_from_specs(
   map_specs = india_specs,
-  sci_df_path = "data/sci_2026/gadm2_all_shard_LV.csv",
+  sci_df_path = "data/sci_2026/gadm2_all_shard_JO.csv",
   sf_path = gadm2_shapefile_path
 )
 
 run_maps_from_specs(
   map_specs = brazil_specs,
-  sci_df_path = "data/sci_2026/gadm2_all_shard_BY.csv",
+  sci_df_path = "data/sci_2026/gadm2_all_shard_BR.csv",
   sf_path = gadm2_shapefile_path
 )
 
 run_maps_from_specs(
   map_specs = chile_specs,
   sci_df_path = "data/sci_2026/gadm2_all_shard_DO.csv",
+  sf_path = gadm2_shapefile_path
+)
+
+run_maps_from_specs(
+  map_specs = africa_specs,
+  sci_df_path = "data/sci_2026/gadm1_all.csv",
   sf_path = gadm1_shapefile_path
 )
 

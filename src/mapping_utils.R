@@ -19,6 +19,24 @@ map_colors <- c(
   "#0b5a2b"
 )
 
+map_colors_blue <- c(
+  "#f7fbff",
+  "#f2f8ff",
+  "#eaf3ff",
+  "#deecfa",
+  "#d0e2f2",
+  "#c1d7ea",
+  "#b0cbe0",
+  "#9ebfd6",
+  "#89b2cc",
+  "#73a4c3",
+  "#5b95b8",
+  "#4285ab",
+  "#2f6f94",
+  "#1f587f",
+  "#0b3b5a"
+)
+
 get_label_for_plotting <- function(x, var_dict) {
   if (x %in% names(var_dict)) {
     label = var_dict[[x]]
@@ -146,8 +164,8 @@ create_map <- function(
       legend.position = "bottom",
       legend.direction = "horizontal",
       legend.title.align = 0.5,
-      legend.title = element_text(size = 60),
-      legend.text = element_text(size = 45),
+      legend.title = element_text(size = 55),
+      legend.text = element_text(size = 40),
       legend.box.just = "center",
       legend.key.width = unit(4, "inches")
     )

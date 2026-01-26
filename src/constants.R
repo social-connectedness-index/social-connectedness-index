@@ -45,7 +45,7 @@ country_sci_2026 = file.path(
 
 counties_sci_2026 = file.path(
   sci_2026_dir,
-  "counties_all.csv"
+  "us_counties_all.csv"
 )
 
 scalar_output_fp = "output/scalars.txt"
@@ -393,62 +393,24 @@ india_specs <- list(
   varanasi = list(
     selected_user_region = "IND.34.75_1",
     selected_friend_countries = south_asia_iso2_codes,
-    breaks = NA,
+    breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
     xlim = c(60, 98),
     ylim = c(5, 37)
   ),
-  amritsar = list(
-    selected_user_region = "IND.28.1_1",
+  belgaum = list(
+    selected_user_region = "IND.16.4_1",
     selected_friend_countries = south_asia_iso2_codes,
-    breaks = NA,
+    breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
     xlim = c(60, 98),
     ylim = c(5, 37)
-  )
-)
-
-africa_specs <- list(
-  map1 = list(
-    selected_user_region = "EGY.11_1",
-    selected_friend_countries = africa_iso2_codes,
-    breaks = NA,
-    xlim = c(-26, 58),
-    ylim = c(-35, 35)
-  ),
-  map2 = list(
-    selected_user_region = "EGY.6_1",
-    selected_friend_countries = africa_iso2_codes,
-    breaks = NA,
-    xlim = c(-26, 58),
-    ylim = c(-35, 35)
   )
 )
 
 brazil_specs <- list(
-  brasilia = list(
-    selected_user_region = "BRA.7.1_2",
-    selected_friend_countries = south_america_iso2_codes,
-    breaks = NA,
-    xlim = c(-33, -85),
-    ylim = c(12, -55)
-  ),
   sao_paulo = list(
     selected_user_region = "BRA.25.565_2",
     selected_friend_countries = south_america_iso2_codes,
-    breaks = NA,
-    xlim = c(-33, -85),
-    ylim = c(12, -55)
-  ),
-  manaus = list(
-    selected_user_region = "BRA.4.38_2",
-    selected_friend_countries = south_america_iso2_codes,
-    breaks = NA,
-    xlim = c(-33, -85),
-    ylim = c(12, -55)
-  ),
-  curitiba = list(
-    selected_user_region = "BRA.16.95_2",
-    selected_friend_countries = south_america_iso2_codes,
-    breaks = NA,
+    breaks = c(1, 5, 10, 15, 25, 30, 40, 50, 60, 80, 100, 115, 150, 200, 225),
     xlim = c(-33, -85),
     ylim = c(12, -55)
   )
@@ -456,10 +418,27 @@ brazil_specs <- list(
 
 chile_specs <- list(
   santiago = list(
-    selected_user_region = "ARG.5_1",
+    selected_user_region = "CHL.14.5_1",
     selected_friend_countries = south_america_iso2_codes,
-    breaks = NA,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
     xlim = c(-33, -85),
     ylim = c(12, -55)
+  )
+)
+
+africa_specs <- list(
+  cabo_delgado = list(
+    selected_user_region = "MOZ.1_1",
+    selected_friend_countries = africa_iso2_codes,
+    breaks = c(1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100, 115),
+    xlim = c(-26, 58),
+    ylim = c(-35, 35)
+  ),
+  antananarivo = list(
+    selected_user_region = "MDG.1_1",
+    selected_friend_countries = africa_iso2_codes,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+    xlim = c(-26, 58),
+    ylim = c(-35, 35)
   )
 )
