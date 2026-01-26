@@ -407,10 +407,10 @@ india_specs <- list(
 )
 
 brazil_specs <- list(
-  sao_paulo = list(
-    selected_user_region = "BRA.25.565_2",
+  manaus = list(
+    selected_user_region = "BRA.4.38_2",
     selected_friend_countries = south_america_iso2_codes,
-    breaks = c(1, 5, 10, 15, 25, 30, 40, 50, 60, 80, 100, 115, 150, 200, 225),
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
     xlim = c(-33, -85),
     ylim = c(12, -55)
   )
