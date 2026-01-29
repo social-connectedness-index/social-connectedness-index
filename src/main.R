@@ -32,28 +32,16 @@ create_dir_if_not_exists(maps_dir)
 
 load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
 
-run_maps_from_specs(
-  map_specs = india_specs,
-  sci_df_path = "data/sci_2026/gadm2_all_shard_JO.csv",
-  sf_path = gadm2_shapefile_path
-)
-
-run_maps_from_specs(
-  map_specs = brazil_specs,
-  sci_df_path = "data/sci_2026/gadm2_all_shard_BR.csv",
-  sf_path = gadm2_shapefile_path
-)
-
-run_maps_from_specs(
-  map_specs = chile_specs,
-  sci_df_path = "data/sci_2026/gadm2_all_shard_DO.csv",
-  sf_path = gadm2_shapefile_path
-)
-
-run_maps_from_specs(
-  map_specs = africa_specs,
-  sci_df_path = "data/sci_2026/gadm1_all.csv",
-  sf_path = gadm1_shapefile_path
-)
+walk(map_jobs, function(job) {
+  run_maps_from_specs(
+    map_specs = job$map_specs,
+    sci_df_path = job$sci_df_path,
+    sf_path = job$sf_path,
+    borders_path = job$borders_path,
+    dataset_region_key = job$dataset_region_key,
+    shape_region_key = job$shape_region_key,
+    shape_country_key = job$shape_country_key
+  )
+})
 
 output_master_scalars_file()

@@ -386,56 +386,90 @@ south_asia_iso2_codes = c(
   "LK" # LKA → Sri Lanka
 )
 
-india_specs <- list(
-  varanasi = list(
-    selected_user_region = "IND.34.75_1",
-    selected_friend_countries = south_asia_iso2_codes,
-    breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
-    xlim = c(60, 98),
-    ylim = c(5, 37)
+map_jobs <- list(
+  india = list(
+    map_specs = list(
+      varanasi = list(
+        selected_user_region = "IND.34.75_1",
+        selected_friend_countries = south_asia_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
+        xlim = c(60, 98),
+        ylim = c(5, 37)
+      ),
+      belgaum = list(
+        selected_user_region = "IND.16.4_1",
+        selected_friend_countries = south_asia_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
+        xlim = c(60, 98),
+        ylim = c(5, 37)
+      )
+    ),
+    sci_df_path = "data/sci_2026/gadm2_all_shard_JO.csv",
+    sf_path = gadm2_shapefile_path,
+    borders_path = gadm0_shapefile_path,
+    dataset_region_key = "friend_region",
+    shape_region_key = "key",
+    shape_country_key = "sv_cntr"
   ),
-  belgaum = list(
-    selected_user_region = "IND.16.4_1",
-    selected_friend_countries = south_asia_iso2_codes,
-    breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
-    xlim = c(60, 98),
-    ylim = c(5, 37)
-  )
-)
 
-brazil_specs <- list(
-  manaus = list(
-    selected_user_region = "BRA.4.38_2",
-    selected_friend_countries = south_america_iso2_codes,
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
-    xlim = c(-33, -85),
-    ylim = c(12, -55)
-  )
-)
-
-chile_specs <- list(
-  santiago = list(
-    selected_user_region = "CHL.14.5_1",
-    selected_friend_countries = south_america_iso2_codes,
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
-    xlim = c(-33, -85),
-    ylim = c(12, -55)
-  )
-)
-
-africa_specs <- list(
-  cabo_delgado = list(
-    selected_user_region = "MOZ.1_1",
-    selected_friend_countries = africa_iso2_codes,
-    breaks = c(1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100, 115),
-    xlim = c(-26, 58),
-    ylim = c(-35, 35)
+  brazil = list(
+    map_specs = list(
+      manaus = list(
+        selected_user_region = "BRA.4.38_2",
+        selected_friend_countries = south_america_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+        xlim = c(-33, -85),
+        ylim = c(12, -55)
+      )
+    ),
+    sci_df_path = "data/sci_2026/gadm2_all_shard_BR.csv",
+    sf_path = gadm2_shapefile_path,
+    borders_path = gadm0_shapefile_path,
+    dataset_region_key = "friend_region",
+    shape_region_key = "key",
+    shape_country_key = "sv_cntr"
   ),
-  antananarivo = list(
-    selected_user_region = "MDG.1_1",
-    selected_friend_countries = africa_iso2_codes,
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
-    xlim = c(-26, 58),
-    ylim = c(-35, 35)
+
+  chile = list(
+    map_specs = list(
+      santiago = list(
+        selected_user_region = "CHL.14.5_1",
+        selected_friend_countries = south_america_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+        xlim = c(-33, -85),
+        ylim = c(12, -55)
+      )
+    ),
+    sci_df_path = "data/sci_2026/gadm2_all_shard_DO.csv",
+    sf_path = gadm2_shapefile_path,
+    borders_path = gadm0_shapefile_path,
+    dataset_region_key = "friend_region",
+    shape_region_key = "key",
+    shape_country_key = "sv_cntr"
+  ),
+
+  africa = list(
+    map_specs = list(
+      cabo_delgado = list(
+        selected_user_region = "MOZ.1_1",
+        selected_friend_countries = africa_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100, 115),
+        xlim = c(-26, 58),
+        ylim = c(-35, 35)
+      ),
+      antananarivo = list(
+        selected_user_region = "MDG.1_1",
+        selected_friend_countries = africa_iso2_codes,
+        breaks = c(1:15),
+        xlim = c(-26, 58),
+        ylim = c(-35, 35)
+      )
+    ),
+    sci_df_path = "data/sci_2026/gadm1_all.csv",
+    sf_path = gadm1_shapefile_path,
+    borders_path = gadm0_shapefile_path,
+    dataset_region_key = "friend_region",
+    shape_region_key = "key",
+    shape_country_key = "sv_cntr"
   )
 )

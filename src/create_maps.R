@@ -2,14 +2,16 @@ run_maps_from_specs <- function(
   map_specs,
   sci_df_path,
   sf_path,
-  borders_path = gadm0_shapefile_path,
-  dataset_region_key = "friend_region",
-  shape_region_key = "key",
-  shape_country_key = "sv_cntr"
+  borders_path,
+  dataset_region_key,
+  shape_region_key,
+  shape_country_key,
+  map_width_in = 30,
+  map_height_in = 20
 ) {
-  sci_df = read_csv(sci_df_path, na = c(""))
+  sci_df <- read_csv(sci_df_path, na = c(""))
 
-  sf = st_read(sf_path, quiet = TRUE) %>%
+  sf <- st_read(sf_path, quiet = TRUE) %>%
     mutate(
       "{shape_country_key}" := countrycode(
         .data[[shape_country_key]],
@@ -19,7 +21,7 @@ run_maps_from_specs <- function(
       )
     )
 
-  borders = st_read(borders_path, quiet = TRUE) %>%
+  borders <- st_read(borders_path, quiet = TRUE) %>%
     mutate(
       "{shape_country_key}" := countrycode(
         .data[[shape_country_key]],
@@ -30,102 +32,67 @@ run_maps_from_specs <- function(
     )
 
   imap(map_specs, function(spec, spec_name) {
-    create_region_to_regions_map(
-      sci_data = sci_df,
-      shapefile = sf,
-      border_sf = borders,
-      selected_user_region = spec$selected_user_region,
-      selected_friend_countries = spec$selected_friend_countries,
-      dataset_region_key = dataset_region_key,
-      shape_region_key = shape_region_key,
-      shape_country_key = shape_country_key,
-      breaks = spec$breaks,
-      region_name = spec_name,
-      xlim = spec$xlim,
-      ylim = spec$ylim
+    selected_user_region <- spec$selected_user_region
+    selected_friend_countries <- spec$selected_friend_countries
+    breaks <- spec$breaks
+    xlim <- spec$xlim
+    ylim <- spec$ylim
+
+    shapes <- sf %>%
+      filter(.data[[shape_country_key]] %in% selected_friend_countries)
+
+    user_region_sf <- shapes %>%
+      filter(.data[[shape_region_key]] == selected_user_region)
+
+    borders_data <- borders %>%
+      filter(.data[[shape_country_key]] %in% selected_friend_countries)
+
+    message(glue("Processing {spec_name}"))
+
+    sci_filtered <- sci_df %>%
+      filter(
+        user_region == selected_user_region,
+        friend_country %in% selected_friend_countries
+      )
+
+    sci_ref <- quantile(
+      sci_filtered$scaled_sci,
+      probs = 0.10,
+      na.rm = TRUE
+    )
+
+    sci_filtered <- sci_filtered %>%
+      mutate(
+        scaled_sci_rel = scaled_sci / sci_ref
+      )
+
+    mapping_sf <- shapes %>%
+      left_join(
+        sci_filtered,
+        by = setNames(dataset_region_key, shape_region_key)
+      )
+
+    g <- create_map(
+      .data = mapping_sf,
+      col = "scaled_sci_rel",
+      borders_data = borders_data,
+      name = "Likelihood of Friendship",
+      highlight_sf = user_region_sf,
+      breaks = breaks,
+      xlims = xlim,
+      ylims = ylim
+    )
+
+    ggsave(
+      filename = file.path(
+        maps_dir,
+        glue("{spec_name}.png")
+      ),
+      plot = g,
+      width = map_width_in,
+      height = map_height_in,
+      units = "in",
+      dpi = base_dpi
     )
   })
-}
-
-
-create_region_to_regions_map <- function(
-  sci_data,
-  shapefile,
-  border_sf,
-  selected_user_region,
-  selected_friend_countries,
-  dataset_region_key = "friend_region",
-  shape_region_key = "key",
-  shape_country_key = "sv_cntr",
-  map_width_in = 30,
-  map_height_in = 20,
-  breaks = NA,
-  region_name = NA,
-  xlim = NA,
-  ylim = NA
-) {
-  shapes <- shapefile %>%
-    filter(
-      .data[[shape_country_key]] %in% selected_friend_countries
-    )
-
-  user_region_sf <- shapes %>%
-    filter(.data[[shape_region_key]] == selected_user_region)
-
-  borders_data <- border_sf %>%
-    filter(
-      .data[[shape_country_key]] %in% selected_friend_countries
-    )
-
-  message("Filtering SCI data...")
-  sci_filtered <- sci_data %>%
-    filter(
-      user_region == selected_user_region,
-      friend_country %in% selected_friend_countries
-    )
-
-  sci_ref <- quantile(
-    sci_filtered$scaled_sci,
-    probs = 0.10,
-    na.rm = TRUE
-  )
-
-  message("Transforming to friendship likelihood...")
-  sci_filtered <- sci_filtered %>%
-    mutate(
-      scaled_sci_rel = scaled_sci / sci_ref
-    )
-
-  message("Joining to shapefile...")
-  mapping_sf <- shapes %>%
-    left_join(
-      sci_filtered,
-      by = setNames(dataset_region_key, shape_region_key)
-    )
-
-  message("Mapping...")
-  g <- create_map(
-    .data = mapping_sf,
-    col = "scaled_sci_rel",
-    borders_data = borders_data,
-    name = "Likelihood of Friendship",
-    highlight_sf = user_region_sf,
-    breaks = breaks,
-    xlims = xlim,
-    ylims = ylim
-  )
-
-  ggsave(
-    filename = file.path(
-      maps_dir,
-      str_glue(
-        "{region_name}.png"
-      )
-    ),
-    plot = g,
-    width = map_width_in,
-    height = map_height_in,
-    units = "in",
-    dpi = base_dpi
-  )
 }
