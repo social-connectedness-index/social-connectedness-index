@@ -13,7 +13,7 @@ run_maps_from_specs <- function(
 
   sf <- st_read(sf_path, quiet = TRUE) %>%
     mutate(
-      "{shape_country_key}" := countrycode(
+      !!shape_country_key := countrycode(
         .data[[shape_country_key]],
         origin = "iso3c",
         destination = "iso2c",
@@ -23,7 +23,7 @@ run_maps_from_specs <- function(
 
   borders <- st_read(borders_path, quiet = TRUE) %>%
     mutate(
-      "{shape_country_key}" := countrycode(
+      !!shape_country_key := countrycode(
         .data[[shape_country_key]],
         origin = "iso3c",
         destination = "iso2c",
@@ -47,7 +47,7 @@ run_maps_from_specs <- function(
     borders_data <- borders %>%
       filter(.data[[shape_country_key]] %in% selected_friend_countries)
 
-    message(glue("Processing {spec_name}"))
+    message(str_glue("Processing {spec_name}"))
 
     sci_filtered <- sci_df %>%
       filter(
@@ -86,7 +86,7 @@ run_maps_from_specs <- function(
     ggsave(
       filename = file.path(
         maps_dir,
-        glue("{spec_name}.png")
+        str_glue("{spec_name}.png")
       ),
       plot = g,
       width = map_width_in,
