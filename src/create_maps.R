@@ -1,9 +1,13 @@
 run_maps_from_job <- function(job) {
   sci_df <- read_csv(job$sci_path, na = c(""))
 
-  friend_sf <- st_read(job$friend_sf_path, quiet = TRUE)
+  friend_sf <- st_read(
+    dsn = job$friend_sf$path,
+    layer = job$friend_sf$layer,
+    quiet = TRUE
+  )
 
-  if (job$friend_country_key == "sv_cntr") {
+  if (job$friend_country_key %in% c("sv_cntr", "shapeGroup")) {
     friend_sf <- friend_sf %>%
       mutate(
         !!job$friend_country_key := countrycode(
@@ -26,10 +30,14 @@ run_maps_from_job <- function(job) {
       )
     )
 
-  highlight_sf_all <- st_read(job$highlight_sf_path, quiet = TRUE) %>%
+  highlight_sf_all <- st_read(
+    dsn = job$highlight_sf$path,
+    layer = job$highlight_sf$layer,
+    quiet = TRUE
+  ) %>%
     st_transform(st_crs(friend_sf))
 
-  if (job$highlight_region_key == "sv_cntr") {
+  if (job$highlight_region_key %in% c("sv_cntr", "shapeGroup")) {
     highlight_sf_all <- highlight_sf_all %>%
       mutate(
         !!job$highlight_region_key := countrycode(
@@ -45,7 +53,7 @@ run_maps_from_job <- function(job) {
     message(str_glue("Processing {spec_name}"))
 
     shapes <- friend_sf
-    if (job$friend_country_key %in% c("sv_cntr", "CNTR_CODE")) {
+    if (job$friend_country_key %in% c("sv_cntr", "CNTR_CODE", "shapeGroup")) {
       shapes <- shapes %>%
         filter(.data[[job$friend_country_key]] %in% spec$friend_countries)
     }

@@ -40,6 +40,6 @@ load_geoboundaries_shapefiles(geoboundaries_gpkg_path)
 clean_us_zcta_shapefile()
 clean_us_county_shapefile()
 
-walk(map_jobs_for_paper, run_maps_from_job)
+walk(map_jobs, run_maps_from_job)
 
 output_master_scalars_file()

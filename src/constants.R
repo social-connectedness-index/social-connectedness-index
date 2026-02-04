@@ -426,13 +426,45 @@ south_asia_iso2_codes = c(
   "LK" # LKA → Sri Lanka
 )
 
-map_jobs_for_paper <- list(
+map_jobs <- list(
+  # country-country
+  country_country = list(
+    sci_path = "data/sci_2026/country.csv",
+    friend_sf = list(
+      path = gadm0_shapefile_path,
+      layer = NA
+    ),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(
+      path = gadm0_shapefile_path,
+      layer = NA
+    ),
+    highlight_region_key = "sv_cntr",
+    map_specs = list(
+      sweden = list(
+        user_region_id = "SE",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
+
+  # GADM1-GADM1
   africa_gadm1 = list(
     sci_path = "data/sci_2026/gadm1.csv",
-    friend_sf_path = gadm1_shapefile_path,
+    friend_sf = list(
+      path = gadm1_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "key",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = gadm1_shapefile_path,
+    highlight_sf = list(
+      path = gadm1_shapefile_path,
+      layer = NA
+    ),
     highlight_region_key = "key",
     map_specs = list(
       cabo_delgado = list(
@@ -452,12 +484,19 @@ map_jobs_for_paper <- list(
     )
   ),
 
+  # GADM2-GADM2
   india_gadm2 = list(
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
-    friend_sf_path = gadm2_shapefile_path,
+    friend_sf = list(
+      path = gadm2_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "key",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = gadm2_shapefile_path,
+    highlight_sf = list(
+      path = gadm2_shapefile_path,
+      layer = NA
+    ),
     highlight_region_key = "key",
     map_specs = list(
       varanasi = list(
@@ -479,10 +518,16 @@ map_jobs_for_paper <- list(
 
   brazil_gadm2 = list(
     sci_path = "data/sci_2026/gadm2_shard_BR.csv",
-    friend_sf_path = gadm2_shapefile_path,
+    friend_sf = list(
+      path = gadm2_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "key",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = gadm2_shapefile_path,
+    highlight_sf = list(
+      path = gadm2_shapefile_path,
+      layer = NA
+    ),
     highlight_region_key = "key",
     map_specs = list(
       manaus = list(
@@ -497,10 +542,16 @@ map_jobs_for_paper <- list(
 
   chile_gadm2 = list(
     sci_path = "data/sci_2026/gadm2_shard_DO.csv",
-    friend_sf_path = gadm2_shapefile_path,
+    friend_sf = list(
+      path = gadm2_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "key",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = gadm2_shapefile_path,
+    highlight_sf = list(
+      path = gadm2_shapefile_path,
+      layer = NA
+    ),
     highlight_region_key = "key",
     map_specs = list(
       santiago = list(
@@ -511,52 +562,27 @@ map_jobs_for_paper <- list(
         ylim = c(12, -55)
       )
     )
-  )
-)
-
-test_map_jobs <- list(
-  nuts1_to_country = list(
-    sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
-    friend_sf_path = gadm0_shapefile_path,
-    friend_region_key = "sv_cntr",
-    friend_country_key = "sv_cntr",
-    highlight_sf_path = nuts_shapefile_path,
-    highlight_region_key = "NUTS_ID",
-    map_specs = list(
-      hamburg = list(
-        user_region_id = "DE6",
-        friend_countries = countries_in_data,
-        breaks = NA,
-        xlim = NA,
-        ylim = NA
-      )
-    )
   ),
 
-  us_county_to_country = list(
-    sci_path = "data/sci_2026/us_counties_to_country.csv",
-    friend_sf_path = gadm0_shapefile_path,
-    friend_region_key = "sv_cntr",
-    friend_country_key = "sv_cntr",
-    highlight_sf_path = us_county_shapefile_path,
-    highlight_region_key = "region_id",
-    map_specs = list(
-      san_bernardino = list(
-        user_region_id = "06071",
-        friend_countries = countries_in_data,
-        breaks = NA,
-        xlim = NA,
-        ylim = NA
-      )
-    )
-  ),
+  # geoBoundaries_ADM1-geoBoundaries_ADM1
 
+  # geoBoundaries_ADM2-geoBoundaries_ADM2
+
+  # NUTS1-NUTS1, NUTS2-NUTS2, NUTS3-NUTS3
+
+  # county-county
   us_county_to_us_county = list(
     sci_path = "data/sci_2026/us_counties.csv",
-    friend_sf_path = us_county_shapefile_path,
+    friend_sf = list(
+      path = us_county_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "region_id",
     friend_country_key = "region_id",
-    highlight_sf_path = us_county_shapefile_path,
+    highlight_sf = list(
+      path = us_county_shapefile_path,
+      layer = NA
+    ),
     highlight_region_key = "region_id",
     map_specs = list(
       kings = list(
@@ -569,30 +595,19 @@ test_map_jobs <- list(
     )
   ),
 
-  us_zcta_to_country = list(
-    sci_path = "data/sci_2026/us_zcta_to_country.csv",
-    friend_sf_path = gadm0_shapefile_path,
-    friend_region_key = "sv_cntr",
-    friend_country_key = "sv_cntr",
-    highlight_sf_path = us_zcta_shapefile_path,
-    highlight_region_key = "region_id",
-    map_specs = list(
-      cambridge = list(
-        user_region_id = "02138",
-        friend_countries = countries_in_data,
-        breaks = NA,
-        xlim = NA,
-        ylim = NA
-      )
-    )
-  ),
-
+  # ZCTA-ZCTA
   us_zcta_to_us_zcta = list(
     sci_path = "data/sci_2026/us_zcta_shard_8.csv",
-    friend_sf_path = us_zcta_shapefile_path,
+    friend_sf = list(
+      path = us_zcta_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "region_id",
     friend_country_key = "region_id",
-    highlight_sf_path = us_zcta_shapefile_path,
+    highlight_sf = list(
+      path = us_zcta_shapefile_path,
+      layer = NA
+    ),
     highlight_region_key = "region_id",
     map_specs = list(
       tonopah = list(
@@ -605,16 +620,23 @@ test_map_jobs <- list(
     )
   ),
 
-  country_country = list(
-    sci_path = "data/sci_2026/country.csv",
-    friend_sf_path = gadm0_shapefile_path,
+  # GADM1-country, GADM2-country,
+  gadm1_country = list(
+    sci_path = "data/sci_2026/gadm1_to_country.csv",
+    friend_sf = list(
+      path = gadm0_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "sv_cntr",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = gadm0_shapefile_path,
-    highlight_region_key = "sv_cntr",
+    highlight_sf = list(
+      path = gadm1_shapefile_path,
+      layer = NA
+    ),
+    highlight_region_key = "key",
     map_specs = list(
-      sweden = list(
-        user_region_id = "SE",
+      india = list(
+        user_region_id = "IND.12_1",
         friend_countries = countries_in_data,
         breaks = NA,
         xlim = NA,
@@ -623,16 +645,99 @@ test_map_jobs <- list(
     )
   ),
 
-  gadm1_country = list(
-    sci_path = "data/sci_2026/gadm1_to_country.csv",
-    friend_sf_path = gadm0_shapefile_path,
+  # geoBoundaries_ADM1-country, geoBoundaries_ADM2-country
+
+  adm1_adm1 = list(
+    sci_path = "data/sci_2026/geoboundaries_adm1.csv",
+    friend_sf = list(
+      path = geoboundaries_gpkg_path,
+      layer = "adm1"
+    ),
+    friend_region_key = "shapeID",
+    friend_country_key = "shapeGroup",
+    highlight_sf = list(
+      path = geoboundaries_gpkg_path,
+      layer = "adm1"
+    ),
+    highlight_region_key = "shapeID",
+    map_specs = list(
+      massachusetts = list(
+        user_region_id = "66186276B15934532614691",
+        friend_countries = c("US"),
+        breaks = NA,
+        xlim = c(-125, -66),
+        ylim = c(25, 50)
+      )
+    )
+  ),
+
+  # NUTS1-country, NUTS2-country, NUTS3-country
+  nuts1_to_country = list(
+    sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
+    friend_sf = list(
+      path = gadm0_shapefile_path,
+      layer = NA
+    ),
     friend_region_key = "sv_cntr",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = gadm1_shapefile_path,
-    highlight_region_key = "key",
+    highlight_sf = list(
+      path = nuts_shapefile_path,
+      layer = NA
+    ),
+    highlight_region_key = "NUTS_ID",
     map_specs = list(
-      india = list(
-        user_region_id = "IND.12_1",
+      hamburg = list(
+        user_region_id = "DE6",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
+
+  # county-country
+  us_county_to_country = list(
+    sci_path = "data/sci_2026/us_counties_to_country.csv",
+    friend_sf = list(
+      path = gadm0_shapefile_path,
+      layer = NA
+    ),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(
+      path = us_county_shapefile_path,
+      layer = NA
+    ),
+    highlight_region_key = "region_id",
+    map_specs = list(
+      san_bernardino = list(
+        user_region_id = "06071",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
+
+  # ZCTA-country
+  us_zcta_to_country = list(
+    sci_path = "data/sci_2026/us_zcta_to_country.csv",
+    friend_sf = list(
+      path = gadm0_shapefile_path,
+      layer = NA
+    ),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(
+      path = us_zcta_shapefile_path,
+      layer = NA
+    ),
+    highlight_region_key = "region_id",
+    map_specs = list(
+      cambridge = list(
+        user_region_id = "02138",
         friend_countries = countries_in_data,
         breaks = NA,
         xlim = NA,
