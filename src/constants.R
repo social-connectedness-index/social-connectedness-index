@@ -41,6 +41,8 @@ geoboundaries_adm3_shapefile_path = file.path(
   "geoboundaries_adm3.shp"
 )
 
+us_cleaned_shapefiles_dir <- file.path(cleaned_shapefiles_dir, "united_states")
+
 sci_2021_dir = file.path(
   data_dir,
   "sci_2021"
@@ -504,7 +506,7 @@ test_map_jobs <- list(
     friend_sf_path = gadm0_shapefile_path,
     friend_region_key = "sv_cntr",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = "data/cleaned_shapefiles/NUTS_RG_01M_2024_4326.gpkg",
+    highlight_sf_path = "data/input_shapefiles/NUTS_RG_01M_2024_4326.gpkg",
     highlight_region_key = "NUTS_ID",
     map_specs = list(
       hamburg = list(
