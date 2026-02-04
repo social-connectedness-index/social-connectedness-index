@@ -1,81 +1,97 @@
 data_dir <- "data"
+output_dir <- "output"
+maps_dir <- file.path(output_dir, "maps")
 
-output_dir <- file.path("output")
-maps_dir <- file.path("output", "maps")
-
-input_shapefiles_dir = file.path(data_dir, "input_shapefiles")
+input_shapefiles_dir <- file.path(data_dir, "input_shapefiles")
 cleaned_shapefiles_dir <- file.path(data_dir, "cleaned_shapefiles")
 
-gadm_gpkg_input = file.path(
+gadm_gpkg_input <- file.path(
   input_shapefiles_dir,
   "gadm_410-levels.zip"
 )
-gadm_shapefiles_output_dir = file.path(
+
+gadm_shapefiles_output_dir <- file.path(
   cleaned_shapefiles_dir,
   "gadm"
 )
-gadm0_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm0.shp")
-gadm1_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm1.shp")
-gadm2_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm2.shp")
-gadm3_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm3.shp")
 
-geoboundaries_gpkg_path = file.path(
+gadm0_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm0.shp")
+gadm1_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm1.shp")
+gadm2_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm2.shp")
+gadm3_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm3.shp")
+
+geoboundaries_gpkg_path <- file.path(
   cleaned_shapefiles_dir,
   "geoBoundaries.gpkg"
 )
 
-geoboundaries_temp_shapes = file.path(
+geoboundaries_temp_shapes <- file.path(
   cleaned_shapefiles_dir,
   "geoboundaries_temp"
 )
-geoboundaries_adm1_shapefile_path = file.path(
+
+geoboundaries_adm1_shapefile_path <- file.path(
   geoboundaries_temp_shapes,
   "geoboundaries_adm1.shp"
 )
-geoboundaries_adm2_shapefile_path = file.path(
+
+geoboundaries_adm2_shapefile_path <- file.path(
   geoboundaries_temp_shapes,
   "geoboundaries_adm2.shp"
 )
-geoboundaries_adm3_shapefile_path = file.path(
+
+geoboundaries_adm3_shapefile_path <- file.path(
   geoboundaries_temp_shapes,
   "geoboundaries_adm3.shp"
 )
 
-us_cleaned_shapefiles_dir <- file.path(cleaned_shapefiles_dir, "united_states")
-
-sci_2021_dir = file.path(
-  data_dir,
-  "sci_2021"
+us_cleaned_shapefiles_dir <- file.path(
+  cleaned_shapefiles_dir,
+  "united_states"
 )
 
-country_sci_2021 = file.path(
+us_county_shapefile_path <- file.path(
+  us_cleaned_shapefiles_dir,
+  "united_states_counties.shp"
+)
+
+us_zcta_shapefile_path <- file.path(
+  us_cleaned_shapefiles_dir,
+  "united_states.shp"
+)
+
+nuts_shapefile_path <- file.path(
+  input_shapefiles_dir,
+  "NUTS_RG_01M_2024_4326.gpkg"
+)
+
+sci_2021_dir <- file.path(data_dir, "sci_2021")
+
+country_sci_2021 <- file.path(
   sci_2021_dir,
   "countries-countries-fb-social-connectedness-index-october-2021.tsv"
 )
 
-counties_sci_2021 = file.path(
+counties_sci_2021 <- file.path(
   sci_2021_dir,
   "county_county.tsv"
 )
 
-sci_2026_dir = file.path(
-  data_dir,
-  "sci_2026"
-)
+sci_2026_dir <- file.path(data_dir, "sci_2026")
 
-country_sci_2026 = file.path(
+country_sci_2026 <- file.path(
   sci_2026_dir,
   "country.csv"
 )
 
-counties_sci_2026 = file.path(
+counties_sci_2026 <- file.path(
   sci_2026_dir,
   "us_counties.csv"
 )
 
-scalar_output_fp = "output/scalars.txt"
-internal_scalars_fp = file.path(data_dir, "internal_scalars.txt")
-external_scalars_fp = file.path(data_dir, "external_scalars.txt")
+scalar_output_fp <- file.path(output_dir, "scalars.txt")
+internal_scalars_fp <- file.path(data_dir, "internal_scalars.txt")
+external_scalars_fp <- file.path(data_dir, "external_scalars.txt")
 
 iso3_sovereign_iso3_xwalk = c(
   "AIA" = "GBR", # Anguilla
@@ -410,7 +426,6 @@ south_asia_iso2_codes = c(
   "LK" # LKA → Sri Lanka
 )
 
-
 map_jobs_for_paper <- list(
   africa_gadm1 = list(
     sci_path = "data/sci_2026/gadm1.csv",
@@ -499,14 +514,13 @@ map_jobs_for_paper <- list(
   )
 )
 
-
 test_map_jobs <- list(
   nuts1_to_country = list(
     sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
     friend_sf_path = gadm0_shapefile_path,
     friend_region_key = "sv_cntr",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = "data/input_shapefiles/NUTS_RG_01M_2024_4326.gpkg",
+    highlight_sf_path = nuts_shapefile_path,
     highlight_region_key = "NUTS_ID",
     map_specs = list(
       hamburg = list(
@@ -524,7 +538,7 @@ test_map_jobs <- list(
     friend_sf_path = gadm0_shapefile_path,
     friend_region_key = "sv_cntr",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states_counties.shp",
+    highlight_sf_path = us_county_shapefile_path,
     highlight_region_key = "region_id",
     map_specs = list(
       san_bernardino = list(
@@ -539,10 +553,10 @@ test_map_jobs <- list(
 
   us_county_to_us_county = list(
     sci_path = "data/sci_2026/us_counties.csv",
-    friend_sf_path = "data/cleaned_shapefiles/united_states/united_states_counties.shp",
+    friend_sf_path = us_county_shapefile_path,
     friend_region_key = "region_id",
     friend_country_key = "region_id",
-    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states_counties.shp",
+    highlight_sf_path = us_county_shapefile_path,
     highlight_region_key = "region_id",
     map_specs = list(
       kings = list(
@@ -560,7 +574,7 @@ test_map_jobs <- list(
     friend_sf_path = gadm0_shapefile_path,
     friend_region_key = "sv_cntr",
     friend_country_key = "sv_cntr",
-    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states.shp",
+    highlight_sf_path = us_zcta_shapefile_path,
     highlight_region_key = "region_id",
     map_specs = list(
       cambridge = list(
@@ -575,10 +589,10 @@ test_map_jobs <- list(
 
   us_zcta_to_us_zcta = list(
     sci_path = "data/sci_2026/us_zcta_shard_8.csv",
-    friend_sf_path = "data/cleaned_shapefiles/united_states/united_states.shp",
+    friend_sf_path = us_zcta_shapefile_path,
     friend_region_key = "region_id",
     friend_country_key = "region_id",
-    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states.shp",
+    highlight_sf_path = us_zcta_shapefile_path,
     highlight_region_key = "region_id",
     map_specs = list(
       tonopah = list(
