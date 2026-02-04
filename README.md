@@ -33,7 +33,7 @@ The Social Connectedness Index (SCI) measures the relative probability that two 
 
 Users of the SCI should cite the original SCI papers listed in `Relevant Literature.bib`.  
 
-## GADM Shapefiles
+## GADM Shapefile
 
 **Link:**  
 https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
@@ -51,7 +51,7 @@ https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
 
 The GADM GeoPackage should be placed in: ```data/input_shapefiles/```. 
 
-## geoBoundaries Shapefiles
+## geoBoundaries Shapefile API
 
 **Link:**  
 https://www.geoboundaries.org/api.html
@@ -118,7 +118,6 @@ These shapefiles are sourced from the U.S. Census Bureau TIGER/Line products and
 ```
 
 This file should be placed in ```data/input_shapefiles/```. 
-
 
 # Contact
 
