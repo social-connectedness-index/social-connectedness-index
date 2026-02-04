@@ -19,6 +19,28 @@ gadm1_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm1.shp")
 gadm2_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm2.shp")
 gadm3_shapefile_path = file.path(gadm_shapefiles_output_dir, "gadm3.shp")
 
+geoboundaries_gpkg_path = file.path(
+  cleaned_shapefiles_dir,
+  "geoBoundaries.gpkg"
+)
+
+geoboundaries_temp_shapes = file.path(
+  cleaned_shapefiles_dir,
+  "geoboundaries_temp"
+)
+geoboundaries_adm1_shapefile_path = file.path(
+  geoboundaries_temp_shapes,
+  "geoboundaries_adm1.shp"
+)
+geoboundaries_adm2_shapefile_path = file.path(
+  geoboundaries_temp_shapes,
+  "geoboundaries_adm2.shp"
+)
+geoboundaries_adm3_shapefile_path = file.path(
+  geoboundaries_temp_shapes,
+  "geoboundaries_adm3.shp"
+)
+
 sci_2021_dir = file.path(
   data_dir,
   "sci_2021"
@@ -41,12 +63,12 @@ sci_2026_dir = file.path(
 
 country_sci_2026 = file.path(
   sci_2026_dir,
-  "country_all.csv"
+  "country.csv"
 )
 
 counties_sci_2026 = file.path(
   sci_2026_dir,
-  "us_counties_all.csv"
+  "us_counties.csv"
 )
 
 scalar_output_fp = "output/scalars.txt"
@@ -386,90 +408,220 @@ south_asia_iso2_codes = c(
   "LK" # LKA → Sri Lanka
 )
 
-map_jobs <- list(
-  india = list(
-    map_specs = list(
-      varanasi = list(
-        selected_user_region = "IND.34.75_1",
-        selected_friend_countries = south_asia_iso2_codes,
-        breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
-        xlim = c(60, 98),
-        ylim = c(5, 37)
-      ),
-      belgaum = list(
-        selected_user_region = "IND.16.4_1",
-        selected_friend_countries = south_asia_iso2_codes,
-        breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
-        xlim = c(60, 98),
-        ylim = c(5, 37)
-      )
-    ),
-    sci_df_path = "data/sci_2026/gadm2_all_shard_JO.csv",
-    sf_path = gadm2_shapefile_path,
-    borders_path = gadm0_shapefile_path,
-    dataset_region_key = "friend_region",
-    shape_region_key = "key",
-    shape_country_key = "sv_cntr"
-  ),
 
-  brazil = list(
-    map_specs = list(
-      manaus = list(
-        selected_user_region = "BRA.4.38_2",
-        selected_friend_countries = south_america_iso2_codes,
-        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
-        xlim = c(-33, -85),
-        ylim = c(12, -55)
-      )
-    ),
-    sci_df_path = "data/sci_2026/gadm2_all_shard_BR.csv",
-    sf_path = gadm2_shapefile_path,
-    borders_path = gadm0_shapefile_path,
-    dataset_region_key = "friend_region",
-    shape_region_key = "key",
-    shape_country_key = "sv_cntr"
-  ),
-
-  chile = list(
-    map_specs = list(
-      santiago = list(
-        selected_user_region = "CHL.14.5_1",
-        selected_friend_countries = south_america_iso2_codes,
-        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
-        xlim = c(-33, -85),
-        ylim = c(12, -55)
-      )
-    ),
-    sci_df_path = "data/sci_2026/gadm2_all_shard_DO.csv",
-    sf_path = gadm2_shapefile_path,
-    borders_path = gadm0_shapefile_path,
-    dataset_region_key = "friend_region",
-    shape_region_key = "key",
-    shape_country_key = "sv_cntr"
-  ),
-
-  africa = list(
+map_jobs_for_paper <- list(
+  africa_gadm1 = list(
+    sci_path = "data/sci_2026/gadm1.csv",
+    friend_sf_path = gadm1_shapefile_path,
+    friend_region_key = "key",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = gadm1_shapefile_path,
+    highlight_region_key = "key",
     map_specs = list(
       cabo_delgado = list(
-        selected_user_region = "MOZ.1_1",
-        selected_friend_countries = africa_iso2_codes,
+        user_region_id = "MOZ.1_1",
+        friend_countries = africa_iso2_codes,
         breaks = c(1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100, 115),
         xlim = c(-26, 58),
         ylim = c(-35, 35)
       ),
       antananarivo = list(
-        selected_user_region = "MDG.1_1",
-        selected_friend_countries = africa_iso2_codes,
+        user_region_id = "MDG.1_1",
+        friend_countries = africa_iso2_codes,
         breaks = c(1:15),
         xlim = c(-26, 58),
         ylim = c(-35, 35)
       )
-    ),
-    sci_df_path = "data/sci_2026/gadm1_all.csv",
-    sf_path = gadm1_shapefile_path,
-    borders_path = gadm0_shapefile_path,
-    dataset_region_key = "friend_region",
-    shape_region_key = "key",
-    shape_country_key = "sv_cntr"
+    )
+  ),
+
+  india_gadm2 = list(
+    sci_path = "data/sci_2026/gadm2_shard_JO.csv",
+    friend_sf_path = gadm2_shapefile_path,
+    friend_region_key = "key",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = gadm2_shapefile_path,
+    highlight_region_key = "key",
+    map_specs = list(
+      varanasi = list(
+        user_region_id = "IND.34.75_1",
+        friend_countries = south_asia_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
+        xlim = c(60, 98),
+        ylim = c(5, 37)
+      ),
+      belgaum = list(
+        user_region_id = "IND.16.4_1",
+        friend_countries = south_asia_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
+        xlim = c(60, 98),
+        ylim = c(5, 37)
+      )
+    )
+  ),
+
+  brazil_gadm2 = list(
+    sci_path = "data/sci_2026/gadm2_shard_BR.csv",
+    friend_sf_path = gadm2_shapefile_path,
+    friend_region_key = "key",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = gadm2_shapefile_path,
+    highlight_region_key = "key",
+    map_specs = list(
+      manaus = list(
+        user_region_id = "BRA.4.38_2",
+        friend_countries = south_america_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+        xlim = c(-33, -85),
+        ylim = c(12, -55)
+      )
+    )
+  ),
+
+  chile_gadm2 = list(
+    sci_path = "data/sci_2026/gadm2_shard_DO.csv",
+    friend_sf_path = gadm2_shapefile_path,
+    friend_region_key = "key",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = gadm2_shapefile_path,
+    highlight_region_key = "key",
+    map_specs = list(
+      santiago = list(
+        user_region_id = "CHL.14.5_1",
+        friend_countries = south_america_iso2_codes,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+        xlim = c(-33, -85),
+        ylim = c(12, -55)
+      )
+    )
+  )
+)
+
+
+test_map_jobs <- list(
+  nuts1_to_country = list(
+    sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
+    friend_sf_path = gadm0_shapefile_path,
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = "data/cleaned_shapefiles/NUTS_RG_01M_2024_4326.gpkg",
+    highlight_region_key = "NUTS_ID",
+    map_specs = list(
+      hamburg = list(
+        user_region_id = "DE6",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
+
+  us_county_to_country = list(
+    sci_path = "data/sci_2026/us_counties_to_country.csv",
+    friend_sf_path = gadm0_shapefile_path,
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states_counties.shp",
+    highlight_region_key = "region_id",
+    map_specs = list(
+      san_bernardino = list(
+        user_region_id = "06071",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
+
+  us_county_to_us_county = list(
+    sci_path = "data/sci_2026/us_counties.csv",
+    friend_sf_path = "data/cleaned_shapefiles/united_states/united_states_counties.shp",
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states_counties.shp",
+    highlight_region_key = "region_id",
+    map_specs = list(
+      kings = list(
+        user_region_id = "36047",
+        friend_countries = c("US"),
+        breaks = NA,
+        xlim = c(-125, -66),
+        ylim = c(25, 50)
+      )
+    )
+  ),
+
+  us_zcta_to_country = list(
+    sci_path = "data/sci_2026/us_zcta_to_country.csv",
+    friend_sf_path = gadm0_shapefile_path,
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states.shp",
+    highlight_region_key = "region_id",
+    map_specs = list(
+      cambridge = list(
+        user_region_id = "02138",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
+
+  us_zcta_to_us_zcta = list(
+    sci_path = "data/sci_2026/us_zcta_shard_8.csv",
+    friend_sf_path = "data/cleaned_shapefiles/united_states/united_states.shp",
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf_path = "data/cleaned_shapefiles/united_states/united_states.shp",
+    highlight_region_key = "region_id",
+    map_specs = list(
+      tonopah = list(
+        user_region_id = "89049",
+        friend_countries = c("US"),
+        breaks = NA,
+        xlim = c(-125, -66),
+        ylim = c(25, 50)
+      )
+    )
+  ),
+
+  country_country = list(
+    sci_path = "data/sci_2026/country.csv",
+    friend_sf_path = gadm0_shapefile_path,
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = gadm0_shapefile_path,
+    highlight_region_key = "sv_cntr",
+    map_specs = list(
+      sweden = list(
+        user_region_id = "SE",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
+
+  gadm1_country = list(
+    sci_path = "data/sci_2026/gadm1_to_country.csv",
+    friend_sf_path = gadm0_shapefile_path,
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf_path = gadm1_shapefile_path,
+    highlight_region_key = "key",
+    map_specs = list(
+      india = list(
+        user_region_id = "IND.12_1",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
   )
 )

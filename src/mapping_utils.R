@@ -151,16 +151,6 @@ create_map <- function(
       legend.key.width = unit(4, "inches")
     )
 
-  if (!is.null(highlight_sf) && nrow(highlight_sf) > 0) {
-    map <- map +
-      geom_sf(
-        data = highlight_sf,
-        fill = "#FF0000",
-        color = NA,
-        size = 10
-      )
-  }
-
   if (any(!is.na(borders_data))) {
     map <- map +
       geom_sf(
@@ -168,6 +158,15 @@ create_map <- function(
         size = 0.50,
         fill = "transparent",
         color = "gray20"
+      )
+  }
+
+  if (!is.null(highlight_sf) && nrow(highlight_sf) > 0) {
+    map <- map +
+      geom_sf(
+        data = highlight_sf,
+        fill = "#FF0000",
+        color = NA
       )
   }
 
