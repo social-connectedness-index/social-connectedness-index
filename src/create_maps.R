@@ -1,11 +1,15 @@
 run_maps_from_job <- function(job) {
   sci_df <- read_csv(job$sci_path, na = c(""))
 
-  friend_sf <- st_read(
-    dsn = job$friend_sf$path,
-    layer = job$friend_sf$layer,
-    quiet = TRUE
-  )
+  friend_sf <- if (is.null(job$friend_sf$layer)) {
+    st_read(dsn = job$friend_sf$path, quiet = TRUE)
+  } else {
+    st_read(
+      dsn = job$friend_sf$path,
+      layer = job$friend_sf$layer,
+      quiet = TRUE
+    )
+  }
 
   if (job$friend_country_key %in% c("sv_cntr", "shapeGroup")) {
     friend_sf <- friend_sf %>%
@@ -30,12 +34,18 @@ run_maps_from_job <- function(job) {
       )
     )
 
-  highlight_sf_all <- st_read(
-    dsn = job$highlight_sf$path,
-    layer = job$highlight_sf$layer,
-    quiet = TRUE
-  ) %>%
-    st_transform(st_crs(friend_sf))
+  highlight_sf_all <- if (is.null(job$highlight_sf$layer)) {
+    st_read(dsn = job$highlight_sf$path, quiet = TRUE)
+  } else {
+    {
+      st_read(
+        dsn = job$highlight_sf$path,
+        layer = job$highlight_sf$layer,
+        quiet = TRUE
+      )
+    } %>%
+      st_transform(st_crs(friend_sf))
+  }
 
   if (job$highlight_region_key %in% c("sv_cntr", "shapeGroup")) {
     highlight_sf_all <- highlight_sf_all %>%
@@ -86,7 +96,8 @@ run_maps_from_job <- function(job) {
           "friend_region",
           job$friend_region_key
         )
-      )
+      ) %>%
+      filter(!is.na(scaled_sci_rel))
 
     g <- create_map(
       .data = mapping_sf,
