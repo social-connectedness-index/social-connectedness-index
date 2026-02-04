@@ -1,23 +1,12 @@
 # The Social Connectedness Index
 
-This repository provides a set of scripts to help make use of the **Social Connectedness Index (SCI)** data.  
-The SCI data are publicly available at:
+This repository provides a set of scripts to help make use of the **Social Connectedness Index (SCI)** data. The SCI data are publicly available at the [Humanitarian Data Exchange](https://data.humdata.org/dataset/social-connectedness-index). 
 
-https://data.humdata.org/dataset/social-connectedness-index
+The repository also includes replication code for [Johnston, Kuchler, Kulkarni, and Stroebel (2026)](https://pages.stern.nyu.edu/~jstroebe/PDF/JKKS_SCI.pdf).
 
-The repository also includes **replication code for Johnston, Kuchler, Kulkarni, and Stroebel (2026)**.
+Replication code for other papers that use the SCI is available in separate repositories: Code for [Kuchler, Russell, and Stroebel (2021)](https://www.sciencedirect.com/science/article/pii/S0094119020300851) is available [here](https://github.com/social-connectedness-index/example-scripts), and code for [Bailey, Kuchler, Johnston, Russell, State, and Stroebel (2020)](https://link.springer.com/chapter/10.1007/978-3-030-60975-7_1) is available [here](https://github.com/social-connectedness-index/euro_sci). 
 
-Replication code for other papers that use the SCI is available in separate repositories:
-
-- **Kuchler, Russell, and Stroebel (2021)**  
-  https://www.sciencedirect.com/science/article/pii/S0094119020300851  
-  Code: https://github.com/social-connectedness-index/example-scripts
-
-- **Bailey, Kuchler, Johnston, Russell, State, and Stroebel (2020)**  
-  https://link.springer.com/chapter/10.1007/978-3-030-60975-7_1  
-  Code: https://github.com/social-connectedness-index/euro_sci
-
-We also include **Relevant Literature + Bibtex.bib**, which contains references to papers that introduce and develop the Social Connectedness Index, along with guidance on how to cite the prior literature when using SCI data.
+We also include **Relevant Literature.bib**, which contains references to papers that introduce and develop the Social Connectedness Index. 
 
 ---
 
@@ -43,9 +32,6 @@ src
 The Social Connectedness Index (SCI) measures the relative probability that two locations are socially connected, based on aggregated Facebook friendship links.
 
 Users of the SCI should cite the original SCI papers listed in `Relevant Literature + Bibtex.bib`.  
-Different releases of the SCI (e.g. 2021 vs 2026) may differ in geographic coverage, resolution, and normalization.
-
----
 
 ## GADM Shapefiles
 
@@ -134,10 +120,6 @@ These shapefiles are sourced from the U.S. Census Bureau TIGER/Line products and
 This file should be placed in ```data/input_shapefiles/```. 
 
 
-# Citation and Usage
-
-If you use the Social Connectedness Index or outputs derived from this repository, please cite the relevant SCI papers listed in Relevant Literature + Bibtex.bib, along with any shapefile sources used (GADM, geoBoundaries, Eurostat, or U.S. Census Bureau).
-
 # Contact
 
-This repository is managed by Theresa Kuchler and Johannes Stroebel.
+This repository is managed by [Theresa Kuchler](https://pages.stern.nyu.edu/~tkuchler/index.html) and [Johannes Stroebel](https://pages.stern.nyu.edu/~jstroebe/).
