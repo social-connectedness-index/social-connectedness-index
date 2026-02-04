@@ -31,7 +31,7 @@ src
 
 The Social Connectedness Index (SCI) measures the relative probability that two locations are socially connected, based on aggregated Facebook friendship links.
 
-Users of the SCI should cite the original SCI papers listed in `Relevant Literature + Bibtex.bib`.  
+Users of the SCI should cite the original SCI papers listed in `Relevant Literature.bib`.  
 
 ## GADM Shapefiles
 
