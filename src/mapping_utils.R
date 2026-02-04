@@ -19,17 +19,6 @@ map_colors <- c(
   "#10617b"
 )
 
-get_label_for_plotting <- function(x, var_dict) {
-  if (x %in% names(var_dict)) {
-    label = var_dict[[x]]
-  } else {
-    label = str_replace_all(x, "_", " ") %>% str_to_title()
-  }
-
-  return(label)
-}
-
-
 get_breaks <- function(
   .data = NA,
   col = NA,
@@ -72,7 +61,6 @@ get_breaks <- function(
   return(breaks)
 }
 
-
 create_map <- function(
   .data,
   col,
@@ -107,10 +95,6 @@ create_map <- function(
   }
 
   eps = 0.0000001
-
-  if (is.na(name)) {
-    name = get_label_for_plotting(col, getFixest_dict())
-  }
 
   all_breaks <- breaks
   legend_breaks <- breaks[!is.infinite(breaks)]
