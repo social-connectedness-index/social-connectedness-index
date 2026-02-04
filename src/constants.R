@@ -708,7 +708,7 @@ map_jobs <- list(
   ),
 
   # NUTS1-NUTS1, NUTS2-NUTS2, NUTS3-NUTS3
-  nuts1_nuts1 = list(
+  nuts_nuts = list(
     sci_path = "data/sci_2026/nuts1_2024.csv",
     friend_sf = list(
       path = nuts_shapefile_path,
@@ -808,6 +808,29 @@ map_jobs <- list(
   ),
 
   # geoBoundaries_ADM1-country, geoBoundaries_ADM2-country
+  adm1_country = list(
+    sci_path = "data/sci_2026/geoboundaries_adm1_to_country.csv",
+    friend_sf = list(
+      path = gadm0_shapefile_path,
+      layer = NULL
+    ),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(
+      path = geoboundaries_gpkg_path,
+      layer = "adm1"
+    ),
+    highlight_region_key = "shapeID",
+    map_specs = list(
+      uttar_pradesh = list(
+        user_region_id = "1811400B11231190780494",
+        friend_countries = countries_in_data,
+        breaks = NA,
+        xlim = NA,
+        ylim = NA
+      )
+    )
+  ),
 
   # NUTS1-country, NUTS2-country, NUTS3-country
   nuts1_to_country = list(
