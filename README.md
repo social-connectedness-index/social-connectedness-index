@@ -4,7 +4,7 @@ This repository provides a set of scripts to help make use of the **Social Conne
 
 The repository also includes replication code for [Johnston, Kuchler, Kulkarni, and Stroebel (2026)](https://pages.stern.nyu.edu/~jstroebe/PDF/JKKS_SCI.pdf).
 
-Replication code for other papers that use the SCI is available in separate repositories: Code for [Kuchler, Russell, and Stroebel (2021)](https://www.sciencedirect.com/science/article/pii/S0094119020300851) is available [here](https://github.com/social-connectedness-index/example-scripts), and code for [Bailey, Kuchler, Johnston, Russell, State, and Stroebel (2020)](https://link.springer.com/chapter/10.1007/978-3-030-60975-7_1) is available [here](https://github.com/social-connectedness-index/euro_sci). 
+Replication code for other papers that use the SCI is available in separate repositories: Code for [Kuchler, Russell, and Stroebel (2022)](https://www.sciencedirect.com/science/article/pii/S0094119020300851) is available [here](https://github.com/social-connectedness-index/example-scripts), and code for [Bailey, Kuchler, Johnston, Russell, State, and Stroebel (2020)](https://link.springer.com/chapter/10.1007/978-3-030-60975-7_1) is available [here](https://github.com/social-connectedness-index/euro_sci). 
 
 We also include **Relevant Literature.bib**, which contains references to papers that introduce and develop the Social Connectedness Index. 
 
