@@ -327,18 +327,6 @@ The maps will be written to the output directory automatically.
 
 ---
 
-## Output
-
-Each map:
-
-* is saved as a file
-* is named based on job + region
-* is fully reproducible
-
-No manual exporting needed.
-
----
-
 # Data and Shapefiles
 
 ## The Social Connectedness Index
