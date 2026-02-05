@@ -46,7 +46,7 @@ You will mainly interact with **two files**:
 
 | File                                 | What it does                         |
 | ------------------------------------ | ------------------------------------ |
-| `main.R` (or equivalent main script) | Sets everything up and runs the maps |
+| `main.R`                             | Sets everything up and runs the maps |
 | `src/map_structs.R`                  | Where you define what maps you want  |
 
 Everything else is support machinery.
@@ -336,35 +336,6 @@ Each map:
 * is fully reproducible
 
 No manual exporting needed.
-
----
-
-## Common Mistakes (and Fixes)
-
-### ❌ Nothing happens
-
-* Make sure you re‑ran `walk(map_jobs, run_maps_from_job)`
-
-### ❌ Region not found
-
-* Double‑check `user_region_id`
-* Make sure it exists in the SCI CSV
-
-### ❌ Map is empty or zoomed wrong
-
-* Try setting `xlim = NA`, `ylim = NA`
-
----
-
-## Final Advice
-
-* Copy existing examples
-* Change **one thing at a time**
-* If a job works once, it will always work
-
-This tool is designed so that **editing one list is all you ever need to do**.
-
-Happy mapping 🌍
 
 ---
 
