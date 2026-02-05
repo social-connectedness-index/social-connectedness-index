@@ -10,18 +10,361 @@ We also include **Relevant Literature.bib**, which contains references to papers
 
 ---
 
-## Directory Structure 
+This tool lets you create high‑quality maps of the **Social Connectedness Index (SCI)** with *very little code editing*. You do **not** need to understand spatial data or GIS concepts to use it successfully.
 
+If you can:
+
+* open an R project,
+* run a script once, and
+* edit a structured list,
+
+then you can use this tool.
+
+---
+
+## Big Picture: How the Tool Works
+
+Think of the workflow in **two clear phases**:
+
+1. **One‑time setup** (run once)
+
+   * Downloads, cleans, and standardizes shapefiles
+   * Prepares everything behind the scenes
+
+2. **Map selection** (repeat as needed)
+
+   * You tell the tool *what maps you want*
+   * The tool generates them automatically
+
+You **never** need to touch the cleaning code again after the first run.
+
+---
+
+## Folder Structure (Mental Model)
+
+You will mainly interact with **two files**:
+
+| File                                 | What it does                         |
+| ------------------------------------ | ------------------------------------ |
+| `main.R` (or equivalent main script) | Sets everything up and runs the maps |
+| `src/map_structs.R`                  | Where you define what maps you want  |
+
+Everything else is support machinery.
+
+---
+
+## Step 0: What You Need Installed
+
+Before running anything, make sure you have:
+
+* **R** 
+* **RStudio** 
+
+The tool uses these R packages:
+
+* `sf`
+* `tidyverse`
+* `countrycode`
+* `rmapshaper`
+* `rgeoboundaries`
+* `wbstats`
+
+If R complains about a missing package, just run:
+
+```r
+install.packages("package_name")
 ```
-data
-  data/cleaned_shapefiles 
-  data/input_shapefiles
-  data/sci_2021
-  data/sci_2026
-output
-  output/maps
-src
+
+---
+
+## Step 1: One‑Time Setup
+
+### What this step does
+
+This step:
+
+* cleans and standardizes them
+* saves clean versions to disk
+
+**You only need to do this once per machine.**
+
+### What to do
+
+1. Download the SCI data and the shapefiles that are applicable to your use case: GADM, NUTS, US counties, or US ZCTA. Download links to these shapefiles are at the end of this documentation. If you are using geoBoundaries, you need not download anything proactively. 
+
+2. Open the **main script** (`main.R`):
+
+```r
+r_setup()
+load_gadm_data(...)
+load_geoboundaries_shapefiles(...)
+clean_us_zcta_shapefile()
+clean_us_county_shapefile()
+walk(map_jobs, run_maps_from_job)
 ```
+
+3. Select **everything** in the file
+4. Click **Run** (or press `Cmd + Enter` / `Ctrl + Enter` repeatedly)
+
+### What you should expect
+
+* This can take several minutes
+* You will see messages about shapefiles loading
+* New folders will appear in your project directory
+
+If this finishes without errors, you are set forever.
+
+---
+
+## Step 2: Understanding `map_structs.R`
+
+This is the **only file most users ever touch**.
+
+### What `map_structs.R` is
+
+It is a **menu of maps**.
+
+Each entry answers:
+
+* *What kind of SCI data am I using?*
+* *What geography am I mapping?*
+* *Which region is the focus?*
+
+You do **not** write functions. You only fill in values.
+
+---
+
+## The Structure of a Map Job
+
+Every map job follows the same template:
+
+```r
+job_name = list(
+  sci_path = "...",
+  friend_sf = list(...),
+  friend_region_key = "...",
+  friend_country_key = "...",
+  highlight_sf = list(...),
+  highlight_region_key = "...",
+  map_specs = list(...)
+)
+```
+
+You can think of this as:
+
+> **SCI data + shapes + rules + specific maps**
+
+---
+
+## Key Concepts
+
+### SCI file (`sci_path`)
+
+This is the CSV file containing SCI values.
+
+Examples:
+
+* `country.csv`
+* `gadm1.csv`
+* `us_counties.csv`
+
+You do **not** edit these files.
+
+---
+
+### `friend_sf`
+
+This tells the tool:
+
+> "What shapes should be colored on the map?"
+
+Examples:
+
+* Countries (GADM0)
+* States / provinces (GADM1)
+* Counties
+* ZIP codes
+
+You almost always leave this alone.
+
+---
+
+### `highlight_sf`
+
+This tells the tool:
+
+> "What single region should be highlighted as the source?"
+
+Example:
+
+* Highlight **Stockholm** while coloring all of Sweden
+* Highlight **San Bernardino County** while coloring countries
+
+---
+
+### Region keys
+
+These tell the tool **how rows match shapes**.
+
+You should **never invent these**.
+
+Common ones:
+
+* `sv_cntr` → country ISO‑2 codes
+* `key` → GADM region IDs
+* `shapeID` → geoBoundaries IDs
+* `region_id` → US counties / ZCTAs
+
+If you copy an existing job, these will already be correct.
+
+---
+
+## The Most Important Part: `map_specs`
+
+This is where **you define actual maps**.
+
+Each entry inside `map_specs` creates **one output map**.
+
+Example:
+
+```r
+map_specs = list(
+  stockholm = list(
+    user_region_id = "70781695B5805413017960",
+    friend_countries = c("SE"),
+    breaks = NA,
+    xlim = NA,
+    ylim = NA
+  )
+)
+```
+
+---
+
+## Editing `map_specs` (What You Change)
+
+### `user_region_id`
+
+This is the **region you are mapping from**.
+
+Examples:
+
+* Country: `"SE"`
+* GADM region: `"IND.12_1"`
+* County FIPS: `"06071"`
+* ZIP code: `"02138"`
+
+If this ID exists in the SCI data, it will work.
+
+---
+
+### `friend_countries`
+
+This limits which countries appear on the map.
+
+Examples:
+
+* `countries_in_data` → everything
+* `c("US")` → only the US
+* `europe_iso2_codes` → Europe only
+
+This is optional but helps keep maps readable.
+
+---
+
+### `breaks`
+
+Controls the legend bins.
+
+* `NA` → automatic
+* `c(1, 2, 5, 10, 20, 50)` → manual
+
+If unsure, use `NA`.
+
+---
+
+### `xlim` and `ylim`
+
+These coordinates control the map zoom.
+
+Examples:
+
+* World map: `NA`
+* Europe: `xlim = c(-10, 36)`, `ylim = c(36, 70)`
+
+If unsure, use `NA`.
+
+---
+
+## Adding a New Map (Step‑by‑Step)
+
+1. Open `map_structs.R`
+2. Find a job similar to what you want
+3. Copy one existing `map_specs` entry
+4. Paste it below
+5. Change:
+
+   * the name (e.g. `berlin`, `mumbai`)
+   * the `user_region_id`
+6. Save the file
+
+That’s it.
+
+---
+
+## Running the Maps
+
+After editing `map_structs.R`:
+
+1. Open the **main script**
+2. Run:
+
+```r
+walk(map_jobs, run_maps_from_job)
+```
+
+The maps will be written to the output directory automatically.
+
+---
+
+## Output
+
+Each map:
+
+* is saved as a file
+* is named based on job + region
+* is fully reproducible
+
+No manual exporting needed.
+
+---
+
+## Common Mistakes (and Fixes)
+
+### ❌ Nothing happens
+
+* Make sure you re‑ran `walk(map_jobs, run_maps_from_job)`
+
+### ❌ Region not found
+
+* Double‑check `user_region_id`
+* Make sure it exists in the SCI CSV
+
+### ❌ Map is empty or zoomed wrong
+
+* Try setting `xlim = NA`, `ylim = NA`
+
+---
+
+## Final Advice
+
+* Copy existing examples
+* Change **one thing at a time**
+* If a job works once, it will always work
+
+This tool is designed so that **editing one list is all you ever need to do**.
+
+Happy mapping 🌍
 
 ---
 
@@ -31,7 +374,11 @@ src
 
 The Social Connectedness Index (SCI) measures the relative probability that two locations are socially connected, based on aggregated Facebook friendship links.
 
+The SCI data are publicly available at the [Humanitarian Data Exchange](https://data.humdata.org/dataset/social-connectedness-index). 
+
 Users of the SCI should cite the original SCI papers listed in `Relevant Literature.bib`.  
+
+The SCI data should be downloaded and added to the `data/sci_2026` folder. 
 
 ## GADM Shapefile
 
@@ -121,4 +468,5 @@ This file should be placed in ```data/input_shapefiles/```.
 
 # Contact
 
-This repository is managed by [Theresa Kuchler](https://pages.stern.nyu.edu/~tkuchler/index.html) and [Johannes Stroebel](https://pages.stern.nyu.edu/~jstroebe/).
+This repository is managed by [Theresa Kuchler](https://pages.stern.nyu.edu/~tkuchler/index.html), [Manas Kulkarni](mailto:manas.shantaram.kulkarni@gmail.com), and [Johannes Stroebel](https://pages.stern.nyu.edu/~jstroebe/).
+

@@ -10,8 +10,8 @@ source_files = list(
   "src/clean_geoboundaries.R",
   "src/clean_us_shapefiles.R",
   "src/constants.R",
-  "src/create_maps.R",
-  "src/mapping_utils.R",
+  "src/mapping_tools.R",
+  "src/map_structs.R",
   "src/scalars.R"
 )
 
@@ -40,6 +40,6 @@ load_geoboundaries_shapefiles(geoboundaries_gpkg_path)
 clean_us_zcta_shapefile()
 clean_us_county_shapefile()
 
-walk(map_jobs, run_maps_from_job)
-
 output_master_scalars_file()
+
+walk(map_jobs, run_maps_from_job)
