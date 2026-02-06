@@ -342,7 +342,7 @@ The SCI data should be downloaded and added to the `data/sci_2026` folder.
 ## GADM Shapefile
 
 **Link:**  
-https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-gpkg.zip
+https://geodata.ucdavis.edu/gadm/gadm4.1/gadm_410-levels.zip
 
 **Citation:**
 ```bibtex
