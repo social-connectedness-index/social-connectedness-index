@@ -10,15 +10,31 @@ We also include **Relevant Literature.bib**, which contains references to papers
 
 ---
 
-This tool lets you create high‑quality maps of the **Social Connectedness Index (SCI)** with *very little code editing*. You do **not** need to understand spatial data or GIS concepts to use it successfully.
+This tool lets you create high-quality maps of the **Social Connectedness Index (SCI)** with *very little code editing*. You do **not** need to understand spatial data or GIS concepts to use it successfully.
 
 If you can:
 
 * open an R project,
-* run a script once, and
+* run a script, and
 * edit a structured list,
 
 then you can use this tool.
+
+---
+
+## Quick Start
+
+If you just want to get maps as fast as possible:
+
+1. Install [R](https://cran.r-project.org/) and [RStudio](https://posit.co/download/rstudio-desktop/)
+2. Download your SCI data from the [Humanitarian Data Exchange](https://data.humdata.org/dataset/social-connectedness-index) and place the files in `data/sci_2026/`
+3. Download the shapefiles you need (see [Data and Shapefiles](#data-and-shapefiles) below) and place them in `data/input_shapefiles/`
+4. Open `social-connectedness-index.Rproj` in RStudio
+5. Open `src/map_structs.R`, edit the map definitions to specify the maps you want (see [Editing map_structs.R](#step-2-editing-map_structsr))
+6. Open `src/main.R` and run the entire script (`Cmd+A` then `Cmd+Enter` on Mac, or `Ctrl+A` then `Ctrl+Enter` on Windows)
+7. Your maps will appear in `output/maps/`
+
+On the first run, the script will automatically install any missing R packages and clean the shapefiles. On subsequent runs, the cleaning step is skipped automatically, so re-runs are fast.
 
 ---
 
@@ -26,111 +42,146 @@ then you can use this tool.
 
 Think of the workflow in **two clear phases**:
 
-1. **One‑time setup** (run once)
+1. **One-time setup** (runs automatically on first use)
 
-   * Downloads, cleans, and standardizes shapefiles
-   * Prepares everything behind the scenes
+   * Installs any missing R packages
+   * Loads, cleans, and standardizes shapefiles
+   * Saves cleaned versions to disk
 
-2. **Map selection** (repeat as needed)
+2. **Map creation** (repeat as needed)
 
-   * You tell the tool *what maps you want*
-   * The tool generates them automatically
+   * You edit `src/map_structs.R` to define what maps you want
+   * Run `src/main.R` to generate them
+   * The tool automatically skips the cleaning step if it has already been done
 
-You **never** need to touch the cleaning code again after the first run.
+You **never** need to touch the cleaning code. After the first run, re-runs go straight to map generation.
 
 ---
 
-## Folder Structure (Mental Model)
+## Folder Structure
 
 You will mainly interact with **two files**:
 
-| File                                 | What it does                         |
-| ------------------------------------ | ------------------------------------ |
-| `main.R`                             | Sets everything up and runs the maps |
-| `src/map_structs.R`                  | Where you define what maps you want  |
+| File                | What it does                         |
+| ------------------- | ------------------------------------ |
+| `src/main.R`        | Sets everything up and runs the maps |
+| `src/map_structs.R` | Where you define what maps you want  |
 
-Everything else is support machinery.
+Everything else is support machinery:
+
+| File / Folder                   | Purpose                                            |
+| ------------------------------- | -------------------------------------------------- |
+| `src/constants.R`               | File paths and country code lists                  |
+| `src/mapping_tools.R`           | Map rendering functions and `make_map_job()` helper|
+| `src/scalars.R`                 | Computes summary statistics for the paper          |
+| `src/clean_gadm_shapefiles.R`   | Cleans GADM shapefiles (runs once automatically)   |
+| `src/clean_geoboundaries.R`     | Downloads and cleans geoBoundaries (runs once)     |
+| `src/clean_us_shapefiles.R`     | Cleans US Census shapefiles (runs once)            |
+| `data/sci_2026/`                | SCI data files (you download these)                |
+| `data/input_shapefiles/`        | Raw shapefiles (you download these)                |
+| `data/cleaned_shapefiles/`      | Cleaned shapefiles (generated automatically)       |
+| `output/maps/`                  | Generated map images (PNG)                         |
 
 ---
 
-## Step 0: What You Need Installed
+## Step 0: Prerequisites
 
 Before running anything, make sure you have:
 
-* **R** 
-* **RStudio** 
+* [**R**](https://cran.r-project.org/) (version 4.0 or later recommended)
+* [**RStudio**](https://posit.co/download/rstudio-desktop/)
 
-The tool uses these R packages:
+The tool uses these R packages: `countrycode`, `Hmisc`, `RColorBrewer`, `rmapshaper`, `rgeoboundaries`, `sf`, `tidyverse`, and `wbstats`.
 
-* `sf`
-* `tidyverse`
-* `countrycode`
-* `rmapshaper`
-* `rgeoboundaries`
-* `wbstats`
-
-If R complains about a missing package, just run:
-
-```r
-install.packages("package_name")
-```
+**You do not need to install these packages manually.** The script will detect and install any missing packages automatically on the first run.
 
 ---
 
-## Step 1: One‑Time Setup
+## Step 1: One-Time Setup
 
 ### What this step does
 
-This step:
+The first time you run `src/main.R`, it will:
 
-* cleans and standardizes them
-* saves clean versions to disk
+* install any missing R packages
+* load and clean your shapefiles
+* save cleaned versions to `data/cleaned_shapefiles/`
 
-**You only need to do this once per machine.**
+**You only need to do this once per machine.** On subsequent runs, the script detects that the cleaned files already exist and skips this step.
 
 ### What to do
 
-1. Download the SCI data and the shapefiles that are applicable to your use case: GADM, NUTS, US counties, or US ZCTA. Download links to these shapefiles are at the end of this documentation. If you are using geoBoundaries, you need not download anything proactively. 
+1. Download the SCI data and the shapefiles that are applicable to your use case. Download links are in the [Data and Shapefiles](#data-and-shapefiles) section below.
 
-2. Open the **main script** (`main.R`):
+   * **GADM**: Download and place in `data/input_shapefiles/`
+   * **NUTS**: Download and place in `data/input_shapefiles/`
+   * **US counties and ZCTAs**: Download and place in `data/input_shapefiles/`
+   * **geoBoundaries**: No download needed. The script downloads these via API automatically.
 
-```r
-r_setup()
-load_gadm_data(...)
-load_geoboundaries_shapefiles(...)
-clean_us_zcta_shapefile()
-clean_us_county_shapefile()
-walk(map_jobs, run_maps_from_job)
-```
+2. Open the R project file (`social-connectedness-index.Rproj`) in RStudio
 
-3. Select **everything** in the file
-4. Click **Run** (or press `Cmd + Enter` / `Ctrl + Enter` repeatedly)
+3. Open `src/main.R`
+
+4. Select everything and run it (`Cmd+A` then `Cmd+Enter` on Mac, or `Ctrl+A` then `Ctrl+Enter` on Windows)
 
 ### What you should expect
 
-* This can take several minutes
-* You will see messages about shapefiles loading
-* New folders will appear in your project directory
+* This can take several minutes on the first run
+* You will see messages about shapefiles loading and cleaning
+* New folders and files will appear in `data/cleaned_shapefiles/`
 
-If this finishes without errors, you are set forever.
+If this finishes without errors, you are set.
 
 ---
 
-## Step 2: Understanding `map_structs.R`
+## Step 2: Editing `map_structs.R`
 
-This is the **only file most users ever touch**.
+This is the **only file most users ever need to edit**.
 
 ### What `map_structs.R` is
 
-It is a **menu of maps**.
+It is a **menu of maps**. Each entry uses `make_map_job()` to define:
 
-Each entry answers:
-
-* *What kind of SCI data am I using?*
-* *What geography am I mapping?*
-* *Which region is the focus?*
+* What **type** of map you are making (which determines the shapefiles and how regions are matched)
+* Which **SCI data file** to use
+* The **specific maps** you want (region IDs, countries to show, zoom, legend)
 
 You do **not** write functions. You only fill in values.
+
+---
+
+## Map Types
+
+The `type` parameter in `make_map_job()` tells the tool what kind of map you are creating. Each type determines which shapefiles are used and how regions are matched. You do not need to specify shapefile paths or key columns yourself.
+
+### Region-to-region types
+
+These types color **sub-national regions** based on SCI to a selected region at the same level:
+
+| Type         | Friends colored as          | Source highlighted as       | Example use case                                     |
+| ------------ | --------------------------- | --------------------------- | ---------------------------------------------------- |
+| `country`    | Countries (GADM level 0)    | Country                     | SCI from Sweden to all countries                     |
+| `gadm1`      | GADM level 1 (states)       | GADM level 1                | SCI from a state to other states                     |
+| `gadm2`      | GADM level 2 (districts)    | GADM level 2                | SCI from a district to other districts               |
+| `adm1`       | geoBoundaries ADM1          | geoBoundaries ADM1          | SCI from Massachusetts to other US states            |
+| `adm2`       | geoBoundaries ADM2          | geoBoundaries ADM2          | SCI from Stockholm municipality to Swedish regions   |
+| `nuts`       | NUTS regions                | NUTS region                 | SCI from Hamburg (NUTS1) to European NUTS1 regions   |
+| `us_county`  | US counties                 | US county                   | SCI from Kings County to other US counties           |
+| `us_zcta`    | US ZIP Code areas           | US ZIP Code area            | SCI from a ZIP code to other ZIP codes               |
+
+### Region-to-country types
+
+These types color **countries** based on SCI from a sub-national region:
+
+| Type               | Friends colored as | Source highlighted as  | Example use case                                  |
+| ------------------ | ------------------ | ---------------------- | ------------------------------------------------- |
+| `gadm1_country`    | Countries          | GADM level 1           | SCI from a GADM1 region to all countries          |
+| `gadm2_country`    | Countries          | GADM level 2           | SCI from a GADM2 district to all countries        |
+| `adm1_country`     | Countries          | geoBoundaries ADM1     | SCI from Uttar Pradesh to all countries           |
+| `adm2_country`     | Countries          | geoBoundaries ADM2     | SCI from a geoBoundaries district to all countries|
+| `nuts_country`     | Countries          | NUTS region            | SCI from Hamburg to all countries                 |
+| `us_county_country`| Countries          | US county              | SCI from San Bernardino County to all countries   |
+| `us_zcta_country`  | Countries          | US ZIP Code area       | SCI from Cambridge (02138) to all countries       |
 
 ---
 
@@ -139,191 +190,179 @@ You do **not** write functions. You only fill in values.
 Every map job follows the same template:
 
 ```r
-job_name = list(
-  sci_path = "...",
-  friend_sf = list(...),
-  friend_region_key = "...",
-  friend_country_key = "...",
-  highlight_sf = list(...),
-  highlight_region_key = "...",
-  map_specs = list(...)
+job_name = make_map_job(
+  type = "...",
+  sci_path = "data/sci_2026/...",
+  map_specs = list(
+    map_name = list(
+      user_region_id = "...",
+      friend_countries = c("..."),
+      breaks = ...,    # optional, defaults to automatic
+      xlim = ...,      # optional, defaults to full extent
+      ylim = ...       # optional, defaults to full extent
+    )
+  )
 )
 ```
 
 You can think of this as:
 
-> **SCI data + shapes + rules + specific maps**
+> **map type + SCI data file + specific maps to generate**
 
 ---
 
-## Key Concepts
+## What Each Field Means
 
-### SCI file (`sci_path`)
+### `type`
 
-This is the CSV file containing SCI values.
+Determines which shapefiles are used and how regions are matched. See the [Map Types](#map-types) tables above for valid values.
+
+### `sci_path`
+
+The path to the SCI data file. These are CSV files in `data/sci_2026/`.
+
+The file you use depends on the map type:
+
+| Type                         | Example SCI file                                  |
+| ---------------------------- | ------------------------------------------------- |
+| `country`                    | `data/sci_2026/country.csv`                       |
+| `gadm1`                      | `data/sci_2026/gadm1.csv`                         |
+| `gadm2`                      | `data/sci_2026/gadm2_shard_XX.csv` (see below)    |
+| `adm1`                       | `data/sci_2026/geoboundaries_adm1.csv`            |
+| `adm2`                       | `data/sci_2026/geoboundaries_adm2_shard_XX.csv`   |
+| `nuts`                       | `data/sci_2026/nuts1_2024.csv` (or nuts2, nuts3)  |
+| `us_county`                  | `data/sci_2026/us_counties.csv`                   |
+| `us_zcta`                    | `data/sci_2026/us_zcta_shard_X.csv`               |
+| `gadm1_country`              | `data/sci_2026/gadm1_to_country.csv`              |
+| `nuts_country`               | `data/sci_2026/nuts1_2024_to_country.csv`         |
+| `us_county_country`          | `data/sci_2026/us_counties_to_country.csv`        |
+| `us_zcta_country`            | `data/sci_2026/us_zcta_to_country.csv`            |
+
+**Sharded files**: Some SCI files are split into shards by country or region (e.g., `gadm2_shard_BR.csv`). Use the shard that contains the region you want to map from. The shard suffix typically corresponds to the ISO-2 country code of the source region.
+
+### `map_specs`
+
+This is where **you define actual maps**. Each entry inside `map_specs` creates **one output map**.
+
+### `user_region_id`
+
+The **region you are mapping from** (the source). This must match an ID in the SCI data file.
 
 Examples:
 
-* `country.csv`
-* `gadm1.csv`
-* `us_counties.csv`
+* Country: `"SE"` (ISO-2 code)
+* GADM level 1: `"IND.12_1"` (GADM GID)
+* GADM level 2: `"IND.34.75_1"` (GADM GID)
+* geoBoundaries: `"70781695B5805413017960"` (shapeID from geoBoundaries)
+* NUTS: `"DE6"` (NUTS code)
+* US county: `"06071"` (FIPS code)
+* US ZCTA: `"02138"` (ZIP code)
 
-You do **not** edit these files.
+### `friend_countries`
 
----
-
-### `friend_sf`
-
-This tells the tool:
-
-> "What shapes should be colored on the map?"
+Which countries to show on the map. This limits the regions that are colored.
 
 Examples:
 
-* Countries (GADM0)
-* States / provinces (GADM1)
-* Counties
-* ZIP codes
+* `countries_in_data` — all countries in the dataset
+* `c("US")` — only the United States
+* `europe_iso2_codes` — all European countries
+* `africa_iso2_codes` — all African countries
+* `south_asia_iso2_codes` — South Asian countries
 
-You almost always leave this alone.
+Pre-defined country lists are available in `src/constants.R`.
 
----
+### `breaks` (optional)
 
-### `highlight_sf`
+Controls the legend bins (how SCI values are grouped into colors).
 
-This tells the tool:
+* Omit or set to `NA` — automatic bins based on the data distribution
+* `c(1, 2, 5, 10, 20, 50)` — manually specified bin boundaries
 
-> "What single region should be highlighted as the source?"
+If unsure, omit this field and the tool will choose bins automatically.
 
-Example:
+### `xlim` and `ylim` (optional)
 
-* Highlight **Stockholm** while coloring all of Sweden
-* Highlight **San Bernardino County** while coloring countries
+Control the map zoom by setting longitude and latitude bounds.
 
----
+* Omit or set to `NA` — show the full extent
+* `xlim = c(-10, 36), ylim = c(36, 70)` — zoom to Europe
 
-### Region keys
-
-These tell the tool **how rows match shapes**.
-
-You should **never invent these**.
-
-Common ones:
-
-* `sv_cntr` → country ISO‑2 codes
-* `key` → GADM region IDs
-* `shapeID` → geoBoundaries IDs
-* `region_id` → US counties / ZCTAs
-
-If you copy an existing job, these will already be correct.
+If unsure, omit these fields.
 
 ---
 
-## The Most Important Part: `map_specs`
+## Adding a New Map (Step-by-Step)
 
-This is where **you define actual maps**.
+1. Open `src/map_structs.R`
+2. Find an existing job with a similar `type` to what you want
+3. Copy it
+4. Change:
+   * the job name (e.g., `my_new_map = make_map_job(...)`)
+   * the `sci_path` if using different SCI data
+   * the map name inside `map_specs`
+   * the `user_region_id` to your region of interest
+   * the `friend_countries` if you want to limit the map extent
+5. Save the file
+6. Run `src/main.R`
 
-Each entry inside `map_specs` creates **one output map**.
-
-Example:
+### Example: Adding a map of SCI from Berlin
 
 ```r
-map_specs = list(
-  stockholm = list(
-    user_region_id = "70781695B5805413017960",
-    friend_countries = c("SE"),
-    breaks = NA,
-    xlim = NA,
-    ylim = NA
+# Add this inside the map_jobs list in map_structs.R
+berlin_gadm2 = make_map_job(
+  type = "gadm2",
+  sci_path = "data/sci_2026/gadm2_shard_DE.csv",
+  map_specs = list(
+    berlin = list(
+      user_region_id = "DEU.4_1",
+      friend_countries = europe_iso2_codes,
+      xlim = c(-10, 36),
+      ylim = c(36, 70)
+    )
+  )
+)
+```
+
+### Example: Adding a country-level world map from Japan
+
+```r
+japan_world = make_map_job(
+  type = "country",
+  sci_path = "data/sci_2026/country.csv",
+  map_specs = list(
+    japan = list(
+      user_region_id = "JP",
+      friend_countries = countries_in_data
+    )
   )
 )
 ```
 
 ---
 
-## Editing `map_specs` (What You Change)
-
-### `user_region_id`
-
-This is the **region you are mapping from**.
-
-Examples:
-
-* Country: `"SE"`
-* GADM region: `"IND.12_1"`
-* County FIPS: `"06071"`
-* ZIP code: `"02138"`
-
-If this ID exists in the SCI data, it will work.
-
----
-
-### `friend_countries`
-
-This limits which countries appear on the map.
-
-Examples:
-
-* `countries_in_data` → everything
-* `c("US")` → only the US
-* `europe_iso2_codes` → Europe only
-
-This is optional but helps keep maps readable.
-
----
-
-### `breaks`
-
-Controls the legend bins.
-
-* `NA` → automatic
-* `c(1, 2, 5, 10, 20, 50)` → manual
-
-If unsure, use `NA`.
-
----
-
-### `xlim` and `ylim`
-
-These coordinates control the map zoom.
-
-Examples:
-
-* World map: `NA`
-* Europe: `xlim = c(-10, 36)`, `ylim = c(36, 70)`
-
-If unsure, use `NA`.
-
----
-
-## Adding a New Map (Step‑by‑Step)
-
-1. Open `map_structs.R`
-2. Find a job similar to what you want
-3. Copy one existing `map_specs` entry
-4. Paste it below
-5. Change:
-
-   * the name (e.g. `berlin`, `mumbai`)
-   * the `user_region_id`
-6. Save the file
-
-That’s it.
-
----
-
 ## Running the Maps
 
-After editing `map_structs.R`:
+After editing `src/map_structs.R`:
 
-1. Open the **main script**
-2. Run:
+1. Open `src/main.R`
+2. Run the entire script
 
-```r
-walk(map_jobs, run_maps_from_job)
-```
+The maps will be saved as PNG files in `output/maps/`. Each map is named after its entry in `map_specs` (e.g., the `sweden` entry produces `output/maps/sweden.png`).
 
-The maps will be written to the output directory automatically.
+---
+
+## Troubleshooting
+
+**"Package X is not available"**: Make sure you have a working internet connection. The script installs packages from CRAN automatically.
+
+**Shapefile cleaning takes a long time**: This is normal on the first run (especially geoBoundaries, which downloads data for every country via API). Subsequent runs skip this step entirely.
+
+**"Cannot open file" errors**: Make sure you have placed the required shapefiles and SCI data files in the correct folders (`data/input_shapefiles/` and `data/sci_2026/`).
+
+**Map shows no colored regions**: Check that your `user_region_id` exists in the SCI data file and that `friend_countries` includes the countries you expect to see.
+
+**Want to re-run the cleaning step**: Delete the relevant files in `data/cleaned_shapefiles/` and run `src/main.R` again. The cleaning will re-run for any missing output files.
 
 ---
 
@@ -376,7 +415,7 @@ https://www.geoboundaries.org/api.html
 }
 ```
 
-geoBoundaries shapefiles are downloaded, cleaned, and assembled using the script: ```src/clean_geoboundaries.R```. The cleaned outputs are stored in: ```data/cleaned_shapefiles/```.
+geoBoundaries shapefiles are downloaded automatically via API when you first run the script. No manual download is needed. The cleaned outputs are stored in: ```data/cleaned_shapefiles/```.
 
 
 ## NUTS 2024 Shapefiles
@@ -388,7 +427,7 @@ https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/territorial-un
 NUTS year: NUTS 2024
 File Format: GeoPackage
 Geometry Type: Polygons (RG)
-Scale: 60M
+Scale: 01M
 CRS: ESPG: 4326
 
 **Citation:**
@@ -428,4 +467,3 @@ This file should be placed in ```data/input_shapefiles/```.
 # Contact
 
 This repository is managed by [Theresa Kuchler](https://pages.stern.nyu.edu/~tkuchler/index.html), [Manas Kulkarni](mailto:manas.shantaram.kulkarni@gmail.com), and [Johannes Stroebel](https://pages.stern.nyu.edu/~jstroebe/).
-
