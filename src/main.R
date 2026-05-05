@@ -25,7 +25,7 @@ r_setup()
 
 create_dir_if_not_exists <- function(d) {
   if (!dir.exists(d)) {
-    dir.create(d)
+    dir.create(d, recursive = TRUE)
   }
 }
 create_dir_if_not_exists(gadm_shapefiles_output_dir)
