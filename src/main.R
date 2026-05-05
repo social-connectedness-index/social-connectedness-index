@@ -1,9 +1,23 @@
-library(countrycode)
-library(rmapshaper)
-library(rgeoboundaries)
-library(sf)
-library(tidyverse)
-library(wbstats)
+required_packages <- c(
+  "countrycode",
+  "Hmisc",
+  "RColorBrewer",
+  "rmapshaper",
+  "rgeoboundaries",
+  "sf",
+  "tidyverse",
+  "wbstats"
+)
+
+ensure_packages <- function(packages) {
+  missing <- packages[!sapply(packages, requireNamespace, quietly = TRUE)]
+  if (length(missing) > 0) {
+    message("Installing missing packages: ", paste(missing, collapse = ", "))
+    install.packages(missing, repos = "https://cloud.r-project.org")
+  }
+  invisible(lapply(packages, library, character.only = TRUE))
+}
+ensure_packages(required_packages)
 
 source_files = list(
   "src/clean_gadm_shapefiles.R",

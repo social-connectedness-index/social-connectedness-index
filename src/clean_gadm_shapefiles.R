@@ -139,6 +139,12 @@ load_gadm_data <- function(
   gadm_geopackage_path,
   out_dir
 ) {
+  expected_files <- file.path(out_dir, c("gadm0.shp", "gadm1.shp", "gadm2.shp", "gadm3.shp"))
+  if (all(file.exists(expected_files))) {
+    message("GADM shapefiles already exist, skipping cleaning.")
+    return(invisible(NULL))
+  }
+
   temp_dir = tempdir()
   unzip(
     gadm_geopackage_path,
