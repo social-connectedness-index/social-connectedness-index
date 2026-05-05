@@ -1,3 +1,135 @@
+map_type_configs <- list(
+  country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sv_cntr"
+  ),
+  gadm1 = list(
+    friend_sf = list(path = gadm1_shapefile_path, layer = NULL),
+    friend_region_key = "key",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = gadm1_shapefile_path, layer = NULL),
+    highlight_region_key = "key"
+  ),
+  gadm2 = list(
+    friend_sf = list(path = gadm2_shapefile_path, layer = NULL),
+    friend_region_key = "key",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = gadm2_shapefile_path, layer = NULL),
+    highlight_region_key = "key"
+  ),
+  gadm1_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = gadm1_shapefile_path, layer = NULL),
+    highlight_region_key = "key"
+  ),
+  gadm2_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = gadm2_shapefile_path, layer = NULL),
+    highlight_region_key = "key"
+  ),
+  adm1 = list(
+    friend_sf = list(path = geoboundaries_gpkg_path, layer = "adm1"),
+    friend_region_key = "shapeID",
+    friend_country_key = "shapeGroup",
+    highlight_sf = list(path = geoboundaries_gpkg_path, layer = "adm1"),
+    highlight_region_key = "shapeID"
+  ),
+  adm2 = list(
+    friend_sf = list(path = geoboundaries_gpkg_path, layer = "adm2"),
+    friend_region_key = "shapeID",
+    friend_country_key = "shapeGroup",
+    highlight_sf = list(path = geoboundaries_gpkg_path, layer = "adm2"),
+    highlight_region_key = "shapeID"
+  ),
+  adm1_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = geoboundaries_gpkg_path, layer = "adm1"),
+    highlight_region_key = "shapeID"
+  ),
+  adm2_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = geoboundaries_gpkg_path, layer = "adm2"),
+    highlight_region_key = "shapeID"
+  ),
+  nuts = list(
+    friend_sf = list(path = nuts_shapefile_path, layer = NULL),
+    friend_region_key = "NUTS_ID",
+    friend_country_key = "CNTR_CODE",
+    highlight_sf = list(path = nuts_shapefile_path, layer = NULL),
+    highlight_region_key = "NUTS_ID"
+  ),
+  nuts_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = nuts_shapefile_path, layer = NULL),
+    highlight_region_key = "NUTS_ID"
+  ),
+  us_county = list(
+    friend_sf = list(path = us_county_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = us_county_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id"
+  ),
+  us_zcta = list(
+    friend_sf = list(path = us_zcta_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id"
+  ),
+  us_county_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = us_county_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id"
+  ),
+  us_zcta_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id"
+  )
+)
+
+make_map_job <- function(type, sci_path, map_specs) {
+  if (!type %in% names(map_type_configs)) {
+    stop(paste0(
+      "Unknown map type '", type, "'. ",
+      "Valid types: ", paste(names(map_type_configs), collapse = ", ")
+    ))
+  }
+
+  config <- map_type_configs[[type]]
+
+  map_specs <- lapply(map_specs, function(spec) {
+    if (is.null(spec$breaks)) spec$breaks <- NA
+    if (is.null(spec$xlim)) spec$xlim <- NA
+    if (is.null(spec$ylim)) spec$ylim <- NA
+    spec
+  })
+
+  c(
+    list(sci_path = sci_path),
+    config,
+    list(map_specs = map_specs)
+  )
+}
+
 base_font_family = "Helvetica"
 base_dpi = 120
 

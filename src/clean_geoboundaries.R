@@ -58,6 +58,14 @@ download_and_write_layer <- function(adm_level, country_codes, output_file) {
 load_geoboundaries_shapefiles <- function(
   geoboundaries_gpkg_path
 ) {
+  if (file.exists(geoboundaries_gpkg_path)) {
+    layers <- st_layers(geoboundaries_gpkg_path)$name
+    if (all(c("adm1", "adm2", "adm3") %in% layers)) {
+      message("geoBoundaries gpkg already exists, skipping download.")
+      return(invisible(NULL))
+    }
+  }
+
   # Get list of all countries from ADM-0 (country level)
   message("Fetching list of all countries...")
   all_countries <- geoboundaries(adm_lvl = "adm0", type = "cgaz") %>%

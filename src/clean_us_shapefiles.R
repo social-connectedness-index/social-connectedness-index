@@ -1,5 +1,11 @@
 #' Extracts, cleans, and saves the shapefile for US ZCTAs.
 clean_us_zcta_shapefile <- function() {
+  output_path <- file.path(us_cleaned_shapefiles_dir, "united_states.shp")
+  if (file.exists(output_path)) {
+    message("US ZCTA shapefile already exists, skipping cleaning.")
+    return(invisible(NULL))
+  }
+
   us_zcta_input = file.path(input_shapefiles_dir, "tl_2025_us_zcta520.zip")
   temp_dir = tempdir()
   unzip(us_zcta_input, exdir = temp_dir)
@@ -24,6 +30,12 @@ clean_us_zcta_shapefile <- function() {
 
 #' Extracts, cleans, and saves the shapefile for US counties.
 clean_us_county_shapefile <- function() {
+  output_path <- file.path(us_cleaned_shapefiles_dir, "united_states_counties.shp")
+  if (file.exists(output_path)) {
+    message("US county shapefile already exists, skipping cleaning.")
+    return(invisible(NULL))
+  }
+
   us_county_input = file.path(input_shapefiles_dir, "tl_2025_us_county.zip")
   temp_dir = tempdir()
   unzip(us_county_input, exdir = temp_dir)
