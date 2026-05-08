@@ -109,17 +109,29 @@ map_type_configs <- list(
 make_map_job <- function(type, sci_path, map_specs) {
   if (!type %in% names(map_type_configs)) {
     stop(paste0(
-      "Unknown map type '", type, "'. ",
-      "Valid types: ", paste(names(map_type_configs), collapse = ", ")
+      "Unknown map type '",
+      type,
+      "'. ",
+      "Valid types: ",
+      paste(names(map_type_configs), collapse = ", ")
     ))
   }
 
   config <- map_type_configs[[type]]
 
   map_specs <- lapply(map_specs, function(spec) {
-    if (is.null(spec$breaks)) spec$breaks <- NA
-    if (is.null(spec$xlim)) spec$xlim <- NA
-    if (is.null(spec$ylim)) spec$ylim <- NA
+    if (is.null(spec$breaks)) {
+      spec$breaks <- NA
+    }
+    if (is.null(spec$xlim)) {
+      spec$xlim <- NA
+    }
+    if (is.null(spec$ylim)) {
+      spec$ylim <- NA
+    }
+    if (is.null(spec$title)) {
+      spec$title <- NA
+    }
     spec
   })
 
@@ -203,7 +215,8 @@ create_map <- function(
   xlims = NA,
   ylims = NA,
   name = NA,
-  highlight_sf = NULL
+  highlight_sf = NULL,
+  title = NA
 ) {
   if (!is.na(sum(breaks))) {
     breaks = get_breaks(breaks = breaks)
@@ -265,6 +278,27 @@ create_map <- function(
       legend.text = element_text(size = 40),
       legend.box.just = "center",
       legend.key.width = unit(4, "inches")
+    ) +
+    labs(
+      title = if (!is.na(title)) title else NULL,
+      caption = paste0(
+        'Johnston, Kuchler, Kulkarni, and Stroebel (2026). ',
+        '"The Social Connectedness Index."\n',
+        'Data: data.humdata.org/dataset/social-connectedness-index'
+      )
+    ) +
+    theme(
+      plot.title = element_text(
+        size = 65,
+        hjust = 0.5,
+        margin = margin(b = 20)
+      ),
+      plot.caption = element_text(
+        size = 30,
+        hjust = 0.5,
+        color = "gray30",
+        margin = margin(t = 20)
+      )
     )
 
   if (any(!is.na(borders_data))) {
@@ -358,7 +392,7 @@ run_maps_from_job <- function(job) {
       )
   }
 
-  imap(job$map_specs, function(spec, spec_name) {
+  iwalk(job$map_specs, function(spec, spec_name) {
     message(str_glue("Processing {spec_name}"))
 
     shapes <- friend_sf
@@ -395,8 +429,7 @@ run_maps_from_job <- function(job) {
           "friend_region",
           job$friend_region_key
         )
-      ) %>%
-      filter(!is.na(scaled_sci_rel))
+      )
 
     g <- create_map(
       .data = mapping_sf,
@@ -406,7 +439,8 @@ run_maps_from_job <- function(job) {
       name = "Likelihood of Friendship",
       breaks = spec$breaks,
       xlims = spec$xlim,
-      ylims = spec$ylim
+      ylims = spec$ylim,
+      title = spec$title
     )
 
     ggsave(
@@ -418,4 +452,7 @@ run_maps_from_job <- function(job) {
       dpi = base_dpi
     )
   })
+
+  rm(sci_df, friend_sf, borders_sf, highlight_sf_all)
+  gc()
 }

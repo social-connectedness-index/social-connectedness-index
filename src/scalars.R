@@ -30,6 +30,11 @@ append_scalar <- function(key, value, scalar_fp = external_scalars_fp) {
 
 
 output_master_scalars_file <- function() {
+  if (file.exists(scalar_output_fp)) {
+    message("Scalars file already exists, skipping generation.")
+    return(invisible(NULL))
+  }
+
   read_scalars <- function(fp) {
     if (!file.exists(fp)) {
       return(setNames(character(0), character(0)))
@@ -59,10 +64,6 @@ output_master_scalars_file <- function() {
     internal_scalars,
     external_scalars
   )
-
-  if (file.exists(scalar_output_fp)) {
-    file.remove(scalar_output_fp)
-  }
 
   writeLines(
     paste(names(all_scalars), all_scalars, sep = ":"),

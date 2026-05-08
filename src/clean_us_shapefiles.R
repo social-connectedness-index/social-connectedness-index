@@ -1,3 +1,26 @@
+great_lake_names <- c(
+  "Lake Superior",
+  "Lake Michigan",
+  "Lake Huron",
+  "Lake Erie",
+  "Lake Ontario"
+)
+
+get_great_lakes_polygon <- function(target_crs = 4326) {
+  lakes <- ne_download(
+    scale = 10,
+    type = "lakes",
+    category = "physical",
+    returnclass = "sf"
+  )
+  great_lakes <- lakes %>%
+    filter(name %in% great_lake_names) %>%
+    st_transform(crs = target_crs) %>%
+    st_union() %>%
+    st_make_valid()
+  great_lakes
+}
+
 #' Extracts, cleans, and saves the shapefile for US ZCTAs.
 clean_us_zcta_shapefile <- function() {
   output_path <- file.path(us_cleaned_shapefiles_dir, "united_states.shp")
@@ -15,9 +38,13 @@ clean_us_zcta_shapefile <- function() {
     "tl_2025_us_zcta520.shp"
   ))
 
+  great_lakes <- get_great_lakes_polygon()
+
   us_zcta_shapes %>%
     select(region_id = ZCTA5CE20) %>%
     st_transform(crs = 4326) %>%
+    st_make_valid() %>%
+    st_difference(great_lakes) %>%
     st_write(
       file.path(
         us_cleaned_shapefiles_dir,
@@ -45,10 +72,14 @@ clean_us_county_shapefile <- function() {
     "tl_2025_us_county.shp"
   ))
 
+  great_lakes <- get_great_lakes_polygon()
+
   us_county_shapes %>%
     mutate(region_id = GEOID) %>%
     select(region_id) %>%
     st_transform(crs = 4326) %>%
+    st_make_valid() %>%
+    st_difference(great_lakes) %>%
     st_write(
       file.path(
         us_cleaned_shapefiles_dir,

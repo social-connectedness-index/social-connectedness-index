@@ -4,6 +4,8 @@ required_packages <- c(
   "RColorBrewer",
   "rmapshaper",
   "rgeoboundaries",
+  "rnaturalearth",
+  "rnaturalearthdata",
   "sf",
   "tidyverse",
   "wbstats"
