@@ -6,7 +6,9 @@ map_jobs <- list(
     map_specs = list(
       sweden = list(
         user_region_id = "SE",
-        friend_countries = countries_in_data
+        friend_countries = countries_in_data,
+        breaks = c(1, 2, 3, 4, 5, 7, 9, 10, 15, 20, 25, 30, 40, 50, 75),
+        title = "Social Connectedness Index: Sweden"
       )
     )
   ),
@@ -21,14 +23,16 @@ map_jobs <- list(
         friend_countries = africa_iso2_codes,
         breaks = c(1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50, 60, 75, 100, 115),
         xlim = c(-26, 58),
-        ylim = c(-35, 35)
+        ylim = c(-35, 35),
+        title = "Social Connectedness Index: Cabo Delgado, Mozambique"
       ),
       antananarivo = list(
         user_region_id = "MDG.1_1",
         friend_countries = africa_iso2_codes,
         breaks = c(1:15),
         xlim = c(-26, 58),
-        ylim = c(-35, 35)
+        ylim = c(-35, 35),
+        title = "Social Connectedness Index: Antananarivo, Madagascar"
       )
     )
   ),
@@ -43,14 +47,16 @@ map_jobs <- list(
         friend_countries = south_asia_iso2_codes,
         breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
         xlim = c(60, 98),
-        ylim = c(5, 37)
+        ylim = c(5, 37),
+        title = "Social Connectedness Index: Varanasi, India"
       ),
       belgaum = list(
         user_region_id = "IND.16.4_1",
         friend_countries = south_asia_iso2_codes,
         breaks = c(1, 2, 3, 4, 5, 15, 20, 25, 30, 35, 40, 45, 50, 60, 75),
         xlim = c(60, 98),
-        ylim = c(5, 37)
+        ylim = c(5, 37),
+        title = "Social Connectedness Index: Belgaum, India"
       )
     )
   ),
@@ -64,7 +70,8 @@ map_jobs <- list(
         friend_countries = south_america_iso2_codes,
         breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
         xlim = c(-33, -85),
-        ylim = c(12, -55)
+        ylim = c(12, -55),
+        title = "Social Connectedness Index: Manaus, Brazil"
       )
     )
   ),
@@ -78,7 +85,8 @@ map_jobs <- list(
         friend_countries = south_america_iso2_codes,
         breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
         xlim = c(-33, -85),
-        ylim = c(12, -55)
+        ylim = c(12, -55),
+        title = "Social Connectedness Index: Santiago, Chile"
       )
     )
   ),
@@ -91,8 +99,10 @@ map_jobs <- list(
       massachusetts = list(
         user_region_id = "66186276B15934532614691",
         friend_countries = c("US"),
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20),
         xlim = c(-125, -66),
-        ylim = c(25, 50)
+        ylim = c(25, 50),
+        title = "Social Connectedness Index: Massachusetts, USA"
       )
     )
   ),
@@ -104,21 +114,9 @@ map_jobs <- list(
     map_specs = list(
       stockholm = list(
         user_region_id = "70781695B5805413017960",
-        friend_countries = c("SE")
-      )
-    )
-  ),
-
-  # NUTS-NUTS
-  nuts_nuts = make_map_job(
-    type = "nuts",
-    sci_path = "data/sci_2026/nuts1_2024.csv",
-    map_specs = list(
-      germany = list(
-        user_region_id = "DE6",
-        friend_countries = europe_iso2_codes,
-        xlim = c(-10, 36),
-        ylim = c(36, 70)
+        friend_countries = c("SE"),
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+        title = "Social Connectedness Index: Stockholm, Sweden"
       )
     )
   ),
@@ -132,7 +130,9 @@ map_jobs <- list(
         user_region_id = "36047",
         friend_countries = c("US"),
         xlim = c(-125, -66),
-        ylim = c(25, 50)
+        ylim = c(25, 50),
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
+        title = "Social Connectedness Index: Kings County, USA"
       )
     )
   ),
@@ -146,7 +146,8 @@ map_jobs <- list(
         user_region_id = "89049",
         friend_countries = c("US"),
         xlim = c(-125, -66),
-        ylim = c(25, 50)
+        ylim = c(25, 50),
+        title = "Social Connectedness Index: Tonopah"
       )
     )
   ),
@@ -156,9 +157,11 @@ map_jobs <- list(
     type = "gadm1_country",
     sci_path = "data/sci_2026/gadm1_to_country.csv",
     map_specs = list(
-      india = list(
+      haryana = list(
         user_region_id = "IND.12_1",
-        friend_countries = countries_in_data
+        friend_countries = countries_in_data,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30),
+        title = "Social Connectedness Index: Haryana, India"
       )
     )
   ),
@@ -170,19 +173,9 @@ map_jobs <- list(
     map_specs = list(
       uttar_pradesh = list(
         user_region_id = "1811400B11231190780494",
-        friend_countries = countries_in_data
-      )
-    )
-  ),
-
-  # NUTS-country
-  nuts1_to_country = make_map_job(
-    type = "nuts_country",
-    sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
-    map_specs = list(
-      hamburg = list(
-        user_region_id = "DE6",
-        friend_countries = countries_in_data
+        friend_countries = countries_in_data,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20),
+        title = "Social Connectedness Index: Uttar Pradesh"
       )
     )
   ),
@@ -194,7 +187,9 @@ map_jobs <- list(
     map_specs = list(
       san_bernardino = list(
         user_region_id = "06071",
-        friend_countries = countries_in_data
+        friend_countries = countries_in_data,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 40, 50),
+        title = "Social Connectedness Index: San Bernardino"
       )
     )
   ),
@@ -206,7 +201,9 @@ map_jobs <- list(
     map_specs = list(
       cambridge = list(
         user_region_id = "02138",
-        friend_countries = countries_in_data
+        friend_countries = countries_in_data,
+        breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 40, 50),
+        title = "Social Connectedness Index: Cambridge"
       )
     )
   )

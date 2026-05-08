@@ -284,7 +284,7 @@ create_map <- function(
       caption = paste0(
         'Johnston, Kuchler, Kulkarni, and Stroebel (2026). ',
         '"The Social Connectedness Index."\n',
-        'Data: data.humdata.org/dataset/social-connectedness-index'
+        'Data available at data.humdata.org/dataset/social-connectedness-index'
       )
     ) +
     theme(
@@ -401,8 +401,12 @@ run_maps_from_job <- function(job) {
         filter(.data[[job$friend_country_key]] %in% spec$friend_countries)
     }
 
-    borders_data <- borders_sf %>%
-      filter(sv_cntr %in% spec$friend_countries)
+    borders_data <- if (job$friend_country_key == "region_id") {
+      NA
+    } else {
+      borders_sf %>%
+        filter(sv_cntr %in% spec$friend_countries)
+    }
 
     user_region_sf <- highlight_sf_all %>%
       filter(.data[[job$highlight_region_key]] == spec$user_region_id)
@@ -447,7 +451,7 @@ run_maps_from_job <- function(job) {
       filename = file.path(maps_dir, str_glue("{spec_name}.png")),
       plot = g,
       width = 30,
-      height = 20,
+      height = 25,
       units = "in",
       dpi = base_dpi
     )
