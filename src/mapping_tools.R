@@ -258,7 +258,7 @@ create_map <- function(
         max(legend_breaks) + eps
       )
     ) +
-    theme_void(base_size = 16) +
+    theme_void(base_size = 24) +
     theme(
       legend.position = "bottom",
       legend.box = "horizontal",
@@ -274,8 +274,8 @@ create_map <- function(
     theme(
       legend.position = "bottom",
       legend.direction = "horizontal",
-      legend.title = element_text(hjust = 0.5, size = 55),
-      legend.text = element_text(size = 40),
+      legend.title = element_text(hjust = 0.5, size = 70),
+      legend.text = element_text(size = 60),
       legend.box.just = "center",
       legend.key.width = unit(4, "inches")
     ) +
@@ -284,20 +284,20 @@ create_map <- function(
       caption = paste0(
         'Johnston, Kuchler, Kulkarni, and Stroebel (2026). ',
         '"The Social Connectedness Index."\n',
-        'Data available at data.humdata.org/dataset/social-connectedness-index'
+        'Data available at data.humdata.org/dataset/social-connectedness-index.'
       )
     ) +
     theme(
       plot.title = element_text(
-        size = 65,
+        size = 70,
         hjust = 0.5,
         margin = margin(b = 20)
       ),
       plot.caption = element_text(
-        size = 30,
+        size = 40,
         hjust = 0.5,
         color = "gray30",
-        margin = margin(t = 20)
+        margin = margin(t = 60)
       )
     )
 
@@ -453,7 +453,8 @@ run_maps_from_job <- function(job) {
       width = 30,
       height = 25,
       units = "in",
-      dpi = base_dpi
+      dpi = base_dpi,
+      bg = "white"
     )
   })
 
