@@ -419,7 +419,7 @@ run_maps_from_job <- function(job) {
 
     sci_ref <- quantile(
       sci_filtered$scaled_sci,
-      probs = 0.10,
+      probs = 0.25,
       na.rm = TRUE
     )
 
