@@ -277,7 +277,7 @@ create_map <- function(
       legend.title = element_text(hjust = 0.5, size = 70),
       legend.text = element_text(size = 60),
       legend.box.just = "center",
-      legend.key.width = unit(5, "inches")
+      legend.key.width = unit(4, "inches")
     ) +
     labs(
       title = if (!is.na(title)) title else NULL,
@@ -419,7 +419,7 @@ run_maps_from_job <- function(job) {
 
     sci_ref <- quantile(
       sci_filtered$scaled_sci,
-      probs = 0.50,
+      probs = 0.10,
       na.rm = TRUE
     )
 
@@ -451,7 +451,7 @@ run_maps_from_job <- function(job) {
       filename = file.path(maps_dir, str_glue("{spec_name}.png")),
       plot = g,
       width = 30,
-      height = 35,
+      height = 25,
       units = "in",
       dpi = base_dpi,
       bg = "white"
