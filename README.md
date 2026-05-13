@@ -72,7 +72,8 @@ Everything else is support machinery:
 | File / Folder                   | Purpose                                            |
 | ------------------------------- | -------------------------------------------------- |
 | `src/constants.R`               | File paths and country code lists                  |
-| `src/mapping_tools.R`           | Map rendering functions and `make_map_job()` helper|
+| `src/make_map.R`                | The `make_map()` function (public API)             |
+| `src/mapping_tools.R`           | Internal map rendering helpers and config          |
 | `src/scalars.R`                 | Computes summary statistics for the paper          |
 | `src/clean_gadm_shapefiles.R`   | Cleans GADM shapefiles (runs once automatically)   |
 | `src/clean_geoboundaries.R`     | Downloads and cleans geoBoundaries (runs once)     |
@@ -140,11 +141,13 @@ This is the **only file most users ever need to edit**.
 
 ### What `map_structs.R` is
 
-It is a **menu of maps**. Each entry uses `make_map_job()` to define:
+It is a **menu of maps**. Each entry in `map_specs` is a named list that defines a single map:
 
 * What **type** of map you are making (which determines the shapefiles and how regions are matched)
 * Which **SCI data file** to use
-* The **specific maps** you want (region IDs, countries to show, zoom, legend)
+* The **region** you are mapping from
+* Which **countries** to show
+* Optional zoom, legend breaks, and title
 
 You do **not** write functions. You only fill in values.
 
@@ -152,7 +155,7 @@ You do **not** write functions. You only fill in values.
 
 ## Map Types
 
-The `type` parameter in `make_map_job()` tells the tool what kind of map you are creating. Each type determines which shapefiles are used and how regions are matched. You do not need to specify shapefile paths or key columns yourself.
+The `type` field tells the tool what kind of map you are creating. Each type determines which shapefiles are used and how regions are matched. You do not need to specify shapefile paths or key columns yourself.
 
 ### Region-to-region types
 
@@ -185,29 +188,22 @@ These types color **countries** based on SCI from a sub-national region:
 
 ---
 
-## The Structure of a Map Job
+## The Structure of a Map Spec
 
-Every map job follows the same template:
+Each entry in `map_specs` follows the same template:
 
 ```r
-job_name = make_map_job(
+map_name = list(
   type = "...",
   sci_path = "data/sci_2026/...",
-  map_specs = list(
-    map_name = list(
-      user_region_id = "...",
-      friend_countries = c("..."),
-      breaks = ...,    # optional, defaults to automatic
-      xlim = ...,      # optional, defaults to full extent
-      ylim = ...       # optional, defaults to full extent
-    )
-  )
+  user_region_id = "...",
+  friend_countries = c("..."),
+  breaks = ...,    # optional, defaults to automatic
+  xlim = ...,      # optional, defaults to full extent
+  ylim = ...,      # optional, defaults to full extent
+  title = "..."    # optional
 )
 ```
-
-You can think of this as:
-
-> **map type + SCI data file + specific maps to generate**
 
 ---
 
@@ -239,10 +235,6 @@ The file you use depends on the map type:
 | `us_zcta_country`            | `data/sci_2026/us_zcta_to_country.csv`            |
 
 **Sharded files**: Some SCI files are split into shards by country or region (e.g., `gadm2_shard_BR.csv`). Use the shard that contains the region you want to map from. The shard suffix typically corresponds to the ISO-2 country code of the source region.
-
-### `map_specs`
-
-This is where **you define actual maps**. Each entry inside `map_specs` creates **one output map**.
 
 ### `user_region_id`
 
@@ -276,7 +268,7 @@ Pre-defined country lists are available in `src/constants.R`.
 
 Controls the legend bins (how SCI values are grouped into colors).
 
-* Omit or set to `NA` — automatic bins based on the data distribution
+* Omit — automatic bins based on the data distribution
 * `c(1, 2, 5, 10, 20, 50)` — manually specified bin boundaries
 
 If unsure, omit this field and the tool will choose bins automatically.
@@ -285,7 +277,7 @@ If unsure, omit this field and the tool will choose bins automatically.
 
 Control the map zoom by setting longitude and latitude bounds.
 
-* Omit or set to `NA` — show the full extent
+* Omit — show the full extent
 * `xlim = c(-10, 36), ylim = c(36, 70)` — zoom to Europe
 
 If unsure, omit these fields.
@@ -295,12 +287,12 @@ If unsure, omit these fields.
 ## Adding a New Map (Step-by-Step)
 
 1. Open `src/map_structs.R`
-2. Find an existing job with a similar `type` to what you want
+2. Find an existing entry with a similar `type` to what you want
 3. Copy it
 4. Change:
-   * the job name (e.g., `my_new_map = make_map_job(...)`)
+   * the entry name (e.g., `berlin = list(...)`)
+   * the `type` if needed
    * the `sci_path` if using different SCI data
-   * the map name inside `map_specs`
    * the `user_region_id` to your region of interest
    * the `friend_countries` if you want to limit the map extent
 5. Save the file
@@ -309,35 +301,78 @@ If unsure, omit these fields.
 ### Example: Adding a map of SCI from Berlin
 
 ```r
-# Add this inside the map_jobs list in map_structs.R
-berlin_gadm2 = make_map_job(
+# Add this inside the map_specs list in map_structs.R
+berlin = list(
   type = "gadm2",
   sci_path = "data/sci_2026/gadm2_shard_DE.csv",
-  map_specs = list(
-    berlin = list(
-      user_region_id = "DEU.4_1",
-      friend_countries = europe_iso2_codes,
-      xlim = c(-10, 36),
-      ylim = c(36, 70)
-    )
-  )
+  user_region_id = "DEU.4_1",
+  friend_countries = europe_iso2_codes,
+  xlim = c(-10, 36),
+  ylim = c(36, 70)
 )
 ```
 
 ### Example: Adding a country-level world map from Japan
 
 ```r
-japan_world = make_map_job(
+japan = list(
   type = "country",
   sci_path = "data/sci_2026/country.csv",
-  map_specs = list(
-    japan = list(
-      user_region_id = "JP",
-      friend_countries = countries_in_data
-    )
-  )
+  user_region_id = "JP",
+  friend_countries = countries_in_data
 )
 ```
+
+---
+
+## Using `make_map()` Directly
+
+For interactive use or scripting beyond `map_structs.R`, you can call `make_map()` directly in the R console after running the setup portion of `src/main.R`. This gives you access to additional customization options.
+
+### Minimal call
+
+```r
+make_map("country", "SE", "data/sci_2026/country.csv")
+```
+
+### Full example
+
+```r
+make_map(
+  type = "gadm2",
+  user_region_id = "BRA.4.38_2",
+  sci_path = "data/sci_2026/gadm2_shard_BR.csv",
+  friend_countries = south_america_iso2_codes,
+  xlim = c(-85, -33),
+  ylim = c(-55, 12),
+  breaks = c(1, 2, 3, 5, 10, 20, 50, 75),
+  title = "Social Connectedness: Manaus, Brazil",
+  output_path = "output/maps/manaus.png"
+)
+```
+
+### Additional parameters
+
+Beyond the fields available in `map_structs.R`, `make_map()` accepts:
+
+| Parameter              | Default                         | Description                                  |
+| ---------------------- | ------------------------------- | -------------------------------------------- |
+| `reference_quantile`   | `0.25`                          | Percentile used to normalize SCI values      |
+| `legend_name`          | `"Likelihood of Friendship"`    | Legend title text                             |
+| `color_palette`        | default blue ramp               | Vector of hex colors for the color scale     |
+| `highlight_color`      | `"#FF0000"`                     | Fill color for the source region             |
+| `border_color`         | `"gray20"`                      | Country border color                         |
+| `na_color`             | `"#BFBFBF"`                     | Fill for regions with no data                |
+| `background_color`     | `"white"`                       | Plot background color                        |
+| `subtitle`             | `NULL`                          | Subtitle text                                |
+| `caption`              | default citation                | Caption text; `FALSE` to suppress            |
+| `font_family`          | `"Helvetica"`                   | Font family                                  |
+| `base_font_size`       | `24`                            | Base font size (all text scales from this)   |
+| `output_path`          | `NULL`                          | File path to save; `NULL` returns the plot   |
+| `width`                | `30`                            | Output width in inches                       |
+| `height`               | `25`                            | Output height in inches                      |
+| `dpi`                  | `120`                           | Output resolution                            |
+| `return_data`          | `FALSE`                         | If `TRUE`, returns a list with plot and data |
 
 ---
 

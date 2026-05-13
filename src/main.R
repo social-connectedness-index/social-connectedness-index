@@ -21,14 +21,15 @@ ensure_packages <- function(packages) {
 }
 ensure_packages(required_packages)
 
-source_files = list(
-  "src/clean_gadm_shapefiles.R",
-  "src/clean_geoboundaries.R",
-  "src/clean_us_shapefiles.R",
+source_files <- list(
   "src/constants.R",
   "src/mapping_tools.R",
+  "src/make_map.R",
   "src/map_structs.R",
-  "src/scalars.R"
+  "src/scalars.R",
+  "src/clean_gadm_shapefiles.R",
+  "src/clean_geoboundaries.R",
+  "src/clean_us_shapefiles.R"
 )
 
 r_setup <- function(source_files_list = source_files) {
@@ -58,4 +59,9 @@ clean_us_county_shapefile()
 
 output_master_scalars_file()
 
-walk(map_jobs, run_maps_from_job)
+for (spec_name in names(map_specs)) {
+  message("Processing: ", spec_name)
+  spec <- map_specs[[spec_name]]
+  spec$output_path <- file.path(maps_dir, paste0(spec_name, ".png"))
+  do.call(make_map, spec)
+}
