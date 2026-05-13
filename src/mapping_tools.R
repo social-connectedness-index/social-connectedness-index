@@ -298,6 +298,12 @@ create_map <- function(
         hjust = 0.5,
         color = "gray30",
         margin = margin(t = 60)
+      ),
+      plot.margin = margin(
+        t = 30,
+        r = 50,
+        b = 30,
+        l = 50
       )
     )
 
