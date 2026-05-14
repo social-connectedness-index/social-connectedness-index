@@ -156,11 +156,10 @@ make_map <- function(
     )
 
     if (is_video) {
-      n_frames <- video_duration * video_fps
       av::av_encode_video(
-        input = rep(png_path, n_frames),
+        input = rep(png_path, video_duration),
         output = output_path,
-        framerate = video_fps,
+        framerate = 1,
         vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:white"
       )
       unlink(png_path)
