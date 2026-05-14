@@ -18,6 +18,15 @@ clear_shapefile_cache <- function() {
   invisible(NULL)
 }
 
+.sci_cache <- new.env(parent = emptyenv())
+
+load_sci_cached <- function(path) {
+  if (!exists(path, envir = .sci_cache)) {
+    assign(path, read_csv(path, na = c(""), show_col_types = FALSE), envir = .sci_cache)
+  }
+  get(path, envir = .sci_cache)
+}
+
 iso3_to_iso2 <- function(sf_data, col) {
   sf_data %>%
     mutate(

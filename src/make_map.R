@@ -22,7 +22,9 @@ make_map <- function(
   output_path = NULL,
   width = 30,
   height = 25,
-  dpi = 120,
+  dpi = 300,
+  video_duration = 15,
+  video_fps = 30,
   return_data = FALSE
 ) {
   if (!type %in% names(map_type_configs)) {
@@ -93,7 +95,7 @@ make_map <- function(
   user_region_sf <- highlight_sf_all %>%
     filter(.data[[config$highlight_region_key]] == user_region_id)
 
-  sci_df <- read_csv(sci_path, na = c(""), show_col_types = FALSE)
+  sci_df <- load_sci_cached(sci_path)
 
   sci_filtered <- sci_df %>%
     filter(user_region == user_region_id)
@@ -140,8 +142,11 @@ make_map <- function(
   )
 
   if (!is.null(output_path)) {
+    is_video <- grepl("\\.mp4$", output_path, ignore.case = TRUE)
+    png_path <- if (is_video) tempfile(fileext = ".png") else output_path
+
     ggsave(
-      filename = output_path,
+      filename = png_path,
       plot = g,
       width = width,
       height = height,
@@ -149,6 +154,18 @@ make_map <- function(
       dpi = dpi,
       bg = background_color
     )
+
+    if (is_video) {
+      n_frames <- video_duration * video_fps
+      av::av_encode_video(
+        input = rep(png_path, n_frames),
+        output = output_path,
+        framerate = video_fps,
+        vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:white"
+      )
+      unlink(png_path)
+    }
+
     message("Saved: ", output_path)
   }
 
