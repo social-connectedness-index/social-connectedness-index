@@ -16,14 +16,18 @@ type_file_patterns <- list(
   gadm2 = "^gadm2_shard_",
   adm1 = "^geoboundaries_adm1\\.csv$",
   adm2 = "^geoboundaries_adm2_shard_",
-  nuts = "^nuts[0-9]_2024\\.csv$",
+  nuts1 = "^nuts1_2024\\.csv$",
+  nuts2 = "^nuts2_2024\\.csv$",
+  nuts3 = "^nuts3_2024\\.csv$",
   us_county = "^us_counties\\.csv$",
   us_zcta = "^us_zcta_shard_",
   gadm1_country = "^gadm1_to_country\\.csv$",
   gadm2_country = "^gadm2_to_country\\.csv$",
   adm1_country = "^geoboundaries_adm1_to_country\\.csv$",
   adm2_country = "^geoboundaries_adm2_to_country\\.csv$",
-  nuts_country = "^nuts[0-9]_2024_to_country\\.csv$",
+  nuts1_country = "^nuts1_2024_to_country\\.csv$",
+  nuts2_country = "^nuts2_2024_to_country\\.csv$",
+  nuts3_country = "^nuts3_2024_to_country\\.csv$",
   us_county_country = "^us_counties_to_country\\.csv$",
   us_zcta_country = "^us_zcta_to_country\\.csv$"
 )
@@ -34,14 +38,18 @@ type_labels <- c(
   gadm2 = "GADM Level 2 → GADM Level 2 (districts)",
   adm1 = "geoBoundaries ADM1 → ADM1",
   adm2 = "geoBoundaries ADM2 → ADM2",
-  nuts = "NUTS → NUTS (European regions)",
+  nuts1 = "NUTS Level 1 → NUTS Level 1",
+  nuts2 = "NUTS Level 2 → NUTS Level 2",
+  nuts3 = "NUTS Level 3 → NUTS Level 3",
   us_county = "US County → US County",
   us_zcta = "US ZIP Code → US ZIP Code",
   gadm1_country = "GADM Level 1 → Country",
   gadm2_country = "GADM Level 2 → Country",
   adm1_country = "geoBoundaries ADM1 → Country",
   adm2_country = "geoBoundaries ADM2 → Country",
-  nuts_country = "NUTS → Country",
+  nuts1_country = "NUTS Level 1 → Country",
+  nuts2_country = "NUTS Level 2 → Country",
+  nuts3_country = "NUTS Level 3 → Country",
   us_county_country = "US County → Country",
   us_zcta_country = "US ZIP Code → Country"
 )
@@ -52,14 +60,18 @@ type_id_hints <- c(
   gadm2 = "e.g., IND.34.75_1, BRA.4.38_2 (GADM GID)",
   adm1 = "e.g., 66186276B15934532614691 (geoBoundaries shapeID)",
   adm2 = "e.g., 70781695B5805413017960 (geoBoundaries shapeID)",
-  nuts = "e.g., DE6, AT34 (NUTS code)",
+  nuts1 = "e.g., FR1, DE6 (NUTS 1 code)",
+  nuts2 = "e.g., DE21, AT34 (NUTS 2 code)",
+  nuts3 = "e.g., DE300, AT341 (NUTS 3 code)",
   us_county = "e.g., 36047, 06071 (FIPS code)",
   us_zcta = "e.g., 02138, 89049 (ZIP code)",
   gadm1_country = "e.g., IND.12_1 (GADM GID)",
   gadm2_country = "e.g., IND.34.75_1 (GADM GID)",
   adm1_country = "e.g., 1811400B11231190780494 (geoBoundaries shapeID)",
   adm2_country = "e.g., 70781695B5805413017960 (geoBoundaries shapeID)",
-  nuts_country = "e.g., DE6 (NUTS code)",
+  nuts1_country = "e.g., FR1 (NUTS 1 code)",
+  nuts2_country = "e.g., DE21 (NUTS 2 code)",
+  nuts3_country = "e.g., DE300 (NUTS 3 code)",
   us_county_country = "e.g., 06071 (FIPS code)",
   us_zcta_country = "e.g., 02138 (ZIP code)"
 )
@@ -77,6 +89,7 @@ country_groups <- list(
   "North America" = north_america_iso2_codes,
   "Central America" = central_america_iso2_codes,
   "South America" = south_america_iso2_codes,
+  "NUTS countries" = nuts_cntr_codes,
   "United States" = c("US")
 )
 
@@ -93,6 +106,7 @@ country_group_varnames <- list(
   "North America" = "north_america_iso2_codes",
   "Central America" = "central_america_iso2_codes",
   "South America" = "south_america_iso2_codes",
+  "NUTS countries" = "nuts_cntr_codes",
   "United States" = 'c("US")'
 )
 
