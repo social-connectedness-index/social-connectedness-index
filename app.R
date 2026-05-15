@@ -80,6 +80,22 @@ country_groups <- list(
   "United States" = c("US")
 )
 
+country_group_varnames <- list(
+  "All countries" = "countries_in_data",
+  "Europe" = "europe_iso2_codes",
+  "Africa" = "africa_iso2_codes",
+  "South Asia" = "south_asia_iso2_codes",
+  "West Asia" = "west_asia_iso2_codes",
+  "East Asia" = "east_asia_iso2_codes",
+  "Central Asia" = "central_asia_iso2_codes",
+  "Southeast Asia" = "southeast_asia_iso2_codes",
+  "Maritime SE Asia" = "maritime_southeast_asia_iso2_codes",
+  "North America" = "north_america_iso2_codes",
+  "Central America" = "central_america_iso2_codes",
+  "South America" = "south_america_iso2_codes",
+  "United States" = 'c("US")'
+)
+
 color_presets <- list(
   "Blue (default)" = default_map_colors,
   "Red" = c(
@@ -100,34 +116,120 @@ color_presets <- list(
   )
 )
 
+# --- Helpers ---
+
+build_r_code <- function(input) {
+  lines <- c('source("src/setup.R")', "", "make_map(")
+  args <- c(
+    sprintf('  type = "%s"', input$type),
+    sprintf('  user_region_id = "%s"', input$user_region_id),
+    sprintf('  sci_path = "%s"', input$sci_path)
+  )
+
+  grp_var <- country_group_varnames[[input$country_group]]
+  if (!is.null(grp_var)) {
+    args <- c(args, sprintf("  friend_countries = %s", grp_var))
+  }
+
+  if (nchar(trimws(input$breaks)) > 0) {
+    args <- c(args, sprintf("  breaks = c(%s)", input$breaks))
+  }
+
+  if (nchar(trimws(input$title)) > 0) {
+    args <- c(args, sprintf('  title = "%s"', input$title))
+  }
+
+  if (nchar(trimws(input$subtitle %||% "")) > 0) {
+    args <- c(args, sprintf('  subtitle = "%s"', input$subtitle))
+  }
+
+  if (!is.na(input$xlim_min) && !is.na(input$xlim_max)) {
+    args <- c(args, sprintf(
+      "  xlim = c(%s, %s)", input$xlim_min, input$xlim_max
+    ))
+  }
+
+  if (!is.na(input$ylim_min) && !is.na(input$ylim_max)) {
+    args <- c(args, sprintf(
+      "  ylim = c(%s, %s)", input$ylim_min, input$ylim_max
+    ))
+  }
+
+  if (input$color_preset != "Blue (default)") {
+    hex <- paste0('"', color_presets[[input$color_preset]], '"',
+                  collapse = ", ")
+    args <- c(args, sprintf("  color_palette = c(%s)", hex))
+  }
+
+  region_slug <- gsub("[^a-zA-Z0-9]", "_", input$user_region_id)
+  args <- c(args, sprintf(
+    '  output_path = "output/maps/%s_%s.png"', input$type, region_slug
+  ))
+
+  body <- paste(args, collapse = ",\n")
+  paste0(
+    paste(lines, collapse = "\n"),
+    "\n", body, "\n)"
+  )
+}
+
 # --- UI ---
 
 ui <- fluidPage(
   tags$head(tags$style(HTML("
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+           Roboto, sans-serif; }
     .sidebar-panel { background-color: #f8f9fa; }
-    .btn-generate { width: 100%; margin: 15px 0; font-size: 16px; }
+    .btn-generate { width: 100%; margin: 15px 0; font-size: 16px;
+                    padding: 12px; }
     .help-hint { color: #6c757d; font-size: 12px; margin-top: 2px; }
     .download-row { margin-top: 15px; }
+    .download-row .btn { margin-right: 8px; }
     .placeholder {
-      text-align: center; padding: 150px 30px; color: #adb5bd;
+      text-align: center; padding: 120px 30px; color: #adb5bd;
+      border: 2px dashed #dee2e6; border-radius: 8px; margin: 20px 0;
     }
     details { margin-top: 10px; }
-    details summary { cursor: pointer; font-weight: bold; }
+    details summary { cursor: pointer; font-weight: bold; color: #495057; }
     details > *:not(summary) { margin-top: 10px; }
+    .code-block { font-family: 'SFMono-Regular', Consolas, monospace;
+                  font-size: 13px; white-space: pre-wrap;
+                  background: #f6f8fa; border: 1px solid #d0d7de;
+                  border-radius: 6px; padding: 16px; }
+    .map-container { border: 1px solid #dee2e6; border-radius: 8px;
+                     overflow: hidden; background: white; }
+    .section-label { font-weight: 600; color: #212529; margin-bottom: 4px;
+                     font-size: 13px; text-transform: uppercase;
+                     letter-spacing: 0.5px; }
+    hr { border-top: 1px solid #e9ecef; }
+    @media (max-width: 768px) {
+      .sidebar-panel { width: 100% !important; }
+      .main-panel { width: 100% !important; }
+    }
   "))),
 
-  titlePanel("Social Connectedness Index — Map Generator"),
+  titlePanel(
+    div(
+      "Social Connectedness Index",
+      tags$small(
+        style = "color: #6c757d; font-size: 14px; margin-left: 8px;",
+        "Map Generator"
+      )
+    )
+  ),
 
   sidebarLayout(
     sidebarPanel(
       width = 4,
 
+      div(class = "section-label", "Quick start"),
       selectInput(
-        "preset", "Load a preset",
+        "preset", NULL,
         choices = c("(Start from scratch)" = "", names(map_specs))
       ),
 
       hr(),
+      div(class = "section-label", "Map configuration"),
 
       selectInput(
         "type", "Map type",
@@ -148,7 +250,8 @@ ui <- fluidPage(
 
       actionButton(
         "generate", "Generate Map",
-        class = "btn-primary btn-generate"
+        class = "btn-primary btn-generate",
+        icon = icon("map")
       ),
 
       hr(),
@@ -158,7 +261,7 @@ ui <- fluidPage(
 
         textInput(
           "breaks", "Custom breaks (comma-separated)",
-          placeholder = "e.g., 1,2,3,5,10,20,50"
+          placeholder = "e.g., 1, 2, 3, 5, 10, 20, 50"
         ),
 
         selectInput(
@@ -188,16 +291,23 @@ ui <- fluidPage(
       width = 8,
       conditionalPanel(
         condition = "output.has_map",
-        plotOutput("map_preview", height = "700px"),
+        div(
+          class = "map-container",
+          plotOutput("map_preview", height = "650px")
+        ),
         fluidRow(
           class = "download-row",
           column(
-            3, downloadButton("download_png", "Download PNG",
-                              class = "btn-success")
-          ),
-          column(
-            3, downloadButton("download_pdf", "Download PDF",
-                              class = "btn-info")
+            12,
+            downloadButton("download_png", "PNG",
+                            class = "btn-success btn-sm"),
+            downloadButton("download_pdf", "PDF",
+                            class = "btn-info btn-sm"),
+            downloadButton("download_svg", "SVG",
+                            class = "btn-warning btn-sm"),
+            actionButton("show_code", "Export R Code",
+                         class = "btn-outline-secondary btn-sm",
+                         icon = icon("code"))
           )
         )
       ),
@@ -205,9 +315,9 @@ ui <- fluidPage(
         condition = "!output.has_map",
         div(
           class = "placeholder",
-          h3("Configure your map and click Generate"),
-          p("Select a preset to get started quickly,",
-            "or fill in the parameters manually.")
+          h4("No map generated yet"),
+          p("Select a preset to get started, or fill in the parameters",
+            "and click", tags$strong("Generate Map"), ".")
         )
       )
     )
@@ -335,18 +445,27 @@ server <- function(input, output, session) {
 
   # Generate map on button click
   observeEvent(input$generate, {
-    req(input$user_region_id, input$sci_path)
+    if (nchar(trimws(input$user_region_id)) == 0) {
+      showNotification("Please enter a Region ID.", type = "warning")
+      return()
+    }
+    if (is.null(input$sci_path) || nchar(trimws(input$sci_path)) == 0) {
+      showNotification("Please select an SCI data file.", type = "warning")
+      return()
+    }
 
-    withProgress(message = "Generating map...", value = 0.5, {
+    withProgress(message = "Generating map...", value = 0.3, {
       tryCatch(
         {
+          setProgress(0.5, detail = "Loading data and rendering...")
           rv$map <- do.call(make_map, build_args())
+          setProgress(1.0, detail = "Done")
         },
         error = function(e) {
           showNotification(
             paste("Error:", e$message),
             type = "error",
-            duration = 10
+            duration = 15
           )
           rv$map <- NULL
         }
@@ -401,6 +520,38 @@ server <- function(input, output, session) {
       )
     }
   )
+
+  # Download SVG
+  output$download_svg <- downloadHandler(
+    filename = function() {
+      region <- gsub("[^a-zA-Z0-9]", "_", input$user_region_id)
+      paste0("sci_", input$type, "_", region, ".svg")
+    },
+    content = function(file) {
+      req(rv$map)
+      ggsave(
+        file,
+        plot = rv$map,
+        width = input$width,
+        height = input$height,
+        units = "in",
+        device = "svg"
+      )
+    }
+  )
+
+  # Export R code modal
+  observeEvent(input$show_code, {
+    code <- build_r_code(input)
+    showModal(modalDialog(
+      title = "Reproducible R Code",
+      p("Copy the code below to reproduce this map from the R console:"),
+      tags$pre(class = "code-block", code),
+      footer = modalButton("Close"),
+      size = "l",
+      easyClose = TRUE
+    ))
+  })
 }
 
 shinyApp(ui, server)
