@@ -149,5 +149,65 @@ map_specs <- list(
     friend_countries = countries_in_data,
     breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 40, 50),
     title = "Social Connectedness Index: Cambridge"
+  ),
+
+  ile_de_france_nuts1 = list(
+    type = "nuts1",
+    user_region_id = "FR1",
+    sci_path = "data/sci_2026/nuts1_2024.csv",
+    friend_countries = nuts_cntr_codes,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+    xlim = c(-25, 45),
+    ylim = c(34, 72),
+    title = "Social Connectedness Index: Ile-de-France, France (NUTS1)"
+  ),
+
+  oberbayern_nuts2 = list(
+    type = "nuts2",
+    user_region_id = "DE21",
+    sci_path = "data/sci_2026/nuts2_2024.csv",
+    friend_countries = nuts_cntr_codes,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+    xlim = c(-25, 45),
+    ylim = c(34, 72),
+    title = "Social Connectedness Index: Oberbayern, Germany (NUTS2)"
+  ),
+
+  berlin_nuts3 = list(
+    type = "nuts3",
+    user_region_id = "DE300",
+    sci_path = "data/sci_2026/nuts3_2024.csv",
+    friend_countries = nuts_cntr_codes,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+    xlim = c(-25, 45),
+    ylim = c(34, 72),
+    title = "Social Connectedness Index: Berlin, Germany (NUTS3)"
+  ),
+
+  ile_de_france_nuts1_country = list(
+    type = "nuts1_country",
+    user_region_id = "FR1",
+    sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
+    friend_countries = countries_in_data,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+    title = "Social Connectedness Index: Ile-de-France, France (NUTS1 to Country)"
+  ),
+
+  oberbayern_nuts2_country = list(
+    type = "nuts2_country",
+    user_region_id = "DE21",
+    sci_path = "data/sci_2026/nuts2_2024_to_country.csv",
+    friend_countries = countries_in_data,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+    title = "Social Connectedness Index: Oberbayern, Germany (NUTS2 to Country)"
+  ),
+
+  berlin_nuts3_country = list(
+    type = "nuts3_country",
+    user_region_id = "DE300",
+    sci_path = "data/sci_2026/nuts3_2024_to_country.csv",
+    friend_countries = countries_in_data,
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 30, 50, 75),
+    title = "Social Connectedness Index: Berlin, Germany (NUTS3 to Country)"
   )
 )

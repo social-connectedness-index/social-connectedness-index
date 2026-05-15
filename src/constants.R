@@ -60,10 +60,19 @@ us_zcta_shapefile_path <- file.path(
   "united_states.shp"
 )
 
-nuts_shapefile_path <- file.path(
+nuts_gpkg_input <- file.path(
   input_shapefiles_dir,
   "NUTS_RG_01M_2024_4326.gpkg"
 )
+
+nuts_shapefiles_output_dir <- file.path(
+  cleaned_shapefiles_dir,
+  "nuts"
+)
+
+nuts1_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts1.shp")
+nuts2_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts2.shp")
+nuts3_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts3.shp")
 
 sci_2021_dir <- file.path(data_dir, "sci_2021")
 
@@ -517,4 +526,45 @@ central_asia_iso2_codes = c(
   "KG", # KGZ → Kyrgyzstan
   "TJ", # TJK → Tajikistan
   "UZ" # UZB → Uzbekistan
+)
+
+nuts_cntr_codes = c(
+  "AL", # Albania
+  "AT", # Austria
+  "BA", # Bosnia and Herzegovina
+  "BE", # Belgium
+  "BG", # Bulgaria
+  "CH", # Switzerland
+  "CY", # Cyprus
+  "CZ", # Czech Republic
+  "DE", # Germany
+  "DK", # Denmark
+  "EE", # Estonia
+  "EL", # Greece (Eurostat code, not ISO2 "GR")
+  "ES", # Spain
+  "FI", # Finland
+  "FR", # France
+  "HR", # Croatia
+  "HU", # Hungary
+  "IE", # Ireland
+  "IS", # Iceland
+  "IT", # Italy
+  "LI", # Liechtenstein
+  "LT", # Lithuania
+  "LU", # Luxembourg
+  "LV", # Latvia
+  "ME", # Montenegro
+  "MK", # North Macedonia
+  "MT", # Malta
+  "NL", # Netherlands
+  "NO", # Norway
+  "PL", # Poland
+  "PT", # Portugal
+  "RO", # Romania
+  "RS", # Serbia
+  "SE", # Sweden
+  "SI", # Slovenia
+  "SK", # Slovakia
+  "TR", # Turkey
+  "XK"  # Kosovo
 )
