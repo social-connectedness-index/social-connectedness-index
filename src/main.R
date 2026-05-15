@@ -63,9 +63,11 @@ clean_nuts_shapefiles()
 
 output_master_scalars_file()
 
+output_format <- "png" # "png" for images, "mp4" for videos
+
 for (spec_name in names(map_specs)) {
   message("Processing: ", spec_name)
   spec <- map_specs[[spec_name]]
-  spec$output_path <- file.path(maps_dir, paste0(spec_name, ".mp4"))
+  spec$output_path <- file.path(maps_dir, paste0(spec_name, ".", output_format))
   do.call(make_map, spec)
 }
