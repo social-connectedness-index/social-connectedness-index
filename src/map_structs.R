@@ -1,5 +1,5 @@
 map_specs <- list(
-  sweden = list(
+  sweden_country = list(
     type = "country",
     user_region_id = "SE",
     sci_path = "data/sci_2026/country.csv",
@@ -8,7 +8,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Sweden"
   ),
 
-  cabo_delgado = list(
+  cabo_delgado_gadm1 = list(
     type = "gadm1",
     user_region_id = "MOZ.1_1",
     sci_path = "data/sci_2026/gadm1.csv",
@@ -19,7 +19,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Cabo Delgado, Mozambique"
   ),
 
-  antananarivo = list(
+  antananarivo_gadm1 = list(
     type = "gadm1",
     user_region_id = "MDG.1_1",
     sci_path = "data/sci_2026/gadm1.csv",
@@ -30,7 +30,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Antananarivo, Madagascar"
   ),
 
-  varanasi = list(
+  varanasi_gadm2 = list(
     type = "gadm2",
     user_region_id = "IND.34.75_1",
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
@@ -41,7 +41,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Varanasi, India"
   ),
 
-  belgaum = list(
+  belgaum_gadm2 = list(
     type = "gadm2",
     user_region_id = "IND.16.4_1",
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
@@ -52,7 +52,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Belgaum, India"
   ),
 
-  manaus = list(
+  manaus_gadm2 = list(
     type = "gadm2",
     user_region_id = "BRA.4.38_2",
     sci_path = "data/sci_2026/gadm2_shard_BR.csv",
@@ -63,7 +63,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Manaus, Brazil"
   ),
 
-  santiago = list(
+  santiago_gadm2 = list(
     type = "gadm2",
     user_region_id = "CHL.14.5_1",
     sci_path = "data/sci_2026/gadm2_shard_DO.csv",
@@ -74,7 +74,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Santiago, Chile"
   ),
 
-  massachusetts = list(
+  massachusetts_adm1 = list(
     type = "adm1",
     user_region_id = "66186276B15934532614691",
     sci_path = "data/sci_2026/geoboundaries_adm1.csv",
@@ -85,7 +85,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Massachusetts, USA"
   ),
 
-  stockholm = list(
+  stockholm_adm2 = list(
     type = "adm2",
     user_region_id = "70781695B5805413017960",
     sci_path = "data/sci_2026/geoboundaries_adm2_shard_TG.csv",
@@ -94,7 +94,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Stockholm, Sweden"
   ),
 
-  kings = list(
+  kings_us_county = list(
     type = "us_county",
     user_region_id = "36047",
     sci_path = "data/sci_2026/us_counties.csv",
@@ -105,7 +105,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Kings County, USA"
   ),
 
-  tonopah = list(
+  tonopah_us_zcta = list(
     type = "us_zcta",
     user_region_id = "89049",
     sci_path = "data/sci_2026/us_zcta_shard_8.csv",
@@ -115,7 +115,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Tonopah"
   ),
 
-  haryana = list(
+  haryana_gadm1_country = list(
     type = "gadm1_country",
     user_region_id = "IND.12_1",
     sci_path = "data/sci_2026/gadm1_to_country.csv",
@@ -124,7 +124,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Haryana, India"
   ),
 
-  uttar_pradesh = list(
+  uttar_pradesh_adm1_country = list(
     type = "adm1_country",
     user_region_id = "1811400B11231190780494",
     sci_path = "data/sci_2026/geoboundaries_adm1_to_country.csv",
@@ -133,7 +133,7 @@ map_specs <- list(
     title = "Social Connectedness Index: Uttar Pradesh"
   ),
 
-  san_bernardino = list(
+  san_bernardino_us_county_country = list(
     type = "us_county_country",
     user_region_id = "06071",
     sci_path = "data/sci_2026/us_counties_to_country.csv",
@@ -142,7 +142,7 @@ map_specs <- list(
     title = "Social Connectedness Index: San Bernardino"
   ),
 
-  cambridge = list(
+  cambridge_us_zcta_country = list(
     type = "us_zcta_country",
     user_region_id = "02138",
     sci_path = "data/sci_2026/us_zcta_to_country.csv",
