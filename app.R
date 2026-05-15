@@ -99,20 +99,40 @@ country_group_varnames <- list(
 color_presets <- list(
   "Blue (default)" = default_map_colors,
   "Red" = c(
-    "#fde0dd", "#fcc5c0", "#fa9fb5", "#f768a1",
-    "#dd3497", "#ae017e", "#7a0177"
+    "#fde0dd",
+    "#fcc5c0",
+    "#fa9fb5",
+    "#f768a1",
+    "#dd3497",
+    "#ae017e",
+    "#7a0177"
   ),
   "Green" = c(
-    "#edf8e9", "#c7e9c0", "#a1d99b", "#74c476",
-    "#41ab5d", "#238b45", "#005a32"
+    "#edf8e9",
+    "#c7e9c0",
+    "#a1d99b",
+    "#74c476",
+    "#41ab5d",
+    "#238b45",
+    "#005a32"
   ),
   "Purple" = c(
-    "#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8",
-    "#807dba", "#6a51a3", "#4a1486"
+    "#f2f0f7",
+    "#dadaeb",
+    "#bcbddc",
+    "#9e9ac8",
+    "#807dba",
+    "#6a51a3",
+    "#4a1486"
   ),
   "Orange" = c(
-    "#feedde", "#fdd0a2", "#fdae6b", "#fd8d3c",
-    "#f16913", "#d94801", "#8c2d04"
+    "#feedde",
+    "#fdd0a2",
+    "#fdae6b",
+    "#fd8d3c",
+    "#f16913",
+    "#d94801",
+    "#8c2d04"
   )
 )
 
@@ -144,39 +164,61 @@ build_r_code <- function(input) {
   }
 
   if (!is.na(input$xlim_min) && !is.na(input$xlim_max)) {
-    args <- c(args, sprintf(
-      "  xlim = c(%s, %s)", input$xlim_min, input$xlim_max
-    ))
+    args <- c(
+      args,
+      sprintf(
+        "  xlim = c(%s, %s)",
+        input$xlim_min,
+        input$xlim_max
+      )
+    )
   }
 
   if (!is.na(input$ylim_min) && !is.na(input$ylim_max)) {
-    args <- c(args, sprintf(
-      "  ylim = c(%s, %s)", input$ylim_min, input$ylim_max
-    ))
+    args <- c(
+      args,
+      sprintf(
+        "  ylim = c(%s, %s)",
+        input$ylim_min,
+        input$ylim_max
+      )
+    )
   }
 
   if (input$color_preset != "Blue (default)") {
-    hex <- paste0('"', color_presets[[input$color_preset]], '"',
-                  collapse = ", ")
+    hex <- paste0(
+      '"',
+      color_presets[[input$color_preset]],
+      '"',
+      collapse = ", "
+    )
     args <- c(args, sprintf("  color_palette = c(%s)", hex))
   }
 
   region_slug <- gsub("[^a-zA-Z0-9]", "_", input$user_region_id)
-  args <- c(args, sprintf(
-    '  output_path = "output/maps/%s_%s.png"', input$type, region_slug
-  ))
+  args <- c(
+    args,
+    sprintf(
+      '  output_path = "output/maps/%s_%s.png"',
+      input$type,
+      region_slug
+    )
+  )
 
   body <- paste(args, collapse = ",\n")
   paste0(
     paste(lines, collapse = "\n"),
-    "\n", body, "\n)"
+    "\n",
+    body,
+    "\n)"
   )
 }
 
 # --- UI ---
 
 ui <- fluidPage(
-  tags$head(tags$style(HTML("
+  tags$head(tags$style(HTML(
+    "
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
            Roboto, sans-serif; }
     .sidebar-panel { background-color: #f8f9fa; }
@@ -206,7 +248,8 @@ ui <- fluidPage(
       .sidebar-panel { width: 100% !important; }
       .main-panel { width: 100% !important; }
     }
-  "))),
+  "
+  ))),
 
   titlePanel(
     div(
@@ -224,7 +267,8 @@ ui <- fluidPage(
 
       div(class = "section-label", "Quick start"),
       selectInput(
-        "preset", NULL,
+        "preset",
+        NULL,
         choices = c("(Start from scratch)" = "", names(map_specs))
       ),
 
@@ -232,7 +276,8 @@ ui <- fluidPage(
       div(class = "section-label", "Map configuration"),
 
       selectInput(
-        "type", "Map type",
+        "type",
+        "Map type",
         choices = setNames(names(type_labels), type_labels)
       ),
 
@@ -242,14 +287,16 @@ ui <- fluidPage(
       div(class = "help-hint", textOutput("id_hint")),
 
       selectInput(
-        "country_group", "Countries to show",
+        "country_group",
+        "Countries to show",
         choices = names(country_groups)
       ),
 
       textInput("title", "Title (optional)"),
 
       actionButton(
-        "generate", "Generate Map",
+        "generate",
+        "Generate Map",
         class = "btn-primary btn-generate",
         icon = icon("map")
       ),
@@ -260,12 +307,14 @@ ui <- fluidPage(
         tags$summary("Advanced options"),
 
         textInput(
-          "breaks", "Custom breaks (comma-separated)",
+          "breaks",
+          "Custom breaks (comma-separated)",
           placeholder = "e.g., 1, 2, 3, 5, 10, 20, 50"
         ),
 
         selectInput(
-          "color_preset", "Color palette",
+          "color_preset",
+          "Color palette",
           choices = names(color_presets)
         ),
 
@@ -299,15 +348,15 @@ ui <- fluidPage(
           class = "download-row",
           column(
             12,
-            downloadButton("download_png", "PNG",
-                            class = "btn-success btn-sm"),
-            downloadButton("download_pdf", "PDF",
-                            class = "btn-info btn-sm"),
-            downloadButton("download_svg", "SVG",
-                            class = "btn-warning btn-sm"),
-            actionButton("show_code", "Export R Code",
-                         class = "btn-outline-secondary btn-sm",
-                         icon = icon("code"))
+            downloadButton("download_png", "PNG", class = "btn-success btn-sm"),
+            downloadButton("download_pdf", "PDF", class = "btn-info btn-sm"),
+            downloadButton("download_svg", "SVG", class = "btn-warning btn-sm"),
+            actionButton(
+              "show_code",
+              "Export R Code",
+              class = "btn-outline-secondary btn-sm",
+              icon = icon("code")
+            )
           )
         )
       ),
@@ -316,8 +365,12 @@ ui <- fluidPage(
         div(
           class = "placeholder",
           h4("No map generated yet"),
-          p("Select a preset to get started, or fill in the parameters",
-            "and click", tags$strong("Generate Map"), ".")
+          p(
+            "Select a preset to get started, or fill in the parameters",
+            "and click",
+            tags$strong("Generate Map"),
+            "."
+          )
         )
       )
     )
@@ -327,7 +380,6 @@ ui <- fluidPage(
 # --- Server ---
 
 server <- function(input, output, session) {
-
   rv <- reactiveValues(map = NULL)
 
   output$has_map <- reactive(!is.null(rv$map))
@@ -340,7 +392,8 @@ server <- function(input, output, session) {
       files <- list.files(sci_data_dir, pattern = pattern)
       full_paths <- file.path(sci_data_dir, files)
       updateSelectInput(
-        session, "sci_path",
+        session,
+        "sci_path",
         choices = setNames(full_paths, files)
       )
     }
@@ -352,61 +405,73 @@ server <- function(input, output, session) {
   })
 
   # Load preset into form fields
-  observeEvent(input$preset, {
-    req(input$preset != "")
-    spec <- map_specs[[input$preset]]
-    if (is.null(spec)) return()
+  observeEvent(
+    input$preset,
+    {
+      req(input$preset != "")
+      spec <- map_specs[[input$preset]]
+      if (is.null(spec)) {
+        return()
+      }
 
-    updateSelectInput(session, "type", selected = spec$type)
-    updateTextInput(session, "user_region_id", value = spec$user_region_id)
-    updateTextInput(session, "title", value = spec$title %||% "")
-    updateTextInput(session, "subtitle", value = "")
+      updateSelectInput(session, "type", selected = spec$type)
+      updateTextInput(session, "user_region_id", value = spec$user_region_id)
+      updateTextInput(session, "title", value = spec$title %||% "")
+      updateTextInput(session, "subtitle", value = "")
 
-    updateSelectInput(
-      session, "sci_path",
-      choices = setNames(spec$sci_path, basename(spec$sci_path)),
-      selected = spec$sci_path
-    )
+      updateSelectInput(
+        session,
+        "sci_path",
+        choices = setNames(spec$sci_path, basename(spec$sci_path)),
+        selected = spec$sci_path
+      )
 
-    matched_group <- "All countries"
-    if (!is.null(spec$friend_countries)) {
-      for (grp in names(country_groups)) {
-        if (setequal(country_groups[[grp]], spec$friend_countries)) {
-          matched_group <- grp
-          break
+      matched_group <- "All countries"
+      if (!is.null(spec$friend_countries)) {
+        for (grp in names(country_groups)) {
+          if (setequal(country_groups[[grp]], spec$friend_countries)) {
+            matched_group <- grp
+            break
+          }
         }
       }
-    }
-    updateSelectInput(session, "country_group", selected = matched_group)
+      updateSelectInput(session, "country_group", selected = matched_group)
 
-    if (!is.null(spec$breaks)) {
-      updateTextInput(
-        session, "breaks",
-        value = paste(spec$breaks, collapse = ", ")
+      if (!is.null(spec$breaks)) {
+        updateTextInput(
+          session,
+          "breaks",
+          value = paste(spec$breaks, collapse = ", ")
+        )
+      } else {
+        updateTextInput(session, "breaks", value = "")
+      }
+
+      updateNumericInput(
+        session,
+        "xlim_min",
+        value = if (!is.null(spec$xlim)) spec$xlim[1] else NA
       )
-    } else {
-      updateTextInput(session, "breaks", value = "")
-    }
+      updateNumericInput(
+        session,
+        "xlim_max",
+        value = if (!is.null(spec$xlim)) spec$xlim[2] else NA
+      )
+      updateNumericInput(
+        session,
+        "ylim_min",
+        value = if (!is.null(spec$ylim)) spec$ylim[1] else NA
+      )
+      updateNumericInput(
+        session,
+        "ylim_max",
+        value = if (!is.null(spec$ylim)) spec$ylim[2] else NA
+      )
 
-    updateNumericInput(
-      session, "xlim_min",
-      value = if (!is.null(spec$xlim)) spec$xlim[1] else NA
-    )
-    updateNumericInput(
-      session, "xlim_max",
-      value = if (!is.null(spec$xlim)) spec$xlim[2] else NA
-    )
-    updateNumericInput(
-      session, "ylim_min",
-      value = if (!is.null(spec$ylim)) spec$ylim[1] else NA
-    )
-    updateNumericInput(
-      session, "ylim_max",
-      value = if (!is.null(spec$ylim)) spec$ylim[2] else NA
-    )
-
-    updateSelectInput(session, "color_preset", selected = "Blue (default)")
-  }, ignoreInit = TRUE)
+      updateSelectInput(session, "color_preset", selected = "Blue (default)")
+    },
+    ignoreInit = TRUE
+  )
 
   # Build make_map() arguments from current inputs
   build_args <- function() {
