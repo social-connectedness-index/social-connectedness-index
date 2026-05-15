@@ -120,18 +120,46 @@ map_type_configs <- list(
     highlight_sf = list(path = geoboundaries_gpkg_path, layer = "adm2"),
     highlight_region_key = "shapeID"
   ),
-  nuts = list(
-    friend_sf = list(path = nuts_shapefile_path, layer = NULL),
+  nuts1 = list(
+    friend_sf = list(path = nuts1_shapefile_path, layer = NULL),
     friend_region_key = "NUTS_ID",
     friend_country_key = "CNTR_CODE",
-    highlight_sf = list(path = nuts_shapefile_path, layer = NULL),
+    highlight_sf = list(path = nuts1_shapefile_path, layer = NULL),
     highlight_region_key = "NUTS_ID"
   ),
-  nuts_country = list(
+  nuts2 = list(
+    friend_sf = list(path = nuts2_shapefile_path, layer = NULL),
+    friend_region_key = "NUTS_ID",
+    friend_country_key = "CNTR_CODE",
+    highlight_sf = list(path = nuts2_shapefile_path, layer = NULL),
+    highlight_region_key = "NUTS_ID"
+  ),
+  nuts3 = list(
+    friend_sf = list(path = nuts3_shapefile_path, layer = NULL),
+    friend_region_key = "NUTS_ID",
+    friend_country_key = "CNTR_CODE",
+    highlight_sf = list(path = nuts3_shapefile_path, layer = NULL),
+    highlight_region_key = "NUTS_ID"
+  ),
+  nuts1_country = list(
     friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
     friend_region_key = "sv_cntr",
     friend_country_key = "sv_cntr",
-    highlight_sf = list(path = nuts_shapefile_path, layer = NULL),
+    highlight_sf = list(path = nuts1_shapefile_path, layer = NULL),
+    highlight_region_key = "NUTS_ID"
+  ),
+  nuts2_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = nuts2_shapefile_path, layer = NULL),
+    highlight_region_key = "NUTS_ID"
+  ),
+  nuts3_country = list(
+    friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    friend_region_key = "sv_cntr",
+    friend_country_key = "sv_cntr",
+    highlight_sf = list(path = nuts3_shapefile_path, layer = NULL),
     highlight_region_key = "NUTS_ID"
   ),
   us_county = list(
