@@ -321,12 +321,12 @@ ui <- fluidPage(
         textInput("subtitle", "Subtitle (optional)"),
 
         fluidRow(
-          column(6, numericInput("xlim_min", "Lon min", value = NA)),
-          column(6, numericInput("xlim_max", "Lon max", value = NA))
+          column(6, numericInput("xlim_min", "Min Longitude", value = NA)),
+          column(6, numericInput("xlim_max", "Max Longitude", value = NA))
         ),
         fluidRow(
-          column(6, numericInput("ylim_min", "Lat min", value = NA)),
-          column(6, numericInput("ylim_max", "Lat max", value = NA))
+          column(6, numericInput("ylim_min", "Min Latitude", value = NA)),
+          column(6, numericInput("ylim_max", "Max Latitude", value = NA))
         ),
         fluidRow(
           column(4, numericInput("width", "Width (in)", value = 30, min = 5)),
@@ -368,8 +368,7 @@ ui <- fluidPage(
           p(
             "Select a preset to get started, or fill in the parameters",
             "and click",
-            tags$strong("Generate Map"),
-            "."
+            "Generate Map."
           )
         )
       )
