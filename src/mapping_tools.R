@@ -274,6 +274,11 @@ build_map_plot <- function(
       plot.title = element_text(
         size = round(base_font_size * 70 / 24),
         hjust = 0.5,
+        margin = margin(b = 25)
+      ),
+      plot.subtitle = element_text(
+        size = round(base_font_size * 55 / 24),
+        hjust = 0.5,
         margin = margin(b = 20)
       ),
       plot.caption = element_text(
