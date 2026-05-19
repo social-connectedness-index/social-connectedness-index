@@ -23,7 +23,7 @@ make_map <- function(
   width = 30,
   height = 25,
   dpi = 300,
-  video_duration = 15,
+  video_duration = 10,
   video_fps = 30,
   return_data = FALSE
 ) {
@@ -160,7 +160,7 @@ make_map <- function(
         input = rep(png_path, video_duration),
         output = output_path,
         framerate = 1,
-        vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:white"
+        vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
       )
       unlink(png_path)
     }
