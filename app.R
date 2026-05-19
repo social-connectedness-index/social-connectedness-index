@@ -54,28 +54,6 @@ type_labels <- c(
   us_zcta_country = "US ZIP Code → Country"
 )
 
-type_id_hints <- c(
-  country = "e.g., SE, JP, BR (ISO-2 country code)",
-  gadm1 = "e.g., IND.12_1, MOZ.1_1 (GADM GID)",
-  gadm2 = "e.g., IND.34.75_1, BRA.4.38_2 (GADM GID)",
-  adm1 = "e.g., 66186276B15934532614691 (geoBoundaries shapeID)",
-  adm2 = "e.g., 70781695B5805413017960 (geoBoundaries shapeID)",
-  nuts1 = "e.g., FR1, DE6 (NUTS 1 code)",
-  nuts2 = "e.g., DE21, AT34 (NUTS 2 code)",
-  nuts3 = "e.g., DE300, AT341 (NUTS 3 code)",
-  us_county = "e.g., 36047, 06071 (FIPS code)",
-  us_zcta = "e.g., 02138, 89049 (ZIP code)",
-  gadm1_country = "e.g., IND.12_1 (GADM GID)",
-  gadm2_country = "e.g., IND.34.75_1 (GADM GID)",
-  adm1_country = "e.g., 1811400B11231190780494 (geoBoundaries shapeID)",
-  adm2_country = "e.g., 70781695B5805413017960 (geoBoundaries shapeID)",
-  nuts1_country = "e.g., FR1 (NUTS 1 code)",
-  nuts2_country = "e.g., DE21 (NUTS 2 code)",
-  nuts3_country = "e.g., DE300 (NUTS 3 code)",
-  us_county_country = "e.g., 06071 (FIPS code)",
-  us_zcta_country = "e.g., 02138 (ZIP code)"
-)
-
 country_groups <- list(
   "(Custom only)" = character(0),
   "All countries" = countries_in_data,
@@ -134,6 +112,30 @@ country_choices <- setNames(
 )
 country_choices <- country_choices[order(names(country_choices))]
 
+region_id_config <- list(
+  gadm1 = list(path = gadm1_shapefile_path, key = "key", name = "name",
+               country_col = "country", country_origin = "iso3c"),
+  gadm2 = list(path = gadm2_shapefile_path, key = "key", name = "name",
+               country_col = "country", country_origin = "iso3c"),
+  adm1 = list(path = geoboundaries_gpkg_path, layer = "adm1",
+              key = "shapeID", name = "shapeName",
+              country_col = "shapeGroup", country_origin = "iso3c"),
+  adm2 = list(path = geoboundaries_gpkg_path, layer = "adm2",
+              key = "shapeID", name = "shapeName",
+              country_col = "shapeGroup", country_origin = "iso3c"),
+  nuts1 = list(path = nuts1_shapefile_path, key = "NUTS_ID",
+               name = "NAME_LATN", country_col = "CNTR_CODE",
+               country_origin = "iso2c"),
+  nuts2 = list(path = nuts2_shapefile_path, key = "NUTS_ID",
+               name = "NAME_LATN", country_col = "CNTR_CODE",
+               country_origin = "iso2c"),
+  nuts3 = list(path = nuts3_shapefile_path, key = "NUTS_ID",
+               name = "NAME_LATN", country_col = "CNTR_CODE",
+               country_origin = "iso2c"),
+  us_county = list(path = us_county_shapefile_path, key = "region_id"),
+  us_zcta = list(path = us_zcta_shapefile_path, key = "region_id")
+)
+
 color_presets <- list(
   "Blue (default)" = default_map_colors,
   "Red" = c(
@@ -175,6 +177,57 @@ color_presets <- list(
 )
 
 # --- Helpers ---
+
+.region_choices_cache <- new.env(parent = emptyenv())
+
+build_region_choices <- function(cfg) {
+  sf_data <- if (!is.null(cfg$layer)) {
+    load_shapefile_cached(cfg$path, cfg$layer)
+  } else {
+    load_shapefile_cached(cfg$path)
+  }
+
+  ids <- sf_data[[cfg$key]]
+
+  if (is.null(cfg$name)) {
+    choices <- setNames(ids, ids)
+    return(sort(choices))
+  }
+
+  region_names <- sf_data[[cfg$name]]
+  country_names <- countrycode::countrycode(
+    sf_data[[cfg$country_col]], cfg$country_origin, "country.name",
+    custom_match = c("XKO" = "Kosovo", "XKX" = "Kosovo", "XK" = "Kosovo")
+  )
+
+  labels <- ifelse(
+    is.na(country_names),
+    region_names,
+    paste0(region_names, ", ", country_names)
+  )
+  choices <- setNames(ids, labels)
+  choices[order(names(choices))]
+}
+
+get_region_choices <- function(type) {
+  if (type == "country") return(country_choices)
+
+  config_key <- sub("_country$", "", type)
+
+  if (exists(config_key, envir = .region_choices_cache)) {
+    return(get(config_key, envir = .region_choices_cache))
+  }
+
+  cfg <- region_id_config[[config_key]]
+  if (is.null(cfg)) return(NULL)
+
+  choices <- tryCatch(
+    build_region_choices(cfg),
+    error = function(e) character(0)
+  )
+  assign(config_key, choices, envir = .region_choices_cache)
+  choices
+}
 
 resolve_sci_path <- function(type, region_id, sci_data_dir) {
   pattern <- type_file_patterns[[type]]
@@ -381,8 +434,11 @@ ui <- fluidPage(
         choices = setNames(names(type_labels), type_labels)
       ),
 
-      textInput("user_region_id", "Region ID"),
-      div(class = "help-hint", textOutput("id_hint")),
+      selectizeInput(
+        "user_region_id",
+        "Region ID",
+        choices = NULL
+      ),
 
       selectInput(
         "country_group",
@@ -490,15 +546,32 @@ ui <- fluidPage(
 # --- Server ---
 
 server <- function(input, output, session) {
-  rv <- reactiveValues(map = NULL)
+  rv <- reactiveValues(map = NULL, skip_type_region_update = FALSE)
 
   output$has_map <- reactive(!is.null(rv$map))
   outputOptions(output, "has_map", suspendWhenHidden = FALSE)
 
-  # Show region ID hint for selected type
-  output$id_hint <- renderText({
-    type_id_hints[[input$type]] %||% ""
-  })
+  # Update region ID choices when map type changes
+  observeEvent(input$type, {
+    if (rv$skip_type_region_update) {
+      rv$skip_type_region_update <- FALSE
+      return()
+    }
+
+    choices <- get_region_choices(input$type)
+    if (is.null(choices)) {
+      updateSelectizeInput(
+        session, "user_region_id",
+        choices = character(0), selected = ""
+      )
+    } else {
+      is_large <- grepl("^(gadm2|adm2|us_zcta)", input$type)
+      updateSelectizeInput(
+        session, "user_region_id",
+        choices = choices, selected = "", server = is_large
+      )
+    }
+  }, ignoreInit = TRUE)
 
   # Auto-fill lat/lon when country group changes
   observeEvent(input$country_group, {
@@ -526,8 +599,23 @@ server <- function(input, output, session) {
         return()
       }
 
+      rv$skip_type_region_update <- TRUE
       updateSelectInput(session, "type", selected = spec$type)
-      updateTextInput(session, "user_region_id", value = spec$user_region_id)
+
+      choices <- get_region_choices(spec$type)
+      if (is.null(choices)) {
+        updateSelectizeInput(
+          session, "user_region_id",
+          choices = character(0), selected = spec$user_region_id
+        )
+      } else {
+        is_large <- grepl("^(gadm2|adm2|us_zcta)", spec$type)
+        updateSelectizeInput(
+          session, "user_region_id",
+          choices = choices, selected = spec$user_region_id,
+          server = is_large
+        )
+      }
       updateTextInput(session, "title", value = spec$title %||% "")
       updateTextInput(session, "subtitle", value = "")
 
@@ -626,7 +714,7 @@ server <- function(input, output, session) {
 
   # Generate map on button click
   observeEvent(input$generate, {
-    if (nchar(trimws(input$user_region_id)) == 0) {
+    if (is.null(input$user_region_id) || nchar(trimws(input$user_region_id)) == 0) {
       showNotification("Please enter a Region ID.", type = "warning")
       return()
     }
