@@ -22,7 +22,11 @@ clear_shapefile_cache <- function() {
 
 load_sci_cached <- function(path) {
   if (!exists(path, envir = .sci_cache)) {
-    assign(path, read_csv(path, na = c(""), show_col_types = FALSE), envir = .sci_cache)
+    assign(
+      path,
+      read_csv(path, na = c(""), show_col_types = FALSE),
+      envir = .sci_cache
+    )
   }
   get(path, envir = .sci_cache)
 }
@@ -59,9 +63,7 @@ default_map_colors <- c(
 
 default_caption <- function() {
   paste0(
-    'Johnston, Kuchler, Kulkarni, and Stroebel (2026). ',
-    '"The Social Connectedness Index."\n',
-    'Data available at data.humdata.org/dataset/social-connectedness-index.'
+    'Social Connectedness Index Data: tinyurl.com/sci-dataset'
   )
 }
 
@@ -284,7 +286,7 @@ build_map_plot <- function(
       plot.caption = element_text(
         size = round(base_font_size * 40 / 24),
         hjust = 0.5,
-        color = "gray30",
+        color = "gray10",
         margin = margin(t = 60)
       ),
       plot.margin = margin(t = 30, r = 50, b = 30, l = 50)
