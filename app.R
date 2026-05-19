@@ -77,6 +77,7 @@ type_id_hints <- c(
 )
 
 country_groups <- list(
+  "(Custom only)" = character(0),
   "All countries" = countries_in_data,
   "Europe" = europe_iso2_codes,
   "Africa" = africa_iso2_codes,
@@ -89,11 +90,26 @@ country_groups <- list(
   "North America" = north_america_iso2_codes,
   "Central America" = central_america_iso2_codes,
   "South America" = south_america_iso2_codes,
-  "NUTS countries" = nuts_cntr_codes,
   "United States" = c("US")
 )
 
+country_group_bounds <- list(
+  "Europe" = list(xlim = c(-10, 36), ylim = c(36, 70)),
+  "Africa" = list(xlim = c(-26, 58), ylim = c(-35, 35)),
+  "South Asia" = list(xlim = c(60, 98), ylim = c(5, 37)),
+  "West Asia" = list(xlim = c(25, 61), ylim = c(12, 43)),
+  "East Asia" = list(xlim = c(120, 146), ylim = c(20, 46)),
+  "Central Asia" = list(xlim = c(43, 91), ylim = c(33, 59)),
+  "Southeast Asia" = list(xlim = c(92, 110), ylim = c(5, 28)),
+  "Maritime SE Asia" = list(xlim = c(74, 174), ylim = c(-31, 29)),
+  "North America" = list(xlim = c(-168, -52), ylim = c(6, 83)),
+  "Central America" = list(xlim = c(-118, -77), ylim = c(6, 33)),
+  "South America" = list(xlim = c(-85, -33), ylim = c(-55, 12)),
+  "United States" = list(xlim = c(-125, -66), ylim = c(23, 54))
+)
+
 country_group_varnames <- list(
+  "(Custom only)" = NULL,
   "All countries" = "countries_in_data",
   "Europe" = "europe_iso2_codes",
   "Africa" = "africa_iso2_codes",
@@ -106,7 +122,6 @@ country_group_varnames <- list(
   "North America" = "north_america_iso2_codes",
   "Central America" = "central_america_iso2_codes",
   "South America" = "south_america_iso2_codes",
-  "NUTS countries" = "nuts_cntr_codes",
   "United States" = 'c("US")'
 )
 
@@ -161,8 +176,27 @@ build_r_code <- function(input) {
   )
 
   grp_var <- country_group_varnames[[input$country_group]]
-  if (!is.null(grp_var)) {
+  custom_raw <- trimws(input$custom_countries %||% "")
+  custom_codes <- if (nchar(custom_raw) > 0) {
+    toupper(trimws(strsplit(custom_raw, ",")[[1]]))
+  } else {
+    character(0)
+  }
+  custom_codes <- custom_codes[nchar(custom_codes) > 0]
+  has_preset <- !is.null(grp_var)
+  has_custom <- length(custom_codes) > 0
+
+  if (has_preset && has_custom) {
+    custom_str <- paste0('"', custom_codes, '"', collapse = ", ")
+    args <- c(
+      args,
+      sprintf("  friend_countries = c(%s, %s)", grp_var, custom_str)
+    )
+  } else if (has_preset) {
     args <- c(args, sprintf("  friend_countries = %s", grp_var))
+  } else if (has_custom) {
+    custom_str <- paste0('"', custom_codes, '"', collapse = ", ")
+    args <- c(args, sprintf("  friend_countries = c(%s)", custom_str))
   }
 
   if (nchar(trimws(input$breaks)) > 0) {
@@ -254,6 +288,7 @@ ui <- fluidPage(
                   border-radius: 6px; padding: 16px; }
     .map-container { border: 1px solid #dee2e6; border-radius: 8px;
                      overflow: hidden; background: white; }
+    .map-container img { max-width: 100%; height: auto; display: block; }
     .section-label { font-weight: 600; color: #212529; margin-bottom: 4px;
                      font-size: 13px; text-transform: uppercase;
                      letter-spacing: 0.5px; }
@@ -279,7 +314,7 @@ ui <- fluidPage(
     sidebarPanel(
       width = 4,
 
-      div(class = "section-label", "Quick start"),
+      div(class = "section-label", "Sample Maps"),
       selectInput(
         "preset",
         NULL,
@@ -303,7 +338,18 @@ ui <- fluidPage(
       selectInput(
         "country_group",
         "Countries to show",
-        choices = names(country_groups)
+        choices = names(country_groups),
+        selected = "All countries"
+      ),
+      textInput(
+        "custom_countries",
+        NULL,
+        placeholder = "Add countries: e.g., ID, US, CA (ISO-2 codes)"
+      ),
+      div(
+        class = "help-hint",
+        "Comma-separated ISO-2 codes. Combined with the preset above,",
+        'or use "(Custom only)" for just these.'
       ),
 
       textInput("title", "Title (optional)"),
@@ -356,7 +402,7 @@ ui <- fluidPage(
         condition = "output.has_map",
         div(
           class = "map-container",
-          plotOutput("map_preview", height = "650px")
+          plotOutput("map_preview", width = "100%", height = "auto")
         ),
         fluidRow(
           class = "download-row",
@@ -417,6 +463,22 @@ server <- function(input, output, session) {
     type_id_hints[[input$type]] %||% ""
   })
 
+  # Auto-fill lat/lon when country group changes
+  observeEvent(input$country_group, {
+    bounds <- country_group_bounds[[input$country_group]]
+    if (!is.null(bounds)) {
+      updateNumericInput(session, "xlim_min", value = bounds$xlim[1])
+      updateNumericInput(session, "xlim_max", value = bounds$xlim[2])
+      updateNumericInput(session, "ylim_min", value = bounds$ylim[1])
+      updateNumericInput(session, "ylim_max", value = bounds$ylim[2])
+    } else {
+      updateNumericInput(session, "xlim_min", value = NA)
+      updateNumericInput(session, "xlim_max", value = NA)
+      updateNumericInput(session, "ylim_min", value = NA)
+      updateNumericInput(session, "ylim_max", value = NA)
+    }
+  })
+
   # Load preset into form fields
   observeEvent(
     input$preset,
@@ -449,6 +511,7 @@ server <- function(input, output, session) {
         }
       }
       updateSelectInput(session, "country_group", selected = matched_group)
+      updateTextInput(session, "custom_countries", value = "")
 
       if (!is.null(spec$breaks)) {
         updateTextInput(
@@ -486,13 +549,26 @@ server <- function(input, output, session) {
     ignoreInit = TRUE
   )
 
+  parse_custom_countries <- function() {
+    raw <- trimws(input$custom_countries %||% "")
+    if (nchar(raw) == 0) {
+      return(character(0))
+    }
+    codes <- toupper(trimws(strsplit(raw, ",")[[1]]))
+    codes[nchar(codes) > 0]
+  }
+
   # Build make_map() arguments from current inputs
   build_args <- function() {
+    preset <- country_groups[[input$country_group]]
+    custom <- parse_custom_countries()
+    combined <- unique(c(preset, custom))
+
     args <- list(
       type = input$type,
       user_region_id = input$user_region_id,
       sci_path = input$sci_path,
-      friend_countries = country_groups[[input$country_group]],
+      friend_countries = combined,
       color_palette = color_presets[[input$color_preset]]
     )
 
@@ -551,12 +627,15 @@ server <- function(input, output, session) {
     })
   })
 
-  # Render preview
+  # Render preview at the same dimensions as the download so text/legend
+  # elements are proportioned correctly, then the browser scales it down.
   output$map_preview <- renderPlot(
     {
       req(rv$map)
       rv$map
     },
+    width = function() input$width * 96,
+    height = function() input$height * 96,
     res = 96
   )
 
