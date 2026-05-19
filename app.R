@@ -167,12 +167,59 @@ color_presets <- list(
 
 # --- Helpers ---
 
+resolve_sci_path <- function(type, region_id, sci_data_dir) {
+  pattern <- type_file_patterns[[type]]
+  if (is.null(pattern)) return(NULL)
+
+  files <- list.files(sci_data_dir, pattern = pattern)
+  if (length(files) == 0) return(NULL)
+  if (length(files) == 1) return(file.path(sci_data_dir, files[1]))
+
+  if (type == "us_zcta") {
+    shard_file <- paste0("us_zcta_shard_", substr(region_id, 1, 1), ".csv")
+    if (shard_file %in% files) return(file.path(sci_data_dir, shard_file))
+    return(NULL)
+  }
+
+  country_iso2 <- NULL
+
+  if (type == "gadm2") {
+    iso3 <- toupper(sub("\\..*", "", region_id))
+    if (iso3 %in% names(iso3_sovereign_iso3_xwalk)) {
+      iso3 <- iso3_sovereign_iso3_xwalk[[iso3]]
+    }
+    country_iso2 <- countrycode::countrycode(
+      iso3, "iso3c", "iso2c", custom_match = c("XKX" = "XK")
+    )
+  } else if (type == "adm2") {
+    sf_data <- load_shapefile_cached(geoboundaries_gpkg_path, "adm2")
+    match_row <- sf_data[sf_data$shapeID == region_id, ]
+    if (nrow(match_row) > 0) {
+      iso3 <- match_row$shapeGroup[1]
+      country_iso2 <- countrycode::countrycode(
+        iso3, "iso3c", "iso2c", custom_match = c("XKX" = "XK")
+      )
+    }
+  }
+
+  if (is.null(country_iso2)) return(NULL)
+
+  shard_codes <- sort(gsub(".*shard_(.+)\\.csv$", "\\1", files))
+  shard <- shard_codes[shard_codes >= country_iso2][1]
+  if (is.na(shard)) return(NULL)
+
+  shard_file <- files[grep(paste0("shard_", shard, "\\.csv$"), files)]
+  if (length(shard_file) == 0) return(NULL)
+  file.path(sci_data_dir, shard_file[1])
+}
+
 build_r_code <- function(input) {
+  sci_path <- resolve_sci_path(input$type, input$user_region_id, sci_data_dir)
   lines <- c('source("src/setup.R")', "", "make_map(")
   args <- c(
     sprintf('  type = "%s"', input$type),
     sprintf('  user_region_id = "%s"', input$user_region_id),
-    sprintf('  sci_path = "%s"', input$sci_path)
+    sprintf('  sci_path = "%s"', sci_path)
   )
 
   grp_var <- country_group_varnames[[input$country_group]]
@@ -307,7 +354,8 @@ ui <- fluidPage(
         style = "color: #6c757d; font-size: 14px; margin-left: 8px;",
         "Map Generator"
       )
-    )
+    ),
+    windowTitle = "Social Connectedness Index"
   ),
 
   sidebarLayout(
@@ -329,8 +377,6 @@ ui <- fluidPage(
         "Map type",
         choices = setNames(names(type_labels), type_labels)
       ),
-
-      selectInput("sci_path", "SCI data file", choices = NULL),
 
       textInput("user_region_id", "Region ID"),
       div(class = "help-hint", textOutput("id_hint")),
@@ -444,20 +490,6 @@ server <- function(input, output, session) {
   output$has_map <- reactive(!is.null(rv$map))
   outputOptions(output, "has_map", suspendWhenHidden = FALSE)
 
-  # Update SCI file list when type changes
-  observeEvent(input$type, {
-    pattern <- type_file_patterns[[input$type]]
-    if (!is.null(pattern)) {
-      files <- list.files(sci_data_dir, pattern = pattern)
-      full_paths <- file.path(sci_data_dir, files)
-      updateSelectInput(
-        session,
-        "sci_path",
-        choices = setNames(full_paths, files)
-      )
-    }
-  })
-
   # Show region ID hint for selected type
   output$id_hint <- renderText({
     type_id_hints[[input$type]] %||% ""
@@ -493,13 +525,6 @@ server <- function(input, output, session) {
       updateTextInput(session, "user_region_id", value = spec$user_region_id)
       updateTextInput(session, "title", value = spec$title %||% "")
       updateTextInput(session, "subtitle", value = "")
-
-      updateSelectInput(
-        session,
-        "sci_path",
-        choices = setNames(spec$sci_path, basename(spec$sci_path)),
-        selected = spec$sci_path
-      )
 
       matched_group <- "All countries"
       if (!is.null(spec$friend_countries)) {
@@ -564,10 +589,12 @@ server <- function(input, output, session) {
     custom <- parse_custom_countries()
     combined <- unique(c(preset, custom))
 
+    sci_path <- resolve_sci_path(input$type, input$user_region_id, sci_data_dir)
+
     args <- list(
       type = input$type,
       user_region_id = input$user_region_id,
-      sci_path = input$sci_path,
+      sci_path = sci_path,
       friend_countries = combined,
       color_palette = color_presets[[input$color_preset]]
     )
@@ -603,8 +630,15 @@ server <- function(input, output, session) {
       showNotification("Please enter a Region ID.", type = "warning")
       return()
     }
-    if (is.null(input$sci_path) || nchar(trimws(input$sci_path)) == 0) {
-      showNotification("Please select an SCI data file.", type = "warning")
+
+    sci_path <- resolve_sci_path(
+      input$type, input$user_region_id, sci_data_dir
+    )
+    if (is.null(sci_path)) {
+      showNotification(
+        "Could not determine the SCI data file for this region ID and map type.",
+        type = "error"
+      )
       return()
     }
 
