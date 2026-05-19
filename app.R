@@ -125,6 +125,15 @@ country_group_varnames <- list(
   "United States" = 'c("US")'
 )
 
+country_choices <- setNames(
+  countries_in_data,
+  countrycode::countrycode(
+    countries_in_data, "iso2c", "country.name",
+    custom_match = c("XK" = "Kosovo")
+  )
+)
+country_choices <- country_choices[order(names(country_choices))]
+
 color_presets <- list(
   "Blue (default)" = default_map_colors,
   "Red" = c(
@@ -223,13 +232,7 @@ build_r_code <- function(input) {
   )
 
   grp_var <- country_group_varnames[[input$country_group]]
-  custom_raw <- trimws(input$custom_countries %||% "")
-  custom_codes <- if (nchar(custom_raw) > 0) {
-    toupper(trimws(strsplit(custom_raw, ",")[[1]]))
-  } else {
-    character(0)
-  }
-  custom_codes <- custom_codes[nchar(custom_codes) > 0]
+  custom_codes <- input$custom_countries %||% character(0)
   has_preset <- !is.null(grp_var)
   has_custom <- length(custom_codes) > 0
 
@@ -387,15 +390,17 @@ ui <- fluidPage(
         choices = names(country_groups),
         selected = "All countries"
       ),
-      textInput(
+      selectizeInput(
         "custom_countries",
         NULL,
-        placeholder = "Add countries: e.g., ID, US, CA (ISO-2 codes)"
+        choices = country_choices,
+        selected = NULL,
+        multiple = TRUE,
+        options = list(placeholder = "Type to add countries...")
       ),
       div(
         class = "help-hint",
-        "Comma-separated ISO-2 codes. Combined with the preset above,",
-        'or use "(Custom only)" for just these.'
+        'Combined with the preset above, or use "(Custom only)" for just these.'
       ),
 
       textInput("title", "Title (optional)"),
@@ -536,7 +541,7 @@ server <- function(input, output, session) {
         }
       }
       updateSelectInput(session, "country_group", selected = matched_group)
-      updateTextInput(session, "custom_countries", value = "")
+      updateSelectizeInput(session, "custom_countries", selected = character(0))
 
       if (!is.null(spec$breaks)) {
         updateTextInput(
@@ -575,12 +580,7 @@ server <- function(input, output, session) {
   )
 
   parse_custom_countries <- function() {
-    raw <- trimws(input$custom_countries %||% "")
-    if (nchar(raw) == 0) {
-      return(character(0))
-    }
-    codes <- toupper(trimws(strsplit(raw, ",")[[1]]))
-    codes[nchar(codes) > 0]
+    input$custom_countries %||% character(0)
   }
 
   # Build make_map() arguments from current inputs
