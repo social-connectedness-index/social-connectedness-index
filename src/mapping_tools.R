@@ -239,6 +239,7 @@ build_map_plot <- function(
   col,
   breaks = NULL,
   color_theme = default_map_colors,
+  background_sf = NULL,
   borders_data = NA,
   admin1_borders_data = NA,
   highlight_sf = NULL,
@@ -284,6 +285,11 @@ build_map_plot <- function(
   eps <- 1e-7
 
   map <- ggplot(.data) +
+    geom_sf(
+      data = background_sf %||% .data,
+      fill = na_color,
+      color = NA
+    ) +
     geom_sf(aes(fill = !!sym(col)), size = 0.001, color = NA) +
     binned_scale(
       aesthetics = "fill",

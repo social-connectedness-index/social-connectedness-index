@@ -86,10 +86,10 @@ make_map <- function(
       filter(.data[[config$friend_country_key]] %in% friend_countries)
   }
 
+  background_sf <- friend_sf
+
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
-  } else if (!is.null(friend_countries)) {
-    borders_sf %>% filter(sov_country %in% friend_countries)
   } else {
     borders_sf
   }
@@ -146,6 +146,7 @@ make_map <- function(
     col = "scaled_sci_rel",
     breaks = breaks,
     color_theme = colors,
+    background_sf = background_sf,
     borders_data = borders_data,
     admin1_borders_data = admin1_borders_data,
     highlight_sf = user_region_sf,
