@@ -73,7 +73,7 @@ process_gadm_level <- function(
 ) {
   gadm_sf = gadm_sf %>%
     filter(
-      st_geometry_type(geometry) %in% c("POLYGON", "MULTIPOLYGON")
+      st_geometry_type(geom) %in% c("POLYGON", "MULTIPOLYGON")
     ) %>%
     st_make_valid() %>%
     mutate(
@@ -141,7 +141,7 @@ load_gadm_data <- function(
 ) {
   expected_files <- file.path(
     out_dir,
-    c("gadm0.shp", "gadm1.shp", "gadm2.shp", "gadm3.shp")
+    c("gadm0.gpkg", "gadm1.gpkg", "gadm2.gpkg", "gadm3.gpkg")
   )
   if (all(file.exists(expected_files))) {
     message("GADM shapefiles already exist, skipping cleaning.")
@@ -265,8 +265,8 @@ load_gadm_data <- function(
     dir.create(out_dir)
   }
 
-  st_write(gadm0_all, file.path(out_dir, "gadm0.shp"), append = FALSE)
-  st_write(gadm1_all, file.path(out_dir, "gadm1.shp"), append = FALSE)
-  st_write(gadm2_all, file.path(out_dir, "gadm2.shp"), append = FALSE)
-  st_write(gadm3_all, file.path(out_dir, "gadm3.shp"), append = FALSE)
+  st_write(gadm0_all, file.path(out_dir, "gadm0.gpkg"), delete_dsn = TRUE)
+  st_write(gadm1_all, file.path(out_dir, "gadm1.gpkg"), delete_dsn = TRUE)
+  st_write(gadm2_all, file.path(out_dir, "gadm2.gpkg"), delete_dsn = TRUE)
+  st_write(gadm3_all, file.path(out_dir, "gadm3.gpkg"), delete_dsn = TRUE)
 }

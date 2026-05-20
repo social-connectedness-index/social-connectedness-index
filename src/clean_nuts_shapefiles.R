@@ -1,7 +1,7 @@
 clean_nuts_shapefiles <- function() {
   expected_files <- file.path(
     nuts_shapefiles_output_dir,
-    c("nuts1.shp", "nuts2.shp", "nuts3.shp")
+    c("nuts1.gpkg", "nuts2.gpkg", "nuts3.gpkg")
   )
   if (all(file.exists(expected_files))) {
     message("NUTS shapefiles already exist, skipping cleaning.")
@@ -22,8 +22,8 @@ clean_nuts_shapefiles <- function() {
 
     st_write(
       nuts_level,
-      file.path(nuts_shapefiles_output_dir, paste0("nuts", level, ".shp")),
-      append = FALSE
+      file.path(nuts_shapefiles_output_dir, paste0("nuts", level, ".gpkg")),
+      delete_dsn = TRUE
     )
   }
 

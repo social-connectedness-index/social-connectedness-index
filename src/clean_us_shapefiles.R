@@ -23,7 +23,7 @@ get_great_lakes_polygon <- function(target_crs = 4326) {
 
 #' Extracts, cleans, and saves the shapefile for US ZCTAs.
 clean_us_zcta_shapefile <- function() {
-  output_path <- file.path(us_cleaned_shapefiles_dir, "united_states.shp")
+  output_path <- file.path(us_cleaned_shapefiles_dir, "united_states.gpkg")
   if (file.exists(output_path)) {
     message("US ZCTA shapefile already exists, skipping cleaning.")
     return(invisible(NULL))
@@ -48,9 +48,9 @@ clean_us_zcta_shapefile <- function() {
     st_write(
       file.path(
         us_cleaned_shapefiles_dir,
-        "united_states.shp"
+        "united_states.gpkg"
       ),
-      append = FALSE
+      delete_dsn = TRUE
     )
 }
 
@@ -59,7 +59,7 @@ clean_us_zcta_shapefile <- function() {
 clean_us_county_shapefile <- function() {
   output_path <- file.path(
     us_cleaned_shapefiles_dir,
-    "united_states_counties.shp"
+    "united_states_counties.gpkg"
   )
   if (file.exists(output_path)) {
     message("US county shapefile already exists, skipping cleaning.")
@@ -86,8 +86,8 @@ clean_us_county_shapefile <- function() {
     st_write(
       file.path(
         us_cleaned_shapefiles_dir,
-        "united_states_counties.shp"
+        "united_states_counties.gpkg"
       ),
-      append = FALSE
+      delete_dsn = TRUE
     )
 }

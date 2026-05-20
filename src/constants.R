@@ -15,34 +15,14 @@ gadm_shapefiles_output_dir <- file.path(
   "gadm"
 )
 
-gadm0_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm0.shp")
-gadm1_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm1.shp")
-gadm2_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm2.shp")
-gadm3_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm3.shp")
+gadm0_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm0.gpkg")
+gadm1_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm1.gpkg")
+gadm2_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm2.gpkg")
+gadm3_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm3.gpkg")
 
 geoboundaries_gpkg_path <- file.path(
   cleaned_shapefiles_dir,
   "geoBoundaries.gpkg"
-)
-
-geoboundaries_temp_shapes <- file.path(
-  cleaned_shapefiles_dir,
-  "geoboundaries_temp"
-)
-
-geoboundaries_adm1_shapefile_path <- file.path(
-  geoboundaries_temp_shapes,
-  "geoboundaries_adm1.shp"
-)
-
-geoboundaries_adm2_shapefile_path <- file.path(
-  geoboundaries_temp_shapes,
-  "geoboundaries_adm2.shp"
-)
-
-geoboundaries_adm3_shapefile_path <- file.path(
-  geoboundaries_temp_shapes,
-  "geoboundaries_adm3.shp"
 )
 
 us_cleaned_shapefiles_dir <- file.path(
@@ -52,12 +32,12 @@ us_cleaned_shapefiles_dir <- file.path(
 
 us_county_shapefile_path <- file.path(
   us_cleaned_shapefiles_dir,
-  "united_states_counties.shp"
+  "united_states_counties.gpkg"
 )
 
 us_zcta_shapefile_path <- file.path(
   us_cleaned_shapefiles_dir,
-  "united_states.shp"
+  "united_states.gpkg"
 )
 
 nuts_gpkg_input <- file.path(
@@ -70,9 +50,9 @@ nuts_shapefiles_output_dir <- file.path(
   "nuts"
 )
 
-nuts1_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts1.shp")
-nuts2_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts2.shp")
-nuts3_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts3.shp")
+nuts1_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts1.gpkg")
+nuts2_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts2.gpkg")
+nuts3_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts3.gpkg")
 
 sci_2021_dir <- file.path(data_dir, "sci_2021")
 

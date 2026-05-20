@@ -48,7 +48,6 @@ create_dir_if_not_exists <- function(d) {
   }
 }
 create_dir_if_not_exists(gadm_shapefiles_output_dir)
-create_dir_if_not_exists(geoboundaries_temp_shapes)
 create_dir_if_not_exists(cleaned_shapefiles_dir)
 create_dir_if_not_exists(output_dir)
 create_dir_if_not_exists(maps_dir)
