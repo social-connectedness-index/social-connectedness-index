@@ -86,6 +86,34 @@ country_group_bounds <- list(
   "United States" = list(xlim = c(-125, -66), ylim = c(23, 54))
 )
 
+# Per-country bounding boxes from the GADM0 shapefile (used to expand region
+# bounds when the user adds individual countries via custom_countries).
+country_bbox <- {
+  gadm0 <- st_read(gadm0_shapefile_path, quiet = TRUE)
+  bboxes <- list()
+  for (iso in unique(gadm0$sv_cntr)) {
+    bb <- st_bbox(gadm0[gadm0$sv_cntr == iso, ])
+    bboxes[[iso]] <- list(
+      xlim = c(bb[["xmin"]], bb[["xmax"]]),
+      ylim = c(bb[["ymin"]], bb[["ymax"]])
+    )
+  }
+  bboxes
+}
+
+compute_combined_bounds <- function(groups, custom_codes) {
+  bounds_list <- Filter(Negate(is.null), country_group_bounds[groups])
+  custom_bounds <- Filter(Negate(is.null), country_bbox[custom_codes])
+  all_bounds <- c(bounds_list, custom_bounds)
+  if (length(all_bounds) == 0) return(NULL)
+  list(
+    xlim_min = min(sapply(all_bounds, function(b) b$xlim[1])),
+    xlim_max = max(sapply(all_bounds, function(b) b$xlim[2])),
+    ylim_min = min(sapply(all_bounds, function(b) b$ylim[1])),
+    ylim_max = max(sapply(all_bounds, function(b) b$ylim[2]))
+  )
+}
+
 country_group_varnames <- list(
   "(Custom only)" = NULL,
   "All countries" = "countries_in_data",
@@ -499,7 +527,7 @@ ui <- fluidPage(
         ),
         div(
           class = "help-hint",
-          "SCI values are divided by this quantile of the data to produce relative connectedness. Default: 0.25 (25th percentile)."
+          "Each region's SCI is divided by this quantile's value to produce a multiplier (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile."
         ),
 
         textInput(
@@ -509,7 +537,7 @@ ui <- fluidPage(
         ),
         div(
           class = "help-hint",
-          "Override the automatic legend bins with custom breakpoints for the relative connectedness scale."
+          "Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10' bins regions into ≤1x, 1–5x, 5–10x, and >10x). Without custom breaks, the legend uses deciles."
         ),
 
         checkboxInput(
@@ -605,46 +633,28 @@ server <- function(input, output, session) {
     }
   })
 
-  # Auto-fill lat/lon as union of all selected country groups
-  observeEvent(input$country_group, {
+  # Auto-fill lat/lon as union of selected region bounds + custom country bboxes.
+  # Region bounds are hardcoded (curated to exclude overseas territories).
+  # Custom country bounds come from the GADM0 shapefile bboxes.
+  update_bounds <- function() {
     groups <- input$country_group %||% character(0)
-    bounds_list <- country_group_bounds[groups]
-    bounds_list <- Filter(Negate(is.null), bounds_list)
-
     custom <- input$custom_countries %||% character(0)
-    if (length(bounds_list) > 0 && length(custom) == 0) {
-      updateNumericInput(session, "xlim_min", value = min(sapply(bounds_list, function(b) b$xlim[1])))
-      updateNumericInput(session, "xlim_max", value = max(sapply(bounds_list, function(b) b$xlim[2])))
-      updateNumericInput(session, "ylim_min", value = min(sapply(bounds_list, function(b) b$ylim[1])))
-      updateNumericInput(session, "ylim_max", value = max(sapply(bounds_list, function(b) b$ylim[2])))
+    bounds <- compute_combined_bounds(groups, custom)
+    if (!is.null(bounds)) {
+      updateNumericInput(session, "xlim_min", value = bounds$xlim_min)
+      updateNumericInput(session, "xlim_max", value = bounds$xlim_max)
+      updateNumericInput(session, "ylim_min", value = bounds$ylim_min)
+      updateNumericInput(session, "ylim_max", value = bounds$ylim_max)
     } else {
       updateNumericInput(session, "xlim_min", value = NA)
       updateNumericInput(session, "xlim_max", value = NA)
       updateNumericInput(session, "ylim_min", value = NA)
       updateNumericInput(session, "ylim_max", value = NA)
     }
-  }, ignoreNULL = FALSE)
+  }
 
-  # Reset lat/lon when custom countries are added or removed
-  observeEvent(input$custom_countries, {
-    custom <- input$custom_countries %||% character(0)
-    if (length(custom) > 0) {
-      updateNumericInput(session, "xlim_min", value = NA)
-      updateNumericInput(session, "xlim_max", value = NA)
-      updateNumericInput(session, "ylim_min", value = NA)
-      updateNumericInput(session, "ylim_max", value = NA)
-    } else {
-      groups <- input$country_group %||% character(0)
-      bounds_list <- country_group_bounds[groups]
-      bounds_list <- Filter(Negate(is.null), bounds_list)
-      if (length(bounds_list) > 0) {
-        updateNumericInput(session, "xlim_min", value = min(sapply(bounds_list, function(b) b$xlim[1])))
-        updateNumericInput(session, "xlim_max", value = max(sapply(bounds_list, function(b) b$xlim[2])))
-        updateNumericInput(session, "ylim_min", value = min(sapply(bounds_list, function(b) b$ylim[1])))
-        updateNumericInput(session, "ylim_max", value = max(sapply(bounds_list, function(b) b$ylim[2])))
-      }
-    }
-  }, ignoreNULL = FALSE, ignoreInit = TRUE)
+  observeEvent(input$country_group, { update_bounds() }, ignoreNULL = FALSE)
+  observeEvent(input$custom_countries, { update_bounds() }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
   # Load preset into form fields
   observeEvent(
