@@ -87,7 +87,8 @@ map_type_configs <- list(
     friend_region_key = "key",
     friend_country_key = "sv_cntr",
     highlight_sf = list(path = gadm2_shapefile_path, layer = NULL),
-    highlight_region_key = "key"
+    highlight_region_key = "key",
+    admin1_borders = list(path = gadm1_shapefile_path, layer = NULL, country_key = "sv_cntr")
   ),
   gadm1_country = list(
     friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
@@ -115,7 +116,8 @@ map_type_configs <- list(
     friend_region_key = "shapeID",
     friend_country_key = "shapeGroup",
     highlight_sf = list(path = geoboundaries_gpkg_path, layer = "adm2"),
-    highlight_region_key = "shapeID"
+    highlight_region_key = "shapeID",
+    admin1_borders = list(path = geoboundaries_gpkg_path, layer = "adm1", country_key = "shapeGroup")
   ),
   adm1_country = list(
     friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
@@ -143,14 +145,16 @@ map_type_configs <- list(
     friend_region_key = "NUTS_ID",
     friend_country_key = "CNTR_CODE",
     highlight_sf = list(path = nuts2_shapefile_path, layer = NULL),
-    highlight_region_key = "NUTS_ID"
+    highlight_region_key = "NUTS_ID",
+    admin1_borders = list(path = nuts1_shapefile_path, layer = NULL, country_key = "CNTR_CODE")
   ),
   nuts3 = list(
     friend_sf = list(path = nuts3_shapefile_path, layer = NULL),
     friend_region_key = "NUTS_ID",
     friend_country_key = "CNTR_CODE",
     highlight_sf = list(path = nuts3_shapefile_path, layer = NULL),
-    highlight_region_key = "NUTS_ID"
+    highlight_region_key = "NUTS_ID",
+    admin1_borders = list(path = nuts1_shapefile_path, layer = NULL, country_key = "CNTR_CODE")
   ),
   nuts1_country = list(
     friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
@@ -178,14 +182,16 @@ map_type_configs <- list(
     friend_region_key = "region_id",
     friend_country_key = "region_id",
     highlight_sf = list(path = us_county_shapefile_path, layer = NULL),
-    highlight_region_key = "region_id"
+    highlight_region_key = "region_id",
+    admin1_borders = list(path = gadm1_shapefile_path, layer = NULL, country_key = "sv_cntr")
   ),
   us_zcta = list(
     friend_sf = list(path = us_zcta_shapefile_path, layer = NULL),
     friend_region_key = "region_id",
     friend_country_key = "region_id",
     highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
-    highlight_region_key = "region_id"
+    highlight_region_key = "region_id",
+    admin1_borders = list(path = gadm1_shapefile_path, layer = NULL, country_key = "sv_cntr")
   ),
   us_county_country = list(
     friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
@@ -209,9 +215,11 @@ build_map_plot <- function(
   breaks = NULL,
   color_theme = default_map_colors,
   borders_data = NA,
+  admin1_borders_data = NA,
   highlight_sf = NULL,
   highlight_color = "#FF0000",
-  border_color = "gray20",
+  border_color = "gray15",
+  admin1_border_color = "gray45",
   na_color = "#BFBFBF",
   name = NULL,
   break_label_format = function(x) paste0(as.integer(x), "x"),
@@ -300,11 +308,21 @@ build_map_plot <- function(
     ) +
     labs(title = title, subtitle = subtitle, caption = caption)
 
+  if (any(!is.na(admin1_borders_data))) {
+    map <- map +
+      geom_sf(
+        data = admin1_borders_data,
+        size = 0.30,
+        fill = "transparent",
+        color = admin1_border_color
+      )
+  }
+
   if (any(!is.na(borders_data))) {
     map <- map +
       geom_sf(
         data = borders_data,
-        size = 0.50,
+        size = 0.80,
         fill = "transparent",
         color = border_color
       )

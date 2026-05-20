@@ -11,7 +11,9 @@ make_map <- function(
   break_label_format = function(x) paste0(as.integer(x), "x"),
   color_palette = NULL,
   highlight_color = "#FF0000",
-  border_color = "gray20",
+  border_color = "gray15",
+  show_admin1_borders = TRUE,
+  admin1_border_color = "gray35",
   na_color = "#BFBFBF",
   background_color = "white",
   title = NULL,
@@ -92,6 +94,25 @@ make_map <- function(
     borders_sf
   }
 
+  admin1_borders_data <- NA
+  if (show_admin1_borders && !is.null(config$admin1_borders)) {
+    admin1_sf <- load_shapefile_cached(
+      config$admin1_borders$path,
+      config$admin1_borders$layer
+    )
+    admin1_country_key <- config$admin1_borders$country_key
+    if (admin1_country_key %in% c("sv_cntr", "shapeGroup")) {
+      admin1_sf <- iso3_to_iso2(admin1_sf, admin1_country_key)
+    }
+    admin1_sf <- st_transform(admin1_sf, st_crs(friend_sf))
+    if (!is.null(friend_countries)) {
+      admin1_borders_data <- admin1_sf %>%
+        filter(.data[[admin1_country_key]] %in% friend_countries)
+    } else {
+      admin1_borders_data <- admin1_sf
+    }
+  }
+
   user_region_sf <- highlight_sf_all %>%
     filter(.data[[config$highlight_region_key]] == user_region_id)
 
@@ -126,9 +147,11 @@ make_map <- function(
     breaks = breaks,
     color_theme = colors,
     borders_data = borders_data,
+    admin1_borders_data = admin1_borders_data,
     highlight_sf = user_region_sf,
     highlight_color = highlight_color,
     border_color = border_color,
+    admin1_border_color = admin1_border_color,
     na_color = na_color,
     name = legend_name,
     break_label_format = break_label_format,
@@ -160,7 +183,8 @@ make_map <- function(
         input = rep(png_path, video_duration),
         output = output_path,
         framerate = 1,
-        vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
+        codec = "libx264",
+        vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p"
       )
       unlink(png_path)
     }
