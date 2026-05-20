@@ -63,7 +63,8 @@ default_map_colors <- c(
 
 default_caption <- function() {
   paste0(
-    'Social Connectedness Index Data: tinyurl.com/sci-dataset'
+    "Social Connectedness Index Data: tinyurl.com/sci-dataset\n",
+    "@Social_Capital_Lab"
   )
 }
 
