@@ -38,7 +38,7 @@ iso3_to_iso2 <- function(sf_data, col) {
         .data[[col]],
         origin = "iso3c",
         destination = "iso2c",
-        custom_match = c("XKX" = "XK")
+        custom_match = c("XKX" = "XK", "XKO" = "XK")
       )
     )
 }
