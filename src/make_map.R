@@ -59,14 +59,14 @@ make_map <- function(
   )
   borders_sf <- load_shapefile_cached(gadm0_shapefile_path, NULL)
 
-  if (config$friend_country_key %in% c("sv_cntr", "shapeGroup")) {
+  if (config$friend_country_key %in% c("sov_country", "shapeGroup")) {
     friend_sf <- iso3_to_iso2(friend_sf, config$friend_country_key)
   }
 
-  borders_sf <- iso3_to_iso2(borders_sf, "sv_cntr") %>%
+  borders_sf <- iso3_to_iso2(borders_sf, "sov_country") %>%
     st_transform(st_crs(friend_sf))
 
-  if (config$highlight_region_key %in% c("sv_cntr", "shapeGroup")) {
+  if (config$highlight_region_key %in% c("sov_country", "shapeGroup")) {
     highlight_sf_all <- iso3_to_iso2(
       highlight_sf_all,
       config$highlight_region_key
@@ -80,7 +80,7 @@ make_map <- function(
   shapes <- friend_sf
   if (
     !is.null(friend_countries) &&
-      config$friend_country_key %in% c("sv_cntr", "CNTR_CODE", "shapeGroup")
+      config$friend_country_key %in% c("sov_country", "CNTR_CODE", "shapeGroup")
   ) {
     shapes <- shapes %>%
       filter(.data[[config$friend_country_key]] %in% friend_countries)
@@ -89,7 +89,7 @@ make_map <- function(
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
   } else if (!is.null(friend_countries)) {
-    borders_sf %>% filter(sv_cntr %in% friend_countries)
+    borders_sf %>% filter(sov_country %in% friend_countries)
   } else {
     borders_sf
   }
@@ -101,7 +101,7 @@ make_map <- function(
       config$admin1_borders$layer
     )
     admin1_country_key <- config$admin1_borders$country_key
-    if (admin1_country_key %in% c("sv_cntr", "shapeGroup")) {
+    if (admin1_country_key %in% c("sov_country", "shapeGroup")) {
       admin1_sf <- iso3_to_iso2(admin1_sf, admin1_country_key)
     }
     admin1_sf <- st_transform(admin1_sf, st_crs(friend_sf))
