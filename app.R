@@ -284,22 +284,20 @@ build_r_code <- function(input) {
     sprintf('  sci_path = "%s"', sci_path)
   )
 
-  grp_var <- country_group_varnames[[input$country_group]]
+  groups <- input$country_group %||% character(0)
+  grp_vars <- unlist(country_group_varnames[groups])
   custom_codes <- input$custom_countries %||% character(0)
-  has_preset <- !is.null(grp_var)
+  has_preset <- length(grp_vars) > 0
   has_custom <- length(custom_codes) > 0
 
-  if (has_preset && has_custom) {
-    custom_str <- paste0('"', custom_codes, '"', collapse = ", ")
-    args <- c(
-      args,
-      sprintf("  friend_countries = c(%s, %s)", grp_var, custom_str)
-    )
-  } else if (has_preset) {
-    args <- c(args, sprintf("  friend_countries = %s", grp_var))
-  } else if (has_custom) {
-    custom_str <- paste0('"', custom_codes, '"', collapse = ", ")
-    args <- c(args, sprintf("  friend_countries = c(%s)", custom_str))
+  if (has_preset || has_custom) {
+    parts <- c(grp_vars, if (has_custom) paste0('"', custom_codes, '"'))
+    combined_str <- paste(parts, collapse = ", ")
+    if (length(parts) == 1 && has_preset && !has_custom) {
+      args <- c(args, sprintf("  friend_countries = %s", combined_str))
+    } else {
+      args <- c(args, sprintf("  friend_countries = c(%s)", combined_str))
+    }
   }
 
   if (nchar(trimws(input$breaks)) > 0) {
@@ -334,6 +332,14 @@ build_r_code <- function(input) {
         input$ylim_max
       )
     )
+  }
+
+  if (!is.na(input$reference_quantile) && input$reference_quantile != 0.25) {
+    args <- c(args, sprintf("  reference_quantile = %s", input$reference_quantile))
+  }
+
+  if (!input$show_admin1_borders) {
+    args <- c(args, "  show_admin1_borders = FALSE")
   }
 
   if (input$color_preset != "Blue (default)") {
@@ -440,11 +446,13 @@ ui <- fluidPage(
         choices = NULL
       ),
 
-      selectInput(
+      selectizeInput(
         "country_group",
         "Countries to show",
-        choices = names(country_groups),
-        selected = "All countries"
+        choices = setdiff(names(country_groups), "(Custom only)"),
+        selected = "All countries",
+        multiple = TRUE,
+        options = list(placeholder = "Select region groups...")
       ),
       selectizeInput(
         "custom_countries",
@@ -452,11 +460,11 @@ ui <- fluidPage(
         choices = country_choices,
         selected = NULL,
         multiple = TRUE,
-        options = list(placeholder = "Type to add countries...")
+        options = list(placeholder = "Type to add individual countries...")
       ),
       div(
         class = "help-hint",
-        'Combined with the preset above, or use "(Custom only)" for just these.'
+        "Additional countries are combined with the region groups above."
       ),
 
       textInput("title", "Title (optional)"),
@@ -473,11 +481,7 @@ ui <- fluidPage(
       tags$details(
         tags$summary("Advanced options"),
 
-        textInput(
-          "breaks",
-          "Custom breaks (comma-separated)",
-          placeholder = "e.g., 1, 2, 3, 5, 10, 20, 50"
-        ),
+        textInput("subtitle", "Subtitle (optional)"),
 
         selectInput(
           "color_preset",
@@ -485,7 +489,34 @@ ui <- fluidPage(
           choices = names(color_presets)
         ),
 
-        textInput("subtitle", "Subtitle (optional)"),
+        numericInput(
+          "reference_quantile",
+          "Reference quantile",
+          value = 0.25,
+          min = 0,
+          max = 1,
+          step = 0.05
+        ),
+        div(
+          class = "help-hint",
+          "SCI values are divided by this quantile of the data to produce relative connectedness. Default: 0.25 (25th percentile)."
+        ),
+
+        textInput(
+          "breaks",
+          "Custom breaks (comma-separated)",
+          placeholder = "e.g., 1, 2, 3, 5, 10, 20, 50"
+        ),
+        div(
+          class = "help-hint",
+          "Override the automatic legend bins with custom breakpoints for the relative connectedness scale."
+        ),
+
+        checkboxInput(
+          "show_admin1_borders",
+          "Show state borders",
+          value = TRUE
+        ),
 
         fluidRow(
           column(6, numericInput("xlim_min", "Min Longitude", value = NA)),
@@ -518,6 +549,7 @@ ui <- fluidPage(
             downloadButton("download_png", "PNG", class = "btn-success btn-sm"),
             downloadButton("download_pdf", "PDF", class = "btn-info btn-sm"),
             downloadButton("download_svg", "SVG", class = "btn-warning btn-sm"),
+            downloadButton("download_mp4", "MP4", class = "btn-secondary btn-sm"),
             actionButton(
               "show_code",
               "Export R Code",
@@ -571,23 +603,48 @@ server <- function(input, output, session) {
         choices = choices, selected = "", server = is_large
       )
     }
-  }, ignoreInit = TRUE)
+  })
 
-  # Auto-fill lat/lon when country group changes
+  # Auto-fill lat/lon as union of all selected country groups
   observeEvent(input$country_group, {
-    bounds <- country_group_bounds[[input$country_group]]
-    if (!is.null(bounds)) {
-      updateNumericInput(session, "xlim_min", value = bounds$xlim[1])
-      updateNumericInput(session, "xlim_max", value = bounds$xlim[2])
-      updateNumericInput(session, "ylim_min", value = bounds$ylim[1])
-      updateNumericInput(session, "ylim_max", value = bounds$ylim[2])
+    groups <- input$country_group %||% character(0)
+    bounds_list <- country_group_bounds[groups]
+    bounds_list <- Filter(Negate(is.null), bounds_list)
+
+    custom <- input$custom_countries %||% character(0)
+    if (length(bounds_list) > 0 && length(custom) == 0) {
+      updateNumericInput(session, "xlim_min", value = min(sapply(bounds_list, function(b) b$xlim[1])))
+      updateNumericInput(session, "xlim_max", value = max(sapply(bounds_list, function(b) b$xlim[2])))
+      updateNumericInput(session, "ylim_min", value = min(sapply(bounds_list, function(b) b$ylim[1])))
+      updateNumericInput(session, "ylim_max", value = max(sapply(bounds_list, function(b) b$ylim[2])))
     } else {
       updateNumericInput(session, "xlim_min", value = NA)
       updateNumericInput(session, "xlim_max", value = NA)
       updateNumericInput(session, "ylim_min", value = NA)
       updateNumericInput(session, "ylim_max", value = NA)
     }
-  })
+  }, ignoreNULL = FALSE)
+
+  # Reset lat/lon when custom countries are added or removed
+  observeEvent(input$custom_countries, {
+    custom <- input$custom_countries %||% character(0)
+    if (length(custom) > 0) {
+      updateNumericInput(session, "xlim_min", value = NA)
+      updateNumericInput(session, "xlim_max", value = NA)
+      updateNumericInput(session, "ylim_min", value = NA)
+      updateNumericInput(session, "ylim_max", value = NA)
+    } else {
+      groups <- input$country_group %||% character(0)
+      bounds_list <- country_group_bounds[groups]
+      bounds_list <- Filter(Negate(is.null), bounds_list)
+      if (length(bounds_list) > 0) {
+        updateNumericInput(session, "xlim_min", value = min(sapply(bounds_list, function(b) b$xlim[1])))
+        updateNumericInput(session, "xlim_max", value = max(sapply(bounds_list, function(b) b$xlim[2])))
+        updateNumericInput(session, "ylim_min", value = min(sapply(bounds_list, function(b) b$ylim[1])))
+        updateNumericInput(session, "ylim_max", value = max(sapply(bounds_list, function(b) b$ylim[2])))
+      }
+    }
+  }, ignoreNULL = FALSE, ignoreInit = TRUE)
 
   # Load preset into form fields
   observeEvent(
@@ -628,7 +685,7 @@ server <- function(input, output, session) {
           }
         }
       }
-      updateSelectInput(session, "country_group", selected = matched_group)
+      updateSelectizeInput(session, "country_group", selected = matched_group)
       updateSelectizeInput(session, "custom_countries", selected = character(0))
 
       if (!is.null(spec$breaks)) {
@@ -663,6 +720,8 @@ server <- function(input, output, session) {
       )
 
       updateSelectInput(session, "color_preset", selected = "Blue (default)")
+      updateNumericInput(session, "reference_quantile", value = 0.25)
+      updateCheckboxInput(session, "show_admin1_borders", value = TRUE)
     },
     ignoreInit = TRUE
   )
@@ -673,9 +732,11 @@ server <- function(input, output, session) {
 
   # Build make_map() arguments from current inputs
   build_args <- function() {
-    preset <- country_groups[[input$country_group]]
+    groups <- input$country_group %||% character(0)
+    preset <- unique(unlist(country_groups[groups]))
     custom <- parse_custom_countries()
     combined <- unique(c(preset, custom))
+    if (length(combined) == 0) combined <- NULL
 
     sci_path <- resolve_sci_path(input$type, input$user_region_id, sci_data_dir)
 
@@ -684,7 +745,9 @@ server <- function(input, output, session) {
       user_region_id = input$user_region_id,
       sci_path = sci_path,
       friend_countries = combined,
-      color_palette = color_presets[[input$color_preset]]
+      color_palette = color_presets[[input$color_preset]],
+      reference_quantile = input$reference_quantile,
+      show_admin1_borders = input$show_admin1_borders
     )
 
     if (nchar(trimws(input$title)) > 0) {
@@ -815,6 +878,35 @@ server <- function(input, output, session) {
         height = input$height,
         units = "in",
         device = "svg"
+      )
+    }
+  )
+
+  # Download MP4
+  output$download_mp4 <- downloadHandler(
+    filename = function() {
+      region <- gsub("[^a-zA-Z0-9]", "_", input$user_region_id)
+      paste0("sci_", input$type, "_", region, ".mp4")
+    },
+    content = function(file) {
+      req(rv$map)
+      png_path <- tempfile(fileext = ".png")
+      on.exit(unlink(png_path), add = TRUE)
+      ggsave(
+        png_path,
+        plot = rv$map,
+        width = input$width,
+        height = input$height,
+        units = "in",
+        dpi = input$dpi,
+        bg = "white"
+      )
+      av::av_encode_video(
+        input = rep(png_path, 10),
+        output = file,
+        framerate = 1,
+        codec = "libx264",
+        vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p"
       )
     }
   )
