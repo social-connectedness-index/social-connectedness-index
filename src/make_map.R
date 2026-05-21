@@ -86,10 +86,13 @@ make_map <- function(
       filter(.data[[config$friend_country_key]] %in% friend_countries)
   }
 
-  background_sf <- friend_sf
+  background_sf <- shapes
 
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
+  } else if (!is.null(friend_countries)) {
+    borders_sf %>%
+      filter(.data[["sov_country"]] %in% friend_countries)
   } else {
     borders_sf
   }
