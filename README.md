@@ -12,13 +12,11 @@ We also include **Relevant Literature.bib**, which contains references to papers
 
 This tool lets you create high-quality maps of the **Social Connectedness Index (SCI)** with *very little code editing*. You do **not** need to understand spatial data or GIS concepts to use it successfully.
 
-If you can:
+There are **three ways** to use this tool, from easiest to most flexible:
 
-* open an R project,
-* run a script, and
-* edit a structured list,
-
-then you can use this tool.
+1. **Interactive app** — Launch a point-and-click Shiny app: `shiny::runApp()` (see [Interactive App](#interactive-app))
+2. **Batch mode** — Edit `src/map_structs.R` and run `src/main.R` to generate multiple maps at once (see [Quick Start](#quick-start))
+3. **Scripting** — Call `make_map()` directly in R for full control (see [Using make_map() Directly](#using-make_map-directly))
 
 ---
 
@@ -35,6 +33,27 @@ If you just want to get maps as fast as possible:
 7. Your maps will appear in `output/maps/`
 
 On the first run, the script will automatically install any missing R packages and clean the shapefiles. On subsequent runs, the cleaning step is skipped automatically, so re-runs are fast.
+
+---
+
+## Interactive App
+
+After completing the one-time setup (steps 1–4 of Quick Start above), you can launch an interactive Shiny app to create maps without editing any code:
+
+```r
+install.packages("shiny")  # only needed once
+shiny::runApp()
+```
+
+The app lets you:
+
+* **Load presets** — start from a working example and modify it
+* **Select map type** — dropdown with all 16 map types
+* **Pick SCI data** — auto-filtered to match the selected type
+* **Choose countries** — preset groups (Europe, Africa, etc.) or all
+* **Set custom breaks, colors, zoom** — via an expandable "Advanced options" panel
+* **Preview** the map in your browser
+* **Download** as PNG or PDF
 
 ---
 
@@ -67,12 +86,14 @@ You will mainly interact with **two files**:
 | `src/main.R`        | Sets everything up and runs the maps |
 | `src/map_structs.R` | Where you define what maps you want  |
 
-Everything else is support machinery:
+Other key files:
 
 | File / Folder                   | Purpose                                            |
 | ------------------------------- | -------------------------------------------------- |
-| `src/constants.R`               | File paths and country code lists                  |
+| `app.R`                         | Interactive Shiny app (run with `shiny::runApp()`) |
+| `src/setup.R`                   | Shared setup: packages, sources, shapefile cleaning|
 | `src/make_map.R`                | The `make_map()` function (public API)             |
+| `src/constants.R`               | File paths and country code lists                  |
 | `src/mapping_tools.R`           | Internal map rendering helpers and config          |
 | `src/scalars.R`                 | Computes summary statistics for the paper          |
 | `src/clean_gadm_shapefiles.R`   | Cleans GADM shapefiles (runs once automatically)   |
