@@ -627,7 +627,7 @@ ui <- fluidPage(
         fluidRow(
           column(4, numericInput("width", "Width (in)", value = 30, min = 5)),
           column(4, numericInput("height", "Height (in)", value = 25, min = 5)),
-          column(4, numericInput("dpi", "DPI", value = 120, min = 72))
+          column(4, numericInput("dpi", "DPI", value = 300, min = 72))
         )
       )
     ),
@@ -680,7 +680,12 @@ ui <- fluidPage(
 # --- Server ---
 
 server <- function(input, output, session) {
-  rv <- reactiveValues(map = NULL, skip_type_region_update = FALSE)
+  rv <- reactiveValues(
+    map = NULL,
+    skip_type_region_update = FALSE,
+    preview_width = 30,
+    preview_height = 25
+  )
 
   output$has_map <- reactive(!is.null(rv$map))
   outputOptions(output, "has_map", suspendWhenHidden = FALSE)
@@ -987,6 +992,8 @@ server <- function(input, output, session) {
 
         args <- build_args()
         args$on_progress <- show_step
+        rv$preview_width <- w
+        rv$preview_height <- h
         rv$map <- do.call(make_map, args)
         removeNotification(progress_id)
       },
@@ -1018,14 +1025,8 @@ server <- function(input, output, session) {
         }
       )
     },
-    width = function() {
-      w <- input$width
-      if (is.na(w) || w <= 0) 30 * 96 else w * 96
-    },
-    height = function() {
-      h <- input$height
-      if (is.na(h) || h <= 0) 25 * 96 else h * 96
-    },
+    width = function() rv$preview_width * 96,
+    height = function() rv$preview_height * 96,
     res = 96
   )
 
