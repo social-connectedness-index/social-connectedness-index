@@ -99,6 +99,7 @@ Other key files:
 | `src/clean_gadm_shapefiles.R`   | Cleans GADM shapefiles (runs once automatically)   |
 | `src/clean_geoboundaries.R`     | Downloads and cleans geoBoundaries (runs once)     |
 | `src/clean_us_shapefiles.R`     | Cleans US Census shapefiles (runs once)            |
+| `src/clean_nuts_shapefiles.R`   | Cleans NUTS shapefiles (runs once)                 |
 | `data/sci_2026/`                | SCI data files (you download these)                |
 | `data/input_shapefiles/`        | Raw shapefiles (you download these)                |
 | `data/cleaned_shapefiles/`      | Cleaned shapefiles (generated automatically)       |
@@ -113,7 +114,7 @@ Before running anything, make sure you have:
 * [**R**](https://cran.r-project.org/) (version 4.0 or later recommended)
 * [**RStudio**](https://posit.co/download/rstudio-desktop/)
 
-The tool uses these R packages: `countrycode`, `Hmisc`, `RColorBrewer`, `rmapshaper`, `rgeoboundaries`, `sf`, `tidyverse`, and `wbstats`.
+The tool uses these R packages: `av`, `countrycode`, `Hmisc`, `RColorBrewer`, `rmapshaper`, `rgeoboundaries`, `rnaturalearth`, `rnaturalearthdata`, `sf`, `tidyverse`, and `wbstats`.
 
 **You do not need to install these packages manually.** The script will detect and install any missing packages automatically on the first run.
 
@@ -392,7 +393,7 @@ Beyond the fields available in `map_structs.R`, `make_map()` accepts:
 | `output_path`          | `NULL`                          | File path to save; `NULL` returns the plot   |
 | `width`                | `30`                            | Output width in inches                       |
 | `height`               | `25`                            | Output height in inches                      |
-| `dpi`                  | `120`                           | Output resolution                            |
+| `dpi`                  | `300`                           | Output resolution                            |
 | `return_data`          | `FALSE`                         | If `TRUE`, returns a list with plot and data |
 
 ---
