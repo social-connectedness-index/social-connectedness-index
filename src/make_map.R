@@ -27,8 +27,13 @@ make_map <- function(
   dpi = 300,
   video_duration = 10,
   video_fps = 30,
-  return_data = FALSE
+  return_data = FALSE,
+  on_progress = NULL
 ) {
+  notify <- function(msg) {
+    if (!is.null(on_progress)) on_progress(msg)
+  }
+
   if (!type %in% names(map_type_configs)) {
     stop(
       "Unknown map type '",
@@ -40,6 +45,7 @@ make_map <- function(
 
   config <- map_type_configs[[type]]
   colors <- color_palette %||% default_map_colors
+  notify("Loading shapefiles...")
 
   caption_text <- if (is.null(caption)) {
     default_caption()
@@ -119,6 +125,7 @@ make_map <- function(
   user_region_sf <- highlight_sf_all %>%
     filter(.data[[config$highlight_region_key]] == user_region_id)
 
+  notify("Reading SCI data...")
   sci_df <- load_sci_cached(sci_path)
 
   sci_filtered <- sci_df %>%
@@ -138,12 +145,14 @@ make_map <- function(
   sci_filtered <- sci_filtered %>%
     mutate(scaled_sci_rel = scaled_sci / sci_ref)
 
+  notify("Joining data to map regions...")
   mapping_sf <- shapes %>%
     left_join(
       sci_filtered,
       by = setNames("friend_region", config$friend_region_key)
     )
 
+  notify("Rendering map...")
   g <- build_map_plot(
     .data = mapping_sf,
     col = "scaled_sci_rel",
@@ -172,6 +181,7 @@ make_map <- function(
     is_video <- grepl("\\.mp4$", output_path, ignore.case = TRUE)
     png_path <- if (is_video) tempfile(fileext = ".png") else output_path
 
+    notify("Saving image...")
     ggsave(
       filename = png_path,
       plot = g,
@@ -183,6 +193,7 @@ make_map <- function(
     )
 
     if (is_video) {
+      notify("Encoding video...")
       av::av_encode_video(
         input = rep(png_path, video_duration),
         output = output_path,
