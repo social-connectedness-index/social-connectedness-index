@@ -94,7 +94,7 @@ make_map <- function(
       filter(.data[[config$friend_country_key]] %in% friend_countries)
   }
 
-  background_sf <- friend_sf
+  background_sf <- shapes
 
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
@@ -127,12 +127,16 @@ make_map <- function(
   notify("Reading SCI data...")
   sci_df <- load_sci_cached(sci_path)
 
+  filter_col <- config$sci_filter_col %||% "user_region"
+  country_filter_col <- config$sci_country_filter_col %||% "friend_country"
+  join_col <- config$sci_join_col %||% "friend_region"
+
   sci_filtered <- sci_df %>%
-    filter(user_region == user_region_id)
+    filter(.data[[filter_col]] == user_region_id)
 
   if (!is.null(friend_countries)) {
     sci_filtered <- sci_filtered %>%
-      filter(friend_country %in% friend_countries)
+      filter(.data[[country_filter_col]] %in% friend_countries)
   }
 
   sci_ref <- quantile(
@@ -148,7 +152,7 @@ make_map <- function(
   mapping_sf <- shapes %>%
     left_join(
       sci_filtered,
-      by = setNames("friend_region", config$friend_region_key)
+      by = setNames(join_col, config$friend_region_key)
     )
 
   notify("Rendering map...")
@@ -340,7 +344,7 @@ make_comparison_map <- function(
       filter(.data[[config$friend_country_key]] %in% friend_countries)
   }
 
-  background_sf <- friend_sf
+  background_sf <- shapes
 
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
@@ -375,36 +379,35 @@ make_comparison_map <- function(
   notify("Reading SCI data...")
   sci_df <- load_sci_cached(sci_path)
 
+  filter_col <- config$sci_filter_col %||% "user_region"
+  join_col <- config$sci_join_col %||% "friend_region"
+  country_filter_col <- config$sci_country_filter_col %||% "friend_country"
+
   sci_a <- sci_df %>%
-    filter(user_region == region_a_id) %>%
-    select(friend_region, scaled_sci_a = scaled_sci)
+    filter(.data[[filter_col]] == region_a_id) %>%
+    select(all_of(join_col), scaled_sci_a = scaled_sci)
 
   sci_b <- sci_df %>%
-    filter(user_region == region_b_id) %>%
-    select(friend_region, scaled_sci_b = scaled_sci)
+    filter(.data[[filter_col]] == region_b_id) %>%
+    select(all_of(join_col), scaled_sci_b = scaled_sci)
 
   if (!is.null(friend_countries)) {
-    friend_country_col <- if ("friend_country" %in% names(sci_df)) {
-      "friend_country"
-    } else {
-      NULL
-    }
-    if (!is.null(friend_country_col)) {
+    if (country_filter_col %in% names(sci_df)) {
       sci_country_lookup <- sci_df %>%
-        distinct(friend_region, friend_country)
+        distinct(across(all_of(c(join_col, country_filter_col))))
       sci_a <- sci_a %>%
-        inner_join(sci_country_lookup, by = "friend_region") %>%
-        filter(friend_country %in% friend_countries) %>%
-        select(-friend_country)
+        inner_join(sci_country_lookup, by = join_col) %>%
+        filter(.data[[country_filter_col]] %in% friend_countries) %>%
+        select(-all_of(country_filter_col))
       sci_b <- sci_b %>%
-        inner_join(sci_country_lookup, by = "friend_region") %>%
-        filter(friend_country %in% friend_countries) %>%
-        select(-friend_country)
+        inner_join(sci_country_lookup, by = join_col) %>%
+        filter(.data[[country_filter_col]] %in% friend_countries) %>%
+        select(-all_of(country_filter_col))
     }
   }
 
   notify("Computing comparison...")
-  comparison <- inner_join(sci_a, sci_b, by = "friend_region") %>%
+  comparison <- inner_join(sci_a, sci_b, by = join_col) %>%
     filter(scaled_sci_a > 0, scaled_sci_b > 0) %>%
     mutate(log_ratio = log2(scaled_sci_b / scaled_sci_a))
 
@@ -412,7 +415,7 @@ make_comparison_map <- function(
   mapping_sf <- shapes %>%
     left_join(
       comparison,
-      by = setNames("friend_region", config$friend_region_key)
+      by = setNames(join_col, config$friend_region_key)
     )
 
   if (is.null(breaks)) {

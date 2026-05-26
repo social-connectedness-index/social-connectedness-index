@@ -31,7 +31,16 @@ type_file_patterns <- list(
   nuts2_country = "^nuts2_2024_to_country\\.csv$",
   nuts3_country = "^nuts3_2024_to_country\\.csv$",
   us_county_country = "^us_counties_to_country\\.csv$",
-  us_zcta_country = "^us_zcta_to_country\\.csv$"
+  us_zcta_country = "^us_zcta_to_country\\.csv$",
+  country_gadm1 = "^gadm1_to_country\\.csv$",
+  country_gadm2 = "^gadm2_to_country\\.csv$",
+  country_adm1 = "^geoboundaries_adm1_to_country\\.csv$",
+  country_adm2 = "^geoboundaries_adm2_to_country\\.csv$",
+  country_nuts1 = "^nuts1_2024_to_country\\.csv$",
+  country_nuts2 = "^nuts2_2024_to_country\\.csv$",
+  country_nuts3 = "^nuts3_2024_to_country\\.csv$",
+  country_us_county = "^us_counties_to_country\\.csv$",
+  country_us_zcta = "^us_zcta_to_country\\.csv$"
 )
 
 type_labels <- c(
@@ -53,7 +62,16 @@ type_labels <- c(
   nuts2_country = "NUTS Level 2 → Country",
   nuts3_country = "NUTS Level 3 → Country",
   us_county_country = "US County → Country",
-  us_zcta_country = "US ZIP Code → Country"
+  us_zcta_country = "US ZIP Code → Country",
+  country_gadm1 = "Country → GADM Level 1 (states/provinces)",
+  country_gadm2 = "Country → GADM Level 2 (districts)",
+  country_adm1 = "Country → geoBoundaries ADM1",
+  country_adm2 = "Country → geoBoundaries ADM2",
+  country_nuts1 = "Country → NUTS Level 1",
+  country_nuts2 = "Country → NUTS Level 2",
+  country_nuts3 = "Country → NUTS Level 3",
+  country_us_county = "Country → US County",
+  country_us_zcta = "Country → US ZIP Code"
 )
 
 country_groups <- list(
@@ -281,7 +299,7 @@ build_region_choices <- function(cfg) {
 }
 
 get_region_choices <- function(type) {
-  if (type == "country") {
+  if (type == "country" || startsWith(type, "country_")) {
     return(country_choices)
   }
 

@@ -259,5 +259,42 @@ map_specs <- list(
     ylim = c(24, 50),
     title = "San Antonio Spurs vs Oklahoma City Thunder",
     subtitle = "Friendship Links to San Antonio vs Oklahoma City"
+  ),
+
+  netherlands_us_counties = list(
+    type = "country_us_county",
+    user_region_id = "NL",
+    sci_path = "data/sci_2026/us_counties_to_country.csv",
+    friend_countries = c("US"),
+    xlim = c(-125, -66),
+    ylim = c(24, 50),
+    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+    title = "Where does the Netherlands\nhave the most friends in the US?"
+  ),
+
+  japan_country_gadm1 = list(
+    type = "country_gadm1",
+    user_region_id = "JP",
+    sci_path = "data/sci_2026/gadm1_to_country.csv",
+    friend_countries = countries_in_data,
+    breaks = c(1, 3, 5, 9, 15, 20, 30, 40, 50, 75),
+    title = "Where does Japan\nhave the most friends?"
+  ),
+
+  nl_vs_de_us_counties = list(
+    type = "country_us_county",
+    region_a_id = "NL",
+    region_b_id = "DE",
+    sci_path = "data/sci_2026/us_counties_to_country.csv",
+    label_a = "Netherlands",
+    label_b = "Germany",
+    color_a = "#FF6F00",
+    color_b = "grey40",
+    color_mid = "white",
+    friend_countries = c("US"),
+    xlim = c(-125, -66),
+    ylim = c(24, 50),
+    title = "Netherlands vs Germany",
+    subtitle = "US County Friendship Links to Netherlands vs Germany"
   )
 )

@@ -231,6 +231,126 @@ map_type_configs <- list(
     friend_country_key = "sov_country",
     highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
     highlight_region_key = "region_id"
+  ),
+  country_gadm1 = list(
+    friend_sf = list(path = gadm1_shapefile_path, layer = NULL),
+    friend_region_key = "key",
+    friend_country_key = "sov_country",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_gadm2 = list(
+    friend_sf = list(path = gadm2_shapefile_path, layer = NULL),
+    friend_region_key = "key",
+    friend_country_key = "sov_country",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_adm1 = list(
+    friend_sf = list(path = geoboundaries_gpkg_path, layer = "adm1"),
+    friend_region_key = "shapeID",
+    friend_country_key = "shapeGroup",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_adm2 = list(
+    friend_sf = list(path = geoboundaries_gpkg_path, layer = "adm2"),
+    friend_region_key = "shapeID",
+    friend_country_key = "shapeGroup",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    admin1_borders = list(
+      path = geoboundaries_gpkg_path,
+      layer = "adm1",
+      country_key = "shapeGroup"
+    ),
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_nuts1 = list(
+    friend_sf = list(path = nuts1_shapefile_path, layer = NULL),
+    friend_region_key = "NUTS_ID",
+    friend_country_key = "CNTR_CODE",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_nuts2 = list(
+    friend_sf = list(path = nuts2_shapefile_path, layer = NULL),
+    friend_region_key = "NUTS_ID",
+    friend_country_key = "CNTR_CODE",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    admin1_borders = list(
+      path = nuts1_shapefile_path,
+      layer = NULL,
+      country_key = "CNTR_CODE"
+    ),
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_nuts3 = list(
+    friend_sf = list(path = nuts3_shapefile_path, layer = NULL),
+    friend_region_key = "NUTS_ID",
+    friend_country_key = "CNTR_CODE",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    admin1_borders = list(
+      path = nuts1_shapefile_path,
+      layer = NULL,
+      country_key = "CNTR_CODE"
+    ),
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_us_county = list(
+    friend_sf = list(path = us_county_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
+  ),
+  country_us_zcta = list(
+    friend_sf = list(path = us_zcta_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country"
   )
 )
 
