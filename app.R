@@ -9,7 +9,6 @@ source("src/map_structs.R")
 # --- Configuration ---
 
 sci_data_dir <- "data/sci_2026"
-default_subtitle <- "Do you recognize any patterns? What surprises you?"
 default_breaks <- "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
 
 type_file_patterns <- list(
@@ -43,36 +42,62 @@ type_file_patterns <- list(
   country_us_zcta = "^us_zcta_to_country\\.csv$"
 )
 
-type_labels <- c(
-  country = "Country → Country",
-  gadm1 = "GADM Level 1 → GADM Level 1 (states/provinces)",
-  gadm2 = "GADM Level 2 → GADM Level 2 (districts)",
-  adm1 = "geoBoundaries ADM1 → ADM1",
-  adm2 = "geoBoundaries ADM2 → ADM2",
-  nuts1 = "NUTS Level 1 → NUTS Level 1",
-  nuts2 = "NUTS Level 2 → NUTS Level 2",
-  nuts3 = "NUTS Level 3 → NUTS Level 3",
-  us_county = "US County → US County",
-  us_zcta = "US ZIP Code → US ZIP Code",
-  gadm1_country = "GADM Level 1 → Country",
-  gadm2_country = "GADM Level 2 → Country",
-  adm1_country = "geoBoundaries ADM1 → Country",
-  adm2_country = "geoBoundaries ADM2 → Country",
-  nuts1_country = "NUTS Level 1 → Country",
-  nuts2_country = "NUTS Level 2 → Country",
-  nuts3_country = "NUTS Level 3 → Country",
-  us_county_country = "US County → Country",
-  us_zcta_country = "US ZIP Code → Country",
-  country_gadm1 = "Country → GADM Level 1 (states/provinces)",
-  country_gadm2 = "Country → GADM Level 2 (districts)",
-  country_adm1 = "Country → geoBoundaries ADM1",
-  country_adm2 = "Country → geoBoundaries ADM2",
-  country_nuts1 = "Country → NUTS Level 1",
-  country_nuts2 = "Country → NUTS Level 2",
-  country_nuts3 = "Country → NUTS Level 3",
-  country_us_county = "Country → US County",
-  country_us_zcta = "Country → US ZIP Code"
+region_type_labels <- c(
+  country = "Country",
+  gadm1 = "GADM Level 1 (states/provinces)",
+  gadm2 = "GADM Level 2 (districts)",
+  adm1 = "geoBoundaries ADM1",
+  adm2 = "geoBoundaries ADM2",
+  nuts1 = "NUTS Level 1",
+  nuts2 = "NUTS Level 2",
+  nuts3 = "NUTS Level 3",
+  us_county = "US County",
+  us_zcta = "US ZIP Code"
 )
+
+dest_choices_for_origin <- list(
+  country = c(
+    "country",
+    "gadm1",
+    "gadm2",
+    "adm1",
+    "adm2",
+    "nuts1",
+    "nuts2",
+    "nuts3",
+    "us_county",
+    "us_zcta"
+  ),
+  gadm1 = c("gadm1", "country"),
+  gadm2 = c("gadm2", "country"),
+  adm1 = c("adm1", "country"),
+  adm2 = c("adm2", "country"),
+  nuts1 = c("nuts1", "country"),
+  nuts2 = c("nuts2", "country"),
+  nuts3 = c("nuts3", "country"),
+  us_county = c("us_county", "country"),
+  us_zcta = c("us_zcta", "country")
+)
+
+resolve_map_type <- function(origin, dest) {
+  if (origin == dest) {
+    return(origin)
+  }
+  if (origin == "country") {
+    return(paste0("country_", dest))
+  }
+  paste0(origin, "_country")
+}
+
+type_to_origin_dest <- function(type) {
+  if (startsWith(type, "country_")) {
+    return(list(origin = "country", dest = sub("^country_", "", type)))
+  }
+  if (endsWith(type, "_country")) {
+    return(list(origin = sub("_country$", "", type), dest = "country"))
+  }
+  list(origin = type, dest = type)
+}
 
 country_groups <- list(
   "(Custom only)" = character(0),
@@ -108,21 +133,44 @@ country_group_bounds <- list(
 
 # Per-country bounding boxes from the GADM0 shapefile (used to expand region
 # bounds when the user adds individual countries via custom_countries).
-country_bbox <- tryCatch({
-  gadm0 <- st_read(gadm0_shapefile_path, quiet = TRUE)
-  bboxes <- list()
-  for (iso in unique(gadm0$sov_country)) {
-    bb <- st_bbox(gadm0[gadm0$sov_country == iso, ])
-    bboxes[[iso]] <- list(
-      xlim = c(bb[["xmin"]], bb[["xmax"]]),
-      ylim = c(bb[["ymin"]], bb[["ymax"]])
-    )
+country_bbox <- tryCatch(
+  {
+    gadm0 <- st_read(gadm0_shapefile_path, quiet = TRUE)
+    bboxes <- list()
+    for (iso3 in unique(gadm0$sov_country)) {
+      iso2 <- countrycode::countrycode(
+        iso3, "iso3c", "iso2c",
+        custom_match = c("XKX" = "XK", "XKO" = "XK")
+      )
+      if (is.na(iso2)) next
+      bb <- st_bbox(gadm0[gadm0$sov_country == iso3, ])
+      bboxes[[iso2]] <- list(
+        xlim = c(bb[["xmin"]], bb[["xmax"]]),
+        ylim = c(bb[["ymin"]], bb[["ymax"]])
+      )
+    }
+    bboxes
+  },
+  error = function(e) {
+    message("Warning: could not build country bounding boxes: ", e$message)
+    list()
   }
-  bboxes
-}, error = function(e) {
-  message("Warning: could not build country bounding boxes: ", e$message)
-  list()
-})
+)
+
+compute_default_dimensions <- function(bounds) {
+  if (is.null(bounds)) return(list(width = 30, height = 25))
+  mid_lat <- (bounds$ylim_min + bounds$ylim_max) / 2
+  lon_range <- (bounds$xlim_max - bounds$xlim_min) * cos(mid_lat * pi / 180)
+  lat_range <- bounds$ylim_max - bounds$ylim_min
+  aspect <- lon_range / lat_range
+  if (aspect > 1.3) {
+    list(width = 30, height = 25)
+  } else if (aspect < 0.77) {
+    list(width = 25, height = 30)
+  } else {
+    list(width = 30, height = 30)
+  }
+}
 
 compute_combined_bounds <- function(groups, custom_codes) {
   bounds_list <- Filter(Negate(is.null), country_group_bounds[groups])
@@ -226,40 +274,52 @@ region_id_config <- list(
 color_presets <- list(
   "Blue (default)" = default_map_colors,
   "Red" = c(
-    "#fde0dd",
-    "#fcc5c0",
-    "#fa9fb5",
-    "#f768a1",
-    "#dd3497",
-    "#ae017e",
-    "#7a0177"
+    "#fff5f0",
+    "#fee0d2",
+    "#fcbba1",
+    "#fc9272",
+    "#fb6a4a",
+    "#ef3b2c",
+    "#cb181d",
+    "#a50f15",
+    "#7f0000",
+    "#4d0000"
   ),
   "Green" = c(
-    "#edf8e9",
+    "#f7fcf5",
+    "#e5f5e0",
     "#c7e9c0",
     "#a1d99b",
     "#74c476",
     "#41ab5d",
     "#238b45",
-    "#005a32"
+    "#006d2c",
+    "#00441b",
+    "#002b12"
   ),
   "Purple" = c(
-    "#f2f0f7",
+    "#fcfbfd",
+    "#efedf5",
     "#dadaeb",
     "#bcbddc",
     "#9e9ac8",
     "#807dba",
     "#6a51a3",
-    "#4a1486"
+    "#54278f",
+    "#3f007d",
+    "#2a0055"
   ),
   "Orange" = c(
-    "#feedde",
+    "#fff5eb",
+    "#fee6ce",
     "#fdd0a2",
     "#fdae6b",
     "#fd8d3c",
     "#f16913",
     "#d94801",
-    "#8c2d04"
+    "#a63603",
+    "#7f2704",
+    "#541b02"
   )
 )
 
@@ -389,10 +449,11 @@ resolve_sci_path <- function(type, region_id, sci_data_dir) {
 }
 
 build_r_code <- function(input) {
-  sci_path <- resolve_sci_path(input$type, input$user_region_id, sci_data_dir)
+  map_type <- resolve_map_type(input$origin_type, input$dest_type)
+  sci_path <- resolve_sci_path(map_type, input$user_region_id, sci_data_dir)
   lines <- c('source("src/setup.R")', "", "make_map(")
   args <- c(
-    sprintf('  type = "%s"', input$type),
+    sprintf('  type = "%s"', map_type),
     sprintf('  user_region_id = "%s"', input$user_region_id),
     sprintf('  sci_path = "%s"', sci_path)
   )
@@ -473,7 +534,7 @@ build_r_code <- function(input) {
     args,
     sprintf(
       '  output_path = "output/maps/%s_%s.png"',
-      input$type,
+      map_type,
       region_slug
     )
   )
@@ -551,9 +612,18 @@ ui <- fluidPage(
       div(class = "section-label", "Map configuration"),
 
       selectInput(
-        "type",
-        "Map type",
-        choices = setNames(names(type_labels), type_labels)
+        "origin_type",
+        "Origin region type",
+        choices = setNames(names(region_type_labels), region_type_labels)
+      ),
+
+      selectInput(
+        "dest_type",
+        "Destination region type",
+        choices = setNames(
+          dest_choices_for_origin[["country"]],
+          region_type_labels[dest_choices_for_origin[["country"]]]
+        )
       ),
 
       selectizeInput(
@@ -597,7 +667,7 @@ ui <- fluidPage(
       tags$details(
         tags$summary("Advanced options"),
 
-        textInput("subtitle", "Subtitle (optional)", value = default_subtitle),
+        textInput("subtitle", "Subtitle (optional)"),
 
         selectInput(
           "color_preset",
@@ -708,38 +778,45 @@ server <- function(input, output, session) {
   output$has_map <- reactive(!is.null(rv$map))
   outputOptions(output, "has_map", suspendWhenHidden = FALSE)
 
-  # Update region ID choices when map type changes
-  observeEvent(input$type, {
+  # Update destination choices and region ID choices when origin type changes
+  observeEvent(input$origin_type, {
+    dest_keys <- dest_choices_for_origin[[input$origin_type]]
+    dest_opts <- setNames(dest_keys, region_type_labels[dest_keys])
+    updateSelectInput(session, "dest_type", choices = dest_opts)
+
     if (rv$skip_type_region_update) {
       rv$skip_type_region_update <- FALSE
       return()
     }
 
-    tryCatch({
-      choices <- get_region_choices(input$type)
-      if (is.null(choices)) {
-        updateSelectizeInput(
-          session,
-          "user_region_id",
-          choices = character(0),
-          selected = ""
-        )
-      } else {
-        is_large <- grepl("^(gadm2|adm2|us_zcta)", input$type)
-        updateSelectizeInput(
-          session,
-          "user_region_id",
-          choices = choices,
-          selected = "",
-          server = is_large
+    tryCatch(
+      {
+        choices <- get_region_choices(input$origin_type)
+        if (is.null(choices)) {
+          updateSelectizeInput(
+            session,
+            "user_region_id",
+            choices = character(0),
+            selected = ""
+          )
+        } else {
+          is_large <- input$origin_type %in% c("gadm2", "adm2", "us_zcta")
+          updateSelectizeInput(
+            session,
+            "user_region_id",
+            choices = choices,
+            selected = "",
+            server = is_large
+          )
+        }
+      },
+      error = function(e) {
+        showNotification(
+          paste("Could not load regions for this map type:", e$message),
+          type = "error"
         )
       }
-    }, error = function(e) {
-      showNotification(
-        paste("Could not load regions for this map type:", e$message),
-        type = "error"
-      )
-    })
+    )
   })
 
   observeEvent(input$user_region_id, {
@@ -747,43 +824,67 @@ server <- function(input, output, session) {
     if (is.null(region_id) || nchar(trimws(region_id)) == 0) {
       return()
     }
-    tryCatch({
-      choices <- get_region_choices(input$type)
-      if (is.null(choices)) return()
-      label <- names(choices)[match(region_id, choices)]
-      if (length(label) == 1 && !is.na(label) && nchar(label) > 0) {
-        updateTextInput(
-          session,
-          "title",
-          value = paste0(
-            "Where do people in ", label, "\\nhave the most friends?"
+    tryCatch(
+      {
+        choices <- get_region_choices(input$origin_type)
+        if (is.null(choices)) {
+          return()
+        }
+        label <- names(choices)[match(region_id, choices)]
+        if (length(label) == 1 && !is.na(label) && nchar(label) > 0) {
+          updateTextInput(
+            session,
+            "title",
+            value = paste0(
+              "Where do people in ",
+              label,
+              "\\nhave the most friends?"
+            )
           )
-        )
-      }
-    }, error = function(e) NULL)
+        }
+      },
+      error = function(e) NULL
+    )
   })
 
   # Auto-fill lat/lon as union of selected region bounds + custom country bboxes.
   # Region bounds are hardcoded (curated to exclude overseas territories).
   # Custom country bounds come from the GADM0 shapefile bboxes.
   update_bounds <- function() {
-    tryCatch({
-      groups <- input$country_group %||% character(0)
-      custom <- input$custom_countries %||% character(0)
-      bounds <- compute_combined_bounds(groups, custom)
-      if (!is.null(bounds)) {
-        updateNumericInput(session, "xlim_min", value = bounds$xlim_min)
-        updateNumericInput(session, "xlim_max", value = bounds$xlim_max)
-        updateNumericInput(session, "ylim_min", value = bounds$ylim_min)
-        updateNumericInput(session, "ylim_max", value = bounds$ylim_max)
-      } else {
-        updateNumericInput(session, "xlim_min", value = NA)
-        updateNumericInput(session, "xlim_max", value = NA)
-        updateNumericInput(session, "ylim_min", value = NA)
-        updateNumericInput(session, "ylim_max", value = NA)
-      }
-    }, error = function(e) NULL)
+    tryCatch(
+      {
+        groups <- input$country_group %||% character(0)
+        custom <- input$custom_countries %||% character(0)
+        bounds <- compute_combined_bounds(groups, custom)
+        if (!is.null(bounds)) {
+          updateNumericInput(session, "xlim_min", value = bounds$xlim_min)
+          updateNumericInput(session, "xlim_max", value = bounds$xlim_max)
+          updateNumericInput(session, "ylim_min", value = bounds$ylim_min)
+          updateNumericInput(session, "ylim_max", value = bounds$ylim_max)
+        } else {
+          updateNumericInput(session, "xlim_min", value = NA)
+          updateNumericInput(session, "xlim_max", value = NA)
+          updateNumericInput(session, "ylim_min", value = NA)
+          updateNumericInput(session, "ylim_max", value = NA)
+        }
+        dims <- compute_default_dimensions(bounds)
+        updateNumericInput(session, "width", value = dims$width)
+        updateNumericInput(session, "height", value = dims$height)
+      },
+      error = function(e) NULL
+    )
   }
+
+  observeEvent(input$dest_type, {
+    if (input$origin_type != "country") return()
+    if (input$dest_type == "country") return()
+    dest_group <- switch(input$dest_type,
+      nuts1 =, nuts2 =, nuts3 = "Europe",
+      us_county =, us_zcta = "United States",
+      character(0)
+    )
+    updateSelectizeInput(session, "country_group", selected = dest_group)
+  })
 
   observeEvent(
     input$country_group,
@@ -812,87 +913,107 @@ server <- function(input, output, session) {
         return()
       }
 
-      tryCatch({
-        rv$skip_type_region_update <- TRUE
-        updateSelectInput(session, "type", selected = spec$type)
-
-        choices <- get_region_choices(spec$type)
-        if (is.null(choices)) {
-          updateSelectizeInput(
+      tryCatch(
+        {
+          od <- type_to_origin_dest(spec$type)
+          rv$skip_type_region_update <- TRUE
+          updateSelectInput(session, "origin_type", selected = od$origin)
+          dest_keys <- dest_choices_for_origin[[od$origin]]
+          dest_opts <- setNames(dest_keys, region_type_labels[dest_keys])
+          updateSelectInput(
             session,
-            "user_region_id",
-            choices = character(0),
-            selected = spec$user_region_id
+            "dest_type",
+            choices = dest_opts,
+            selected = od$dest
           )
-        } else {
-          is_large <- grepl("^(gadm2|adm2|us_zcta)", spec$type)
-          updateSelectizeInput(
-            session,
-            "user_region_id",
-            choices = choices,
-            selected = spec$user_region_id,
-            server = is_large
-          )
-        }
-        updateTextInput(session, "title", value = spec$title %||% "")
-        updateTextInput(session, "subtitle", value = default_subtitle)
 
-        matched_group <- "All countries"
-        if (!is.null(spec$friend_countries)) {
-          for (grp in names(country_groups)) {
-            if (setequal(country_groups[[grp]], spec$friend_countries)) {
-              matched_group <- grp
-              break
+          choices <- get_region_choices(od$origin)
+          if (is.null(choices)) {
+            updateSelectizeInput(
+              session,
+              "user_region_id",
+              choices = character(0),
+              selected = spec$user_region_id
+            )
+          } else {
+            is_large <- od$origin %in% c("gadm2", "adm2", "us_zcta")
+            updateSelectizeInput(
+              session,
+              "user_region_id",
+              choices = choices,
+              selected = spec$user_region_id,
+              server = is_large
+            )
+          }
+          updateTextInput(session, "title", value = spec$title %||% "")
+          updateTextInput(session, "subtitle", value = "")
+
+          matched_group <- "All countries"
+          if (!is.null(spec$friend_countries)) {
+            for (grp in names(country_groups)) {
+              if (setequal(country_groups[[grp]], spec$friend_countries)) {
+                matched_group <- grp
+                break
+              }
             }
           }
-        }
-        updateSelectizeInput(session, "country_group", selected = matched_group)
-        updateSelectizeInput(
-          session,
-          "custom_countries",
-          selected = character(0)
-        )
-
-        if (!is.null(spec$breaks)) {
-          updateTextInput(
+          updateSelectizeInput(
             session,
-            "breaks",
-            value = paste(spec$breaks, collapse = ", ")
+            "country_group",
+            selected = matched_group
           )
-        } else {
-          updateTextInput(session, "breaks", value = default_breaks)
+          updateSelectizeInput(
+            session,
+            "custom_countries",
+            selected = character(0)
+          )
+
+          if (!is.null(spec$breaks)) {
+            updateTextInput(
+              session,
+              "breaks",
+              value = paste(spec$breaks, collapse = ", ")
+            )
+          } else {
+            updateTextInput(session, "breaks", value = default_breaks)
+          }
+
+          updateNumericInput(
+            session,
+            "xlim_min",
+            value = if (!is.null(spec$xlim)) spec$xlim[1] else NA
+          )
+          updateNumericInput(
+            session,
+            "xlim_max",
+            value = if (!is.null(spec$xlim)) spec$xlim[2] else NA
+          )
+          updateNumericInput(
+            session,
+            "ylim_min",
+            value = if (!is.null(spec$ylim)) spec$ylim[1] else NA
+          )
+          updateNumericInput(
+            session,
+            "ylim_max",
+            value = if (!is.null(spec$ylim)) spec$ylim[2] else NA
+          )
+
+          updateSelectInput(
+            session,
+            "color_preset",
+            selected = "Blue (default)"
+          )
+          updateNumericInput(session, "reference_quantile", value = 0.25)
+          updateCheckboxInput(session, "show_admin1_borders", value = TRUE)
+        },
+        error = function(e) {
+          showNotification(
+            paste("Could not load preset:", e$message),
+            type = "error"
+          )
         }
-
-        updateNumericInput(
-          session,
-          "xlim_min",
-          value = if (!is.null(spec$xlim)) spec$xlim[1] else NA
-        )
-        updateNumericInput(
-          session,
-          "xlim_max",
-          value = if (!is.null(spec$xlim)) spec$xlim[2] else NA
-        )
-        updateNumericInput(
-          session,
-          "ylim_min",
-          value = if (!is.null(spec$ylim)) spec$ylim[1] else NA
-        )
-        updateNumericInput(
-          session,
-          "ylim_max",
-          value = if (!is.null(spec$ylim)) spec$ylim[2] else NA
-        )
-
-        updateSelectInput(session, "color_preset", selected = "Blue (default)")
-        updateNumericInput(session, "reference_quantile", value = 0.25)
-        updateCheckboxInput(session, "show_admin1_borders", value = TRUE)
-      }, error = function(e) {
-        showNotification(
-          paste("Could not load preset:", e$message),
-          type = "error"
-        )
-      })
+      )
     },
     ignoreInit = TRUE
   )
@@ -903,7 +1024,10 @@ server <- function(input, output, session) {
 
   download_filename <- function(ext) {
     region_id <- input$user_region_id
-    choices <- tryCatch(get_region_choices(input$type), error = function(e) NULL)
+    choices <- tryCatch(
+      get_region_choices(input$origin_type),
+      error = function(e) NULL
+    )
     label <- NULL
     if (!is.null(choices)) {
       label <- names(choices)[match(region_id, choices)]
@@ -918,6 +1042,8 @@ server <- function(input, output, session) {
 
   # Build make_map() arguments from current inputs
   build_args <- function() {
+    map_type <- resolve_map_type(input$origin_type, input$dest_type)
+
     groups <- input$country_group %||% character(0)
     preset <- unique(unlist(country_groups[groups]))
     custom <- parse_custom_countries()
@@ -926,10 +1052,10 @@ server <- function(input, output, session) {
       combined <- NULL
     }
 
-    sci_path <- resolve_sci_path(input$type, input$user_region_id, sci_data_dir)
+    sci_path <- resolve_sci_path(map_type, input$user_region_id, sci_data_dir)
 
     args <- list(
-      type = input$type,
+      type = map_type,
       user_region_id = input$user_region_id,
       sci_path = sci_path,
       friend_countries = combined,
@@ -995,8 +1121,9 @@ server <- function(input, output, session) {
 
     tryCatch(
       {
+        map_type <- resolve_map_type(input$origin_type, input$dest_type)
         sci_path <- resolve_sci_path(
-          input$type,
+          map_type,
           input$user_region_id,
           sci_data_dir
         )
@@ -1052,23 +1179,26 @@ server <- function(input, output, session) {
   output$download_png <- downloadHandler(
     filename = function() download_filename("png"),
     content = function(file) {
-      tryCatch({
-        req(rv$map)
-        ggsave(
-          file,
-          plot = rv$map,
-          width = input$width %||% 30,
-          height = input$height %||% 25,
-          units = "in",
-          dpi = input$dpi %||% 120,
-          bg = "white"
-        )
-      }, error = function(e) {
-        showNotification(
-          paste("PNG export failed:", e$message),
-          type = "error"
-        )
-      })
+      tryCatch(
+        {
+          req(rv$map)
+          ggsave(
+            file,
+            plot = rv$map,
+            width = input$width %||% 30,
+            height = input$height %||% 25,
+            units = "in",
+            dpi = input$dpi %||% 120,
+            bg = "white"
+          )
+        },
+        error = function(e) {
+          showNotification(
+            paste("PNG export failed:", e$message),
+            type = "error"
+          )
+        }
+      )
     }
   )
 
@@ -1076,22 +1206,25 @@ server <- function(input, output, session) {
   output$download_pdf <- downloadHandler(
     filename = function() download_filename("pdf"),
     content = function(file) {
-      tryCatch({
-        req(rv$map)
-        ggsave(
-          file,
-          plot = rv$map,
-          width = input$width %||% 30,
-          height = input$height %||% 25,
-          units = "in",
-          device = "pdf"
-        )
-      }, error = function(e) {
-        showNotification(
-          paste("PDF export failed:", e$message),
-          type = "error"
-        )
-      })
+      tryCatch(
+        {
+          req(rv$map)
+          ggsave(
+            file,
+            plot = rv$map,
+            width = input$width %||% 30,
+            height = input$height %||% 25,
+            units = "in",
+            device = "pdf"
+          )
+        },
+        error = function(e) {
+          showNotification(
+            paste("PDF export failed:", e$message),
+            type = "error"
+          )
+        }
+      )
     }
   )
 
@@ -1099,22 +1232,25 @@ server <- function(input, output, session) {
   output$download_svg <- downloadHandler(
     filename = function() download_filename("svg"),
     content = function(file) {
-      tryCatch({
-        req(rv$map)
-        ggsave(
-          file,
-          plot = rv$map,
-          width = input$width %||% 30,
-          height = input$height %||% 25,
-          units = "in",
-          device = "svg"
-        )
-      }, error = function(e) {
-        showNotification(
-          paste("SVG export failed:", e$message),
-          type = "error"
-        )
-      })
+      tryCatch(
+        {
+          req(rv$map)
+          ggsave(
+            file,
+            plot = rv$map,
+            width = input$width %||% 30,
+            height = input$height %||% 25,
+            units = "in",
+            device = "svg"
+          )
+        },
+        error = function(e) {
+          showNotification(
+            paste("SVG export failed:", e$message),
+            type = "error"
+          )
+        }
+      )
     }
   )
 
@@ -1127,56 +1263,62 @@ server <- function(input, output, session) {
       show_mp4_step <- function(step) {
         showNotification(step, id = mp4_id, duration = NULL, type = "message")
       }
-      tryCatch({
-        show_mp4_step("Rendering map to image...")
-        png_path <- tempfile(fileext = ".png")
-        on.exit(unlink(png_path), add = TRUE)
-        ggsave(
-          png_path,
-          plot = rv$map,
-          width = input$width %||% 30,
-          height = input$height %||% 25,
-          units = "in",
-          dpi = input$dpi %||% 120,
-          bg = "white"
-        )
-        show_mp4_step("Encoding video (this may take a moment)...")
-        av::av_encode_video(
-          input = rep(png_path, 10),
-          output = file,
-          framerate = 1,
-          codec = "libx264",
-          vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p"
-        )
-        removeNotification(mp4_id)
-      }, error = function(e) {
-        removeNotification(mp4_id)
-        showNotification(
-          paste("MP4 export failed:", e$message),
-          type = "error"
-        )
-      })
+      tryCatch(
+        {
+          show_mp4_step("Rendering map to image...")
+          png_path <- tempfile(fileext = ".png")
+          on.exit(unlink(png_path), add = TRUE)
+          ggsave(
+            png_path,
+            plot = rv$map,
+            width = input$width %||% 30,
+            height = input$height %||% 25,
+            units = "in",
+            dpi = input$dpi %||% 120,
+            bg = "white"
+          )
+          show_mp4_step("Encoding video (this may take a moment)...")
+          av::av_encode_video(
+            input = rep(png_path, 10),
+            output = file,
+            framerate = 1,
+            codec = "libx264",
+            vfilter = "scale=1080:-2,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,format=yuv420p"
+          )
+          removeNotification(mp4_id)
+        },
+        error = function(e) {
+          removeNotification(mp4_id)
+          showNotification(
+            paste("MP4 export failed:", e$message),
+            type = "error"
+          )
+        }
+      )
     }
   )
 
   # Export R code modal
   observeEvent(input$show_code, {
-    tryCatch({
-      code <- build_r_code(input)
-      showModal(modalDialog(
-        title = "Reproducible R Code",
-        p("Copy the code below to reproduce this map from the R console:"),
-        tags$pre(class = "code-block", code),
-        footer = modalButton("Close"),
-        size = "l",
-        easyClose = TRUE
-      ))
-    }, error = function(e) {
-      showNotification(
-        paste("Could not generate R code:", e$message),
-        type = "error"
-      )
-    })
+    tryCatch(
+      {
+        code <- build_r_code(input)
+        showModal(modalDialog(
+          title = "Reproducible R Code",
+          p("Copy the code below to reproduce this map from the R console:"),
+          tags$pre(class = "code-block", code),
+          footer = modalButton("Close"),
+          size = "l",
+          easyClose = TRUE
+        ))
+      },
+      error = function(e) {
+        showNotification(
+          paste("Could not generate R code:", e$message),
+          type = "error"
+        )
+      }
+    )
   })
 }
 

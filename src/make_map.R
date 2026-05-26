@@ -98,6 +98,13 @@ make_map <- function(
 
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
+  } else if (
+    !is.null(friend_countries) &&
+      config$friend_country_key %in% c("sov_country", "CNTR_CODE", "shapeGroup")
+  ) {
+    border_codes <- unique(shapes[[config$friend_country_key]])
+    border_codes <- border_codes[!is.na(border_codes)]
+    borders_sf %>% filter(.data[["sov_country"]] %in% border_codes)
   } else {
     borders_sf
   }
@@ -348,6 +355,13 @@ make_comparison_map <- function(
 
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
+  } else if (
+    !is.null(friend_countries) &&
+      config$friend_country_key %in% c("sov_country", "CNTR_CODE", "shapeGroup")
+  ) {
+    border_codes <- unique(shapes[[config$friend_country_key]])
+    border_codes <- border_codes[!is.na(border_codes)]
+    borders_sf %>% filter(.data[["sov_country"]] %in% border_codes)
   } else {
     borders_sf
   }
