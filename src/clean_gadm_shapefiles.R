@@ -157,7 +157,7 @@ load_gadm_data <- function(
   gadm_geopackage_path_unzipped <- file.path(temp_dir, "gadm_410-levels.gpkg")
 
   gadm_level0 <- st_read(gadm_geopackage_path_unzipped, "ADM_0") %>%
-    filter(GID_0 != "XCA")
+    filter(!GID_0 %in% c("XCA", "ATA"))
   gadm_level1 <- st_read(gadm_geopackage_path_unzipped, "ADM_1") %>%
     filter(ENGTYPE_1 != 'Water body') %>%
     # The North Isles in Scotland are for some reason not included
