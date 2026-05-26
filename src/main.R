@@ -9,5 +9,9 @@ for (spec_name in names(map_specs)) {
   message("Processing: ", spec_name)
   spec <- map_specs[[spec_name]]
   spec$output_path <- file.path(maps_dir, paste0(spec_name, ".", output_format))
-  do.call(make_map, spec)
+  if ("region_a_id" %in% names(spec)) {
+    do.call(make_comparison_map, spec)
+  } else {
+    do.call(make_map, spec)
+  }
 }

@@ -210,5 +210,54 @@ map_specs <- list(
     friend_countries = countries_in_data,
     breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     title = "Social Connectedness Index: Berlin, Germany (NUTS3 to Country)"
+  ),
+
+  de_vs_br = list(
+    type = "country",
+    region_a_id = "DE",
+    region_b_id = "BR",
+    sci_path = "data/sci_2026/country.csv",
+    label_a = "Germany",
+    label_b = "Brazil",
+    color_a = "#FFCC00",
+    color_b = "#009739",
+    color_mid = "white",
+    friend_countries = countries_in_data,
+    title = "Germany vs Brazil",
+    subtitle = "Friendship Links to Germany vs Brazil"
+  ),
+
+  srh_vs_rr = list(
+    type = "gadm2",
+    region_a_id = "IND.32.2_1",
+    region_b_id = "IND.29.17_1",
+    sci_path = "data/sci_2026/gadm2_shard_JO.csv",
+    label_a = "Hyderabad",
+    label_b = "Jaipur",
+    color_a = "#EE7429",
+    color_b = "#E60693",
+    color_mid = "white",
+    friend_countries = c("IN"),
+    xlim = c(60, 98),
+    ylim = c(5, 37),
+    title = "Sunrisers Hyderabad vs Rajasthan Royals",
+    subtitle = "Friendship Links to Hyderabad vs Jaipur"
+  ),
+
+  spurs_vs_thunder = list(
+    type = "us_county",
+    region_a_id = "48029",
+    region_b_id = "40109",
+    sci_path = "data/sci_2026/us_counties.csv",
+    label_a = "San Antonio",
+    label_b = "Oklahoma City",
+    color_a = "grey40",
+    color_b = "#EF6C00",
+    color_mid = "white",
+    friend_countries = c("US"),
+    xlim = c(-125, -66),
+    ylim = c(24, 50),
+    title = "San Antonio Spurs vs Oklahoma City Thunder",
+    subtitle = "Friendship Links to San Antonio vs Oklahoma City"
   )
 )

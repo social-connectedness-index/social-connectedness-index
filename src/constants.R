@@ -546,5 +546,5 @@ nuts_cntr_codes = c(
   "SI", # Slovenia
   "SK", # Slovakia
   "TR", # Turkey
-  "XK"  # Kosovo
+  "XK" # Kosovo
 )
