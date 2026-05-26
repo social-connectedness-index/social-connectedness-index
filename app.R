@@ -139,10 +139,14 @@ country_bbox <- tryCatch(
     bboxes <- list()
     for (iso3 in unique(gadm0$sov_country)) {
       iso2 <- countrycode::countrycode(
-        iso3, "iso3c", "iso2c",
+        iso3,
+        "iso3c",
+        "iso2c",
         custom_match = c("XKX" = "XK", "XKO" = "XK")
       )
-      if (is.na(iso2)) next
+      if (is.na(iso2)) {
+        next
+      }
       bb <- st_bbox(gadm0[gadm0$sov_country == iso3, ])
       bboxes[[iso2]] <- list(
         xlim = c(bb[["xmin"]], bb[["xmax"]]),
@@ -158,7 +162,9 @@ country_bbox <- tryCatch(
 )
 
 compute_default_dimensions <- function(bounds) {
-  if (is.null(bounds)) return(list(width = 30, height = 25))
+  if (is.null(bounds)) {
+    return(list(width = 30, height = 25))
+  }
   mid_lat <- (bounds$ylim_min + bounds$ylim_max) / 2
   lon_range <- (bounds$xlim_max - bounds$xlim_min) * cos(mid_lat * pi / 180)
   lat_range <- bounds$ylim_max - bounds$ylim_min
@@ -459,18 +465,20 @@ build_r_code <- function(input) {
   )
 
   groups <- input$country_group %||% character(0)
-  grp_vars <- unlist(country_group_varnames[groups])
-  custom_codes <- input$custom_countries %||% character(0)
-  has_preset <- length(grp_vars) > 0
-  has_custom <- length(custom_codes) > 0
+  if (!"All countries" %in% groups) {
+    grp_vars <- unlist(country_group_varnames[groups])
+    custom_codes <- input$custom_countries %||% character(0)
+    has_preset <- length(grp_vars) > 0
+    has_custom <- length(custom_codes) > 0
 
-  if (has_preset || has_custom) {
-    parts <- c(grp_vars, if (has_custom) paste0('"', custom_codes, '"'))
-    combined_str <- paste(parts, collapse = ", ")
-    if (length(parts) == 1 && has_preset && !has_custom) {
-      args <- c(args, sprintf("  friend_countries = %s", combined_str))
-    } else {
-      args <- c(args, sprintf("  friend_countries = c(%s)", combined_str))
+    if (has_preset || has_custom) {
+      parts <- c(grp_vars, if (has_custom) paste0('"', custom_codes, '"'))
+      combined_str <- paste(parts, collapse = ", ")
+      if (length(parts) == 1 && has_preset && !has_custom) {
+        args <- c(args, sprintf("  friend_countries = %s", combined_str))
+      } else {
+        args <- c(args, sprintf("  friend_countries = c(%s)", combined_str))
+      }
     }
   }
 
@@ -876,11 +884,19 @@ server <- function(input, output, session) {
   }
 
   observeEvent(input$dest_type, {
-    if (input$origin_type != "country") return()
-    if (input$dest_type == "country") return()
-    dest_group <- switch(input$dest_type,
-      nuts1 =, nuts2 =, nuts3 = "Europe",
-      us_county =, us_zcta = "United States",
+    if (input$origin_type != "country") {
+      return()
+    }
+    if (input$dest_type == "country") {
+      return()
+    }
+    dest_group <- switch(
+      input$dest_type,
+      nuts1 = ,
+      nuts2 = ,
+      nuts3 = "Europe",
+      us_county = ,
+      us_zcta = "United States",
       character(0)
     )
     updateSelectizeInput(session, "country_group", selected = dest_group)
@@ -1045,11 +1061,15 @@ server <- function(input, output, session) {
     map_type <- resolve_map_type(input$origin_type, input$dest_type)
 
     groups <- input$country_group %||% character(0)
-    preset <- unique(unlist(country_groups[groups]))
-    custom <- parse_custom_countries()
-    combined <- unique(c(preset, custom))
-    if (length(combined) == 0) {
+    if ("All countries" %in% groups) {
       combined <- NULL
+    } else {
+      preset <- unique(unlist(country_groups[groups]))
+      custom <- parse_custom_countries()
+      combined <- unique(c(preset, custom))
+      if (length(combined) == 0) {
+        combined <- NULL
+      }
     }
 
     sci_path <- resolve_sci_path(map_type, input$user_region_id, sci_data_dir)
