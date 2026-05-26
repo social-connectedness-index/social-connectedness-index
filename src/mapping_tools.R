@@ -248,7 +248,9 @@ build_map_plot <- function(
   admin1_border_color = "gray45",
   na_color = "#BFBFBF",
   name = NULL,
-  break_label_format = function(x) paste0(as.integer(x), "x"),
+  break_label_format = function(x) {
+    ifelse(x == floor(x), paste0(as.integer(x), "x"), paste0(x, "x"))
+  },
   xlims = NULL,
   ylims = NULL,
   title = NULL,

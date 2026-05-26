@@ -8,7 +8,9 @@ make_map <- function(
   breaks = NULL,
   reference_quantile = 0.25,
   legend_name = "Likelihood of Friendship",
-  break_label_format = function(x) paste0(as.integer(x), "x"),
+  break_label_format = function(x) {
+    ifelse(x == floor(x), paste0(as.integer(x), "x"), paste0(x, "x"))
+  },
   color_palette = NULL,
   highlight_color = "#FF0000",
   border_color = "gray15",
