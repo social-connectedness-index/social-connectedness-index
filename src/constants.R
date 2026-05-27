@@ -39,6 +39,16 @@ us_zcta_shapefile_path <- file.path(
   "united_states.gpkg"
 )
 
+us_cbsa_shapefile_path <- file.path(
+  us_cleaned_shapefiles_dir,
+  "united_states_cbsa.gpkg"
+)
+
+zcta_cbsa_crosswalk_path <- file.path(
+  data_dir,
+  "zcta_cbsa_crosswalk.csv"
+)
+
 nuts_gpkg_input <- file.path(
   input_shapefiles_dir,
   "NUTS_RG_01M_2024_4326.gpkg"

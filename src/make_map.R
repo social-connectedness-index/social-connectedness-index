@@ -18,6 +18,7 @@ make_map <- function(
   admin1_border_color = "gray35",
   na_color = "#BFBFBF",
   background_color = "white",
+  filter_dest_cbsa = NULL,
   title = NULL,
   subtitle = NULL,
   caption = NULL,
@@ -93,6 +94,23 @@ make_map <- function(
       filter(.data[[config$friend_country_key]] %in% friend_countries)
   }
 
+  dest_zctas <- NULL
+  if (!is.null(filter_dest_cbsa)) {
+    cbsa_xwalk <- load_sci_cached(zcta_cbsa_crosswalk_path) %>%
+      mutate(across(everything(), as.character))
+    dest_zctas <- cbsa_xwalk %>%
+      filter(cbsa_code == filter_dest_cbsa) %>%
+      pull(zcta)
+    if (length(dest_zctas) == 0) {
+      stop(
+        "No ZCTAs found for CBSA code '", filter_dest_cbsa,
+        "'. Check that this CBSA code exists in the crosswalk."
+      )
+    }
+    shapes <- shapes %>%
+      filter(.data[[config$friend_region_key]] %in% dest_zctas)
+  }
+
   background_sf <- shapes
 
   borders_data <- if (config$friend_country_key == "region_id") {
@@ -122,6 +140,9 @@ make_map <- function(
     if (!is.null(friend_countries)) {
       admin1_borders_data <- admin1_sf %>%
         filter(.data[[admin1_country_key]] %in% friend_countries)
+    } else if (config$friend_country_key == "region_id") {
+      admin1_borders_data <- admin1_sf %>%
+        filter(.data[[admin1_country_key]] == "US")
     } else {
       admin1_borders_data <- admin1_sf
     }
@@ -130,19 +151,71 @@ make_map <- function(
   user_region_sf <- highlight_sf_all %>%
     filter(.data[[config$highlight_region_key]] == user_region_id)
 
-  notify("Reading SCI data...")
-  sci_df <- load_sci_cached(sci_path)
+  if (!is.null(config$sci_origin_crosswalk)) {
+    notify("Aggregating SCI from origin metro area...")
+    origin_xwalk <- load_sci_cached(config$sci_origin_crosswalk$path) %>%
+      mutate(across(everything(), as.character))
+    origin_zctas <- origin_xwalk %>%
+      filter(
+        .data[[config$sci_origin_crosswalk$cbsa_col]] == user_region_id
+      ) %>%
+      pull(config$sci_origin_crosswalk$zcta_col)
+    if (length(origin_zctas) == 0) {
+      stop(
+        "No ZCTAs found for CBSA region '", user_region_id,
+        "'. Check that this CBSA code exists in the crosswalk."
+      )
+    }
+    shard_digits <- unique(substr(origin_zctas, 1, 1))
+    sci_dir <- dirname(sci_path)
+    sci_filtered <- map_dfr(shard_digits, function(d) {
+      shard_path <- file.path(sci_dir, paste0("us_zcta_shard_", d, ".csv"))
+      if (!file.exists(shard_path)) {
+        stop("SCI shard file not found: ", shard_path)
+      }
+      load_sci_cached(shard_path) %>%
+        filter(user_region %in% origin_zctas)
+    }) %>%
+      group_by(friend_region) %>%
+      summarise(scaled_sci = sum(scaled_sci), .groups = "drop")
+    join_col <- "friend_region"
+  } else {
+    notify("Reading SCI data...")
+    sci_df <- load_sci_cached(sci_path)
 
-  filter_col <- config$sci_filter_col %||% "user_region"
-  country_filter_col <- config$sci_country_filter_col %||% "friend_country"
-  join_col <- config$sci_join_col %||% "friend_region"
+    filter_col <- config$sci_filter_col %||% "user_region"
+    country_filter_col <- config$sci_country_filter_col %||% "friend_country"
+    join_col <- config$sci_join_col %||% "friend_region"
 
-  sci_filtered <- sci_df %>%
-    filter(.data[[filter_col]] == user_region_id)
+    sci_filtered <- sci_df %>%
+      filter(.data[[filter_col]] == user_region_id)
 
-  if (!is.null(friend_countries)) {
+    if (!is.null(friend_countries)) {
+      sci_filtered <- sci_filtered %>%
+        filter(.data[[country_filter_col]] %in% friend_countries)
+    }
+  }
+
+  if (!is.null(config$sci_crosswalk)) {
+    notify("Aggregating via crosswalk...")
+    xwalk <- load_sci_cached(config$sci_crosswalk$path) %>%
+      mutate(across(
+        all_of(c(config$sci_crosswalk$from_col, config$sci_crosswalk$to_col)),
+        as.character
+      ))
     sci_filtered <- sci_filtered %>%
-      filter(.data[[country_filter_col]] %in% friend_countries)
+      inner_join(
+        xwalk,
+        by = setNames(config$sci_crosswalk$from_col, join_col)
+      ) %>%
+      group_by(across(all_of(config$sci_crosswalk$to_col))) %>%
+      summarise(scaled_sci = sum(scaled_sci), .groups = "drop")
+    join_col <- config$sci_crosswalk$to_col
+  }
+
+  if (!is.null(dest_zctas)) {
+    sci_filtered <- sci_filtered %>%
+      filter(.data[[join_col]] %in% dest_zctas)
   }
 
   sci_ref <- quantile(
@@ -160,6 +233,24 @@ make_map <- function(
       sci_filtered,
       by = setNames(join_col, config$friend_region_key)
     )
+
+  if (!is.null(filter_dest_cbsa)) {
+    bbox <- st_bbox(shapes)
+    x_pad <- (bbox[["xmax"]] - bbox[["xmin"]]) * 0.05
+    y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
+    xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
+    ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
+    crop_box <- st_bbox(c(
+      xmin = xlim[1], xmax = xlim[2],
+      ymin = ylim[1], ymax = ylim[2]
+    ), crs = st_crs(shapes))
+    if (any(!is.na(admin1_borders_data))) {
+      admin1_borders_data <- st_crop(admin1_borders_data, crop_box)
+    }
+    if (any(!is.na(borders_data))) {
+      borders_data <- st_crop(borders_data, crop_box)
+    }
+  }
 
   notify("Rendering map...")
   g <- build_map_plot(
@@ -245,6 +336,7 @@ make_comparison_map <- function(
   admin1_border_color = "gray35",
   na_color = "#BFBFBF",
   background_color = "white",
+  filter_dest_cbsa = NULL,
   title = NULL,
   subtitle = NULL,
   caption = NULL,
@@ -349,6 +441,23 @@ make_comparison_map <- function(
       filter(.data[[config$friend_country_key]] %in% friend_countries)
   }
 
+  dest_zctas <- NULL
+  if (!is.null(filter_dest_cbsa)) {
+    cbsa_xwalk <- load_sci_cached(zcta_cbsa_crosswalk_path) %>%
+      mutate(across(everything(), as.character))
+    dest_zctas <- cbsa_xwalk %>%
+      filter(cbsa_code == filter_dest_cbsa) %>%
+      pull(zcta)
+    if (length(dest_zctas) == 0) {
+      stop(
+        "No ZCTAs found for CBSA code '", filter_dest_cbsa,
+        "'. Check that this CBSA code exists in the crosswalk."
+      )
+    }
+    shapes <- shapes %>%
+      filter(.data[[config$friend_region_key]] %in% dest_zctas)
+  }
+
   background_sf <- shapes
 
   borders_data <- if (config$friend_country_key == "region_id") {
@@ -378,6 +487,9 @@ make_comparison_map <- function(
     if (!is.null(friend_countries)) {
       admin1_borders_data <- admin1_sf %>%
         filter(.data[[admin1_country_key]] %in% friend_countries)
+    } else if (config$friend_country_key == "region_id") {
+      admin1_borders_data <- admin1_sf %>%
+        filter(.data[[admin1_country_key]] == "US")
     } else {
       admin1_borders_data <- admin1_sf
     }
@@ -388,34 +500,101 @@ make_comparison_map <- function(
   region_b_sf <- highlight_sf_all %>%
     filter(.data[[config$highlight_region_key]] == region_b_id)
 
-  notify("Reading SCI data...")
-  sci_df <- load_sci_cached(sci_path)
+  if (!is.null(config$sci_origin_crosswalk)) {
+    notify("Aggregating SCI from origin metro areas...")
+    origin_xwalk <- load_sci_cached(config$sci_origin_crosswalk$path) %>%
+      mutate(across(everything(), as.character))
+    sci_dir <- dirname(sci_path)
 
-  filter_col <- config$sci_filter_col %||% "user_region"
-  join_col <- config$sci_join_col %||% "friend_region"
-  country_filter_col <- config$sci_country_filter_col %||% "friend_country"
-
-  sci_a <- sci_df %>%
-    filter(.data[[filter_col]] == region_a_id) %>%
-    select(all_of(join_col), scaled_sci_a = scaled_sci)
-
-  sci_b <- sci_df %>%
-    filter(.data[[filter_col]] == region_b_id) %>%
-    select(all_of(join_col), scaled_sci_b = scaled_sci)
-
-  if (!is.null(friend_countries)) {
-    if (country_filter_col %in% names(sci_df)) {
-      sci_country_lookup <- sci_df %>%
-        distinct(across(all_of(c(join_col, country_filter_col))))
-      sci_a <- sci_a %>%
-        inner_join(sci_country_lookup, by = join_col) %>%
-        filter(.data[[country_filter_col]] %in% friend_countries) %>%
-        select(-all_of(country_filter_col))
-      sci_b <- sci_b %>%
-        inner_join(sci_country_lookup, by = join_col) %>%
-        filter(.data[[country_filter_col]] %in% friend_countries) %>%
-        select(-all_of(country_filter_col))
+    load_origin_sci <- function(cbsa_id) {
+      origin_zctas <- origin_xwalk %>%
+        filter(
+          .data[[config$sci_origin_crosswalk$cbsa_col]] == cbsa_id
+        ) %>%
+        pull(config$sci_origin_crosswalk$zcta_col)
+      if (length(origin_zctas) == 0) {
+        stop(
+          "No ZCTAs found for CBSA region '", cbsa_id,
+          "'. Check that this CBSA code exists in the crosswalk."
+        )
+      }
+      shard_digits <- unique(substr(origin_zctas, 1, 1))
+      map_dfr(shard_digits, function(d) {
+        shard_path <- file.path(sci_dir, paste0("us_zcta_shard_", d, ".csv"))
+        if (!file.exists(shard_path)) {
+          stop("SCI shard file not found: ", shard_path)
+        }
+        load_sci_cached(shard_path) %>%
+          filter(user_region %in% origin_zctas)
+      }) %>%
+        group_by(friend_region) %>%
+        summarise(scaled_sci = sum(scaled_sci), .groups = "drop")
     }
+
+    sci_a <- load_origin_sci(region_a_id) %>%
+      rename(scaled_sci_a = scaled_sci)
+    sci_b <- load_origin_sci(region_b_id) %>%
+      rename(scaled_sci_b = scaled_sci)
+    join_col <- "friend_region"
+  } else {
+    notify("Reading SCI data...")
+    sci_df <- load_sci_cached(sci_path)
+
+    filter_col <- config$sci_filter_col %||% "user_region"
+    join_col <- config$sci_join_col %||% "friend_region"
+    country_filter_col <- config$sci_country_filter_col %||% "friend_country"
+
+    sci_a <- sci_df %>%
+      filter(.data[[filter_col]] == region_a_id) %>%
+      select(all_of(join_col), scaled_sci_a = scaled_sci)
+
+    sci_b <- sci_df %>%
+      filter(.data[[filter_col]] == region_b_id) %>%
+      select(all_of(join_col), scaled_sci_b = scaled_sci)
+
+    if (!is.null(friend_countries)) {
+      if (country_filter_col %in% names(sci_df)) {
+        sci_country_lookup <- sci_df %>%
+          distinct(across(all_of(c(join_col, country_filter_col))))
+        sci_a <- sci_a %>%
+          inner_join(sci_country_lookup, by = join_col) %>%
+          filter(.data[[country_filter_col]] %in% friend_countries) %>%
+          select(-all_of(country_filter_col))
+        sci_b <- sci_b %>%
+          inner_join(sci_country_lookup, by = join_col) %>%
+          filter(.data[[country_filter_col]] %in% friend_countries) %>%
+          select(-all_of(country_filter_col))
+      }
+    }
+  }
+
+  if (!is.null(config$sci_crosswalk)) {
+    notify("Aggregating via crosswalk...")
+    xwalk <- load_sci_cached(config$sci_crosswalk$path) %>%
+      mutate(across(
+        all_of(c(config$sci_crosswalk$from_col, config$sci_crosswalk$to_col)),
+        as.character
+      ))
+    sci_a <- sci_a %>%
+      inner_join(
+        xwalk,
+        by = setNames(config$sci_crosswalk$from_col, join_col)
+      ) %>%
+      group_by(across(all_of(config$sci_crosswalk$to_col))) %>%
+      summarise(scaled_sci_a = sum(scaled_sci_a), .groups = "drop")
+    sci_b <- sci_b %>%
+      inner_join(
+        xwalk,
+        by = setNames(config$sci_crosswalk$from_col, join_col)
+      ) %>%
+      group_by(across(all_of(config$sci_crosswalk$to_col))) %>%
+      summarise(scaled_sci_b = sum(scaled_sci_b), .groups = "drop")
+    join_col <- config$sci_crosswalk$to_col
+  }
+
+  if (!is.null(dest_zctas)) {
+    sci_a <- sci_a %>% filter(.data[[join_col]] %in% dest_zctas)
+    sci_b <- sci_b %>% filter(.data[[join_col]] %in% dest_zctas)
   }
 
   notify("Computing comparison...")
@@ -433,6 +612,24 @@ make_comparison_map <- function(
   if (is.null(breaks)) {
     nice_mults <- c(1.5, 2, 3, 5, 10)
     breaks <- sort(c(-log2(nice_mults), 0, log2(nice_mults)))
+  }
+
+  if (!is.null(filter_dest_cbsa)) {
+    bbox <- st_bbox(shapes)
+    x_pad <- (bbox[["xmax"]] - bbox[["xmin"]]) * 0.05
+    y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
+    xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
+    ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
+    crop_box <- st_bbox(c(
+      xmin = xlim[1], xmax = xlim[2],
+      ymin = ylim[1], ymax = ylim[2]
+    ), crs = st_crs(shapes))
+    if (any(!is.na(admin1_borders_data))) {
+      admin1_borders_data <- st_crop(admin1_borders_data, crop_box)
+    }
+    if (any(!is.na(borders_data))) {
+      borders_data <- st_crop(borders_data, crop_box)
+    }
   }
 
   notify("Rendering map...")

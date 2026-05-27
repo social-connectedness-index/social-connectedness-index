@@ -31,6 +31,9 @@ type_file_patterns <- list(
   nuts3_country = "^nuts3_2024_to_country\\.csv$",
   us_county_country = "^us_counties_to_country\\.csv$",
   us_zcta_country = "^us_zcta_to_country\\.csv$",
+  us_zcta_cbsa = "^us_zcta_shard_",
+  us_cbsa_zcta = "^us_zcta_shard_",
+  us_cbsa = "^us_zcta_shard_",
   country_gadm1 = "^gadm1_to_country\\.csv$",
   country_gadm2 = "^gadm2_to_country\\.csv$",
   country_adm1 = "^geoboundaries_adm1_to_country\\.csv$",
@@ -52,7 +55,8 @@ region_type_labels <- c(
   nuts2 = "NUTS Level 2",
   nuts3 = "NUTS Level 3",
   us_county = "US County",
-  us_zcta = "US ZIP Code"
+  us_zcta = "US ZIP Code",
+  us_cbsa = "US Metro Area (CBSA)"
 )
 
 dest_choices_for_origin <- list(
@@ -76,12 +80,19 @@ dest_choices_for_origin <- list(
   nuts2 = c("nuts2", "country"),
   nuts3 = c("nuts3", "country"),
   us_county = c("us_county", "country"),
-  us_zcta = c("us_zcta", "country")
+  us_zcta = c("us_zcta", "us_cbsa", "country"),
+  us_cbsa = c("us_zcta", "us_cbsa")
 )
 
 resolve_map_type <- function(origin, dest) {
   if (origin == dest) {
     return(origin)
+  }
+  if (origin == "us_zcta" && dest == "us_cbsa") {
+    return("us_zcta_cbsa")
+  }
+  if (origin == "us_cbsa" && dest == "us_zcta") {
+    return("us_cbsa_zcta")
   }
   if (origin == "country") {
     return(paste0("country_", dest))
@@ -90,6 +101,12 @@ resolve_map_type <- function(origin, dest) {
 }
 
 type_to_origin_dest <- function(type) {
+  if (type == "us_zcta_cbsa") {
+    return(list(origin = "us_zcta", dest = "us_cbsa"))
+  }
+  if (type == "us_cbsa_zcta") {
+    return(list(origin = "us_cbsa", dest = "us_zcta"))
+  }
   if (startsWith(type, "country_")) {
     return(list(origin = "country", dest = sub("^country_", "", type)))
   }
@@ -221,6 +238,15 @@ country_choices <- setNames(
 )
 country_choices <- country_choices[order(names(country_choices))]
 
+cbsa_choices <- tryCatch(
+  {
+    cbsa_sf <- load_shapefile_cached(us_cbsa_shapefile_path)
+    choices <- setNames(cbsa_sf$region_id, cbsa_sf$name)
+    choices[order(names(choices))]
+  },
+  error = function(e) character(0)
+)
+
 region_id_config <- list(
   gadm1 = list(
     path = gadm1_shapefile_path,
@@ -274,7 +300,12 @@ region_id_config <- list(
     country_origin = "iso2c"
   ),
   us_county = list(path = us_county_shapefile_path, key = "region_id"),
-  us_zcta = list(path = us_zcta_shapefile_path, key = "region_id")
+  us_zcta = list(path = us_zcta_shapefile_path, key = "region_id"),
+  us_cbsa = list(
+    path = us_cbsa_shapefile_path,
+    key = "region_id",
+    name = "name"
+  )
 )
 
 color_presets <- list(
@@ -348,18 +379,22 @@ build_region_choices <- function(cfg) {
   }
 
   region_names <- sf_data[[cfg$name]]
-  country_names <- countrycode::countrycode(
-    sf_data[[cfg$country_col]],
-    cfg$country_origin,
-    "country.name",
-    custom_match = c("XKO" = "Kosovo", "XKX" = "Kosovo", "XK" = "Kosovo")
-  )
 
-  labels <- ifelse(
-    is.na(country_names),
-    region_names,
-    paste0(region_names, ", ", country_names)
-  )
+  if (!is.null(cfg$country_col)) {
+    country_names <- countrycode::countrycode(
+      sf_data[[cfg$country_col]],
+      cfg$country_origin,
+      "country.name",
+      custom_match = c("XKO" = "Kosovo", "XKX" = "Kosovo", "XK" = "Kosovo")
+    )
+    labels <- ifelse(
+      is.na(country_names),
+      region_names,
+      paste0(region_names, ", ", country_names)
+    )
+  } else {
+    labels <- region_names
+  }
   choices <- setNames(ids, labels)
   choices[order(names(choices))]
 }
@@ -402,8 +437,16 @@ resolve_sci_path <- function(type, region_id, sci_data_dir) {
     return(file.path(sci_data_dir, files[1]))
   }
 
-  if (type == "us_zcta") {
+  if (type %in% c("us_zcta", "us_zcta_cbsa")) {
     shard_file <- paste0("us_zcta_shard_", substr(region_id, 1, 1), ".csv")
+    if (shard_file %in% files) {
+      return(file.path(sci_data_dir, shard_file))
+    }
+    return(NULL)
+  }
+
+  if (type %in% c("us_cbsa_zcta", "us_cbsa")) {
+    shard_file <- "us_zcta_shard_0.csv"
     if (shard_file %in% files) {
       return(file.path(sci_data_dir, shard_file))
     }
@@ -480,6 +523,11 @@ build_r_code <- function(input) {
         args <- c(args, sprintf("  friend_countries = c(%s)", combined_str))
       }
     }
+  }
+
+  dest_cbsa_val <- input$dest_cbsa %||% ""
+  if (nchar(trimws(dest_cbsa_val)) > 0) {
+    args <- c(args, sprintf('  filter_dest_cbsa = "%s"', dest_cbsa_val))
   }
 
   if (nchar(trimws(input$breaks)) > 0) {
@@ -640,25 +688,42 @@ ui <- fluidPage(
         choices = NULL
       ),
 
-      selectizeInput(
-        "country_group",
-        "Countries to show",
-        choices = setdiff(names(country_groups), "(Custom only)"),
-        selected = "All countries",
-        multiple = TRUE,
-        options = list(placeholder = "Select region groups...")
+      conditionalPanel(
+        condition = "input.dest_type == 'us_zcta' && (input.origin_type == 'us_zcta' || input.origin_type == 'us_cbsa')",
+        selectizeInput(
+          "dest_cbsa",
+          "Destination metro area (optional)",
+          choices = c("(All ZCTAs)" = "", cbsa_choices)
+        )
       ),
-      selectizeInput(
-        "custom_countries",
-        NULL,
-        choices = country_choices,
-        selected = NULL,
-        multiple = TRUE,
-        options = list(placeholder = "Type to add individual countries...")
-      ),
-      div(
-        class = "help-hint",
-        "Additional countries are combined with the region groups above."
+
+      conditionalPanel(
+        condition = paste0(
+          "!(",
+          "(['us_zcta','us_county','us_cbsa'].indexOf(input.origin_type) >= 0) && ",
+          "(['us_zcta','us_county','us_cbsa'].indexOf(input.dest_type) >= 0)",
+          ")"
+        ),
+        selectizeInput(
+          "country_group",
+          "Countries to show",
+          choices = setdiff(names(country_groups), "(Custom only)"),
+          selected = "All countries",
+          multiple = TRUE,
+          options = list(placeholder = "Select region groups...")
+        ),
+        selectizeInput(
+          "custom_countries",
+          NULL,
+          choices = country_choices,
+          selected = NULL,
+          multiple = TRUE,
+          options = list(placeholder = "Type to add individual countries...")
+        ),
+        div(
+          class = "help-hint",
+          "Additional countries are combined with the region groups above."
+        )
       ),
 
       textInput("title", "Title (optional)"),
@@ -792,6 +857,8 @@ server <- function(input, output, session) {
     dest_opts <- setNames(dest_keys, region_type_labels[dest_keys])
     updateSelectInput(session, "dest_type", choices = dest_opts)
 
+    update_bounds()
+
     if (rv$skip_type_region_update) {
       rv$skip_type_region_update <- FALSE
       return()
@@ -861,6 +928,27 @@ server <- function(input, output, session) {
   update_bounds <- function() {
     tryCatch(
       {
+        us_types <- c("us_county", "us_zcta", "us_cbsa")
+        origin <- input$origin_type
+        dest <- input$dest_type
+        if (origin %in% us_types && dest %in% us_types) {
+          us_b <- country_group_bounds[["United States"]]
+          updateNumericInput(session, "xlim_min", value = us_b$xlim[1])
+          updateNumericInput(session, "xlim_max", value = us_b$xlim[2])
+          updateNumericInput(session, "ylim_min", value = us_b$ylim[1])
+          updateNumericInput(session, "ylim_max", value = us_b$ylim[2])
+          bounds <- list(
+            xlim_min = us_b$xlim[1],
+            xlim_max = us_b$xlim[2],
+            ylim_min = us_b$ylim[1],
+            ylim_max = us_b$ylim[2]
+          )
+          dims <- compute_default_dimensions(bounds)
+          updateNumericInput(session, "width", value = dims$width)
+          updateNumericInput(session, "height", value = dims$height)
+          return()
+        }
+
         groups <- input$country_group %||% character(0)
         custom <- input$custom_countries %||% character(0)
         bounds <- compute_combined_bounds(groups, custom)
@@ -884,6 +972,7 @@ server <- function(input, output, session) {
   }
 
   observeEvent(input$dest_type, {
+    update_bounds()
     if (input$origin_type != "country") {
       return()
     }
@@ -896,7 +985,8 @@ server <- function(input, output, session) {
       nuts2 = ,
       nuts3 = "Europe",
       us_county = ,
-      us_zcta = "United States",
+      us_zcta = ,
+      us_cbsa = "United States",
       character(0)
     )
     updateSelectizeInput(session, "country_group", selected = dest_group)
@@ -1080,6 +1170,11 @@ server <- function(input, output, session) {
       show_admin1_borders = input$show_admin1_borders
     )
 
+    dest_cbsa_val <- input$dest_cbsa %||% ""
+    if (nchar(trimws(dest_cbsa_val)) > 0) {
+      args$filter_dest_cbsa <- dest_cbsa_val
+    }
+
     if (nchar(trimws(input$title)) > 0) {
       args$title <- gsub("\\\\n", "\n", input$title)
     }
@@ -1095,11 +1190,22 @@ server <- function(input, output, session) {
       if (length(parsed) > 0) args$breaks <- sort(parsed)
     }
 
-    if (!is.na(input$xlim_min) && !is.na(input$xlim_max)) {
-      args$xlim <- c(input$xlim_min, input$xlim_max)
-    }
-    if (!is.na(input$ylim_min) && !is.na(input$ylim_max)) {
-      args$ylim <- c(input$ylim_min, input$ylim_max)
+    us_types <- c("us_county", "us_zcta", "us_cbsa")
+    is_us_only <- input$origin_type %in%
+      us_types &&
+      input$dest_type %in% us_types
+
+    if (is.null(args$filter_dest_cbsa)) {
+      if (!is.na(input$xlim_min) && !is.na(input$xlim_max)) {
+        args$xlim <- c(input$xlim_min, input$xlim_max)
+      } else if (is_us_only) {
+        args$xlim <- country_group_bounds[["United States"]]$xlim
+      }
+      if (!is.na(input$ylim_min) && !is.na(input$ylim_max)) {
+        args$ylim <- c(input$ylim_min, input$ylim_max)
+      } else if (is_us_only) {
+        args$ylim <- country_group_bounds[["United States"]]$ylim
+      }
     }
 
     args

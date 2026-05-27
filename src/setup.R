@@ -3,6 +3,7 @@ required_packages <- c(
   "countrycode",
   "Hmisc",
   "RColorBrewer",
+  "readxl",
   "rmapshaper",
   "rgeoboundaries",
   "rnaturalearth",
@@ -28,6 +29,7 @@ source("src/scalars.R")
 source("src/clean_gadm_shapefiles.R")
 source("src/clean_geoboundaries.R")
 source("src/clean_us_shapefiles.R")
+source("src/clean_cbsa.R")
 source("src/clean_nuts_shapefiles.R")
 sf_use_s2(FALSE)
 
@@ -47,4 +49,6 @@ load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
 load_geoboundaries_shapefiles(geoboundaries_gpkg_path)
 clean_us_zcta_shapefile()
 clean_us_county_shapefile()
+clean_cbsa_shapefile()
+build_zcta_cbsa_crosswalk()
 clean_nuts_shapefiles()

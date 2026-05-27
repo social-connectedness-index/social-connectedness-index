@@ -99,6 +99,7 @@ Other key files:
 | `src/clean_gadm_shapefiles.R`   | Cleans GADM shapefiles (runs once automatically)   |
 | `src/clean_geoboundaries.R`     | Downloads and cleans geoBoundaries (runs once)     |
 | `src/clean_us_shapefiles.R`     | Cleans US Census shapefiles (runs once)            |
+| `src/clean_cbsa.R`              | Cleans CBSA shapefiles and builds ZCTA-CBSA crosswalk (runs once) |
 | `src/clean_nuts_shapefiles.R`   | Cleans NUTS shapefiles (runs once)                 |
 | `data/sci_2026/`                | SCI data files (you download these)                |
 | `data/input_shapefiles/`        | Raw shapefiles (you download these)                |
@@ -114,7 +115,7 @@ Before running anything, make sure you have:
 * [**R**](https://cran.r-project.org/) (version 4.0 or later recommended)
 * [**RStudio**](https://posit.co/download/rstudio-desktop/)
 
-The tool uses these R packages: `av`, `countrycode`, `Hmisc`, `RColorBrewer`, `rmapshaper`, `rgeoboundaries`, `rnaturalearth`, `rnaturalearthdata`, `sf`, `tidyverse`, and `wbstats`.
+The tool uses these R packages: `av`, `countrycode`, `Hmisc`, `RColorBrewer`, `readxl`, `rmapshaper`, `rgeoboundaries`, `rnaturalearth`, `rnaturalearthdata`, `sf`, `tidyverse`, and `wbstats`.
 
 **You do not need to install these packages manually.** The script will detect and install any missing packages automatically on the first run.
 
@@ -139,6 +140,7 @@ The first time you run `src/main.R`, it will:
    * **GADM**: Download and place in `data/input_shapefiles/`
    * **NUTS**: Download and place in `data/input_shapefiles/`
    * **US counties and ZCTAs**: Download and place in `data/input_shapefiles/`
+   * **US CBSAs** (metro areas): Download the CBSA shapefile, ZCTA-county relationship file, and OMB delineation file, and place them in `data/input_shapefiles/` (see [US Metro Areas (CBSA)](#us-metro-areas-cbsa) below)
    * **geoBoundaries**: No download needed. The script downloads these via API automatically.
 
 2. Open the R project file (`social-connectedness-index.Rproj`) in RStudio
@@ -193,6 +195,16 @@ These types color **sub-national regions** based on SCI to a selected region at 
 | `nuts`       | NUTS regions                | NUTS region                 | SCI from Hamburg (NUTS1) to European NUTS1 regions   |
 | `us_county`  | US counties                 | US county                   | SCI from Kings County to other US counties           |
 | `us_zcta`    | US ZIP Code areas           | US ZIP Code area            | SCI from a ZIP code to other ZIP codes               |
+| `us_cbsa`    | US metro areas (CBSAs)      | US metro area (CBSA)        | SCI from New York metro to other metros              |
+
+### Cross-level US types
+
+These types map between different US geographic levels by aggregating ZCTA-level SCI data via a crosswalk:
+
+| Type           | Friends colored as     | Source highlighted as  | Example use case                                          |
+| -------------- | ---------------------- | ---------------------- | --------------------------------------------------------- |
+| `us_zcta_cbsa` | US metro areas (CBSAs) | US ZIP Code area       | SCI from a ZIP code, aggregated to metro areas            |
+| `us_cbsa_zcta` | US ZIP Code areas      | US metro area (CBSA)   | SCI from a metro area, shown at ZIP code level            |
 
 ### Region-to-country types
 
@@ -251,6 +263,9 @@ The file you use depends on the map type:
 | `nuts`                       | `data/sci_2026/nuts1_2024.csv` (or nuts2, nuts3)  |
 | `us_county`                  | `data/sci_2026/us_counties.csv`                   |
 | `us_zcta`                    | `data/sci_2026/us_zcta_shard_X.csv`               |
+| `us_cbsa`                    | `data/sci_2026/us_zcta_shard_X.csv` (all shards)  |
+| `us_zcta_cbsa`               | `data/sci_2026/us_zcta_shard_X.csv`               |
+| `us_cbsa_zcta`               | `data/sci_2026/us_zcta_shard_X.csv` (all shards)  |
 | `gadm1_country`              | `data/sci_2026/gadm1_to_country.csv`              |
 | `nuts_country`               | `data/sci_2026/nuts1_2024_to_country.csv`         |
 | `us_county_country`          | `data/sci_2026/us_counties_to_country.csv`        |
@@ -271,6 +286,7 @@ Examples:
 * NUTS: `"DE6"` (NUTS code)
 * US county: `"06071"` (FIPS code)
 * US ZCTA: `"02138"` (ZIP code)
+* US CBSA: `"35620"` (CBSA code, e.g., New York-Newark-Jersey City)
 
 ### `friend_countries`
 
@@ -379,6 +395,7 @@ Beyond the fields available in `map_structs.R`, `make_map()` accepts:
 
 | Parameter              | Default                         | Description                                  |
 | ---------------------- | ------------------------------- | -------------------------------------------- |
+| `filter_dest_cbsa`     | `NULL`                          | CBSA code to filter destinations; auto-zooms to the metro area |
 | `reference_quantile`   | `0.25`                          | Percentile used to normalize SCI values      |
 | `legend_name`          | `"Likelihood of Friendship"`    | Legend title text                             |
 | `color_palette`        | default blue ramp               | Vector of hex colors for the color scale     |
@@ -520,6 +537,22 @@ These shapefiles are sourced from the U.S. Census Bureau TIGER/Line products and
 ```
 
 This file should be placed in ```data/input_shapefiles/```. 
+
+
+## US Metro Areas (CBSA)
+
+To use the CBSA (Core-Based Statistical Area / metro area) map types (`us_cbsa`, `us_zcta_cbsa`, `us_cbsa_zcta`), you need three additional files placed in `data/input_shapefiles/`:
+
+1. **CBSA Shapefile** (`cb_2025_us_cbsa_500k.zip`): Cartographic boundary file for CBSAs from the U.S. Census Bureau.
+   * Download from: https://www.census.gov/geographies/mapping-files/time-series/geo/cartographic-boundary.html (select "Core Based Statistical Area")
+
+2. **ZCTA-County Relationship File** (`tab20_zcta520_county20_natl.txt`): Maps ZCTAs to their primary county.
+   * Download from: https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.html (select "2020 ZCTA to County")
+
+3. **OMB Delineation File** (`list1_2023.xlsx`): Maps counties to CBSA codes.
+   * Download from: https://www.census.gov/geographies/reference-files/time-series/demo/metro-micro/delineation-files.html
+
+On the first run, the script builds a ZCTA-CBSA crosswalk from files (2) and (3) and saves it to `data/zcta_cbsa_crosswalk.csv`. This crosswalk is used to aggregate ZCTA-level SCI data to the metro area level. The crosswalk and cleaned CBSA shapefile are cached and only rebuilt if their output files are deleted.
 
 # Contact
 

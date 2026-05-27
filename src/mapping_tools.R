@@ -232,6 +232,62 @@ map_type_configs <- list(
     highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
     highlight_region_key = "region_id"
   ),
+  us_zcta_cbsa = list(
+    friend_sf = list(path = us_cbsa_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_crosswalk = list(
+      path = zcta_cbsa_crosswalk_path,
+      from_col = "zcta",
+      to_col = "cbsa_code"
+    )
+  ),
+  us_cbsa = list(
+    friend_sf = list(path = us_cbsa_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = us_cbsa_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_origin_crosswalk = list(
+      path = zcta_cbsa_crosswalk_path,
+      cbsa_col = "cbsa_code",
+      zcta_col = "zcta"
+    ),
+    sci_crosswalk = list(
+      path = zcta_cbsa_crosswalk_path,
+      from_col = "zcta",
+      to_col = "cbsa_code"
+    )
+  ),
+  us_cbsa_zcta = list(
+    friend_sf = list(path = us_zcta_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = us_cbsa_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_origin_crosswalk = list(
+      path = zcta_cbsa_crosswalk_path,
+      cbsa_col = "cbsa_code",
+      zcta_col = "zcta"
+    )
+  ),
   country_gadm1 = list(
     friend_sf = list(path = gadm1_shapefile_path, layer = NULL),
     friend_region_key = "key",
