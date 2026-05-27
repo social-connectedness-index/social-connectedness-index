@@ -103,7 +103,8 @@ make_map <- function(
       pull(zcta)
     if (length(dest_zctas) == 0) {
       stop(
-        "No ZCTAs found for CBSA code '", filter_dest_cbsa,
+        "No ZCTAs found for CBSA code '",
+        filter_dest_cbsa,
         "'. Check that this CBSA code exists in the crosswalk."
       )
     }
@@ -162,7 +163,8 @@ make_map <- function(
       pull(config$sci_origin_crosswalk$zcta_col)
     if (length(origin_zctas) == 0) {
       stop(
-        "No ZCTAs found for CBSA region '", user_region_id,
+        "No ZCTAs found for CBSA region '",
+        user_region_id,
         "'. Check that this CBSA code exists in the crosswalk."
       )
     }
@@ -240,10 +242,15 @@ make_map <- function(
     y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
     xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
     ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
-    crop_box <- st_bbox(c(
-      xmin = xlim[1], xmax = xlim[2],
-      ymin = ylim[1], ymax = ylim[2]
-    ), crs = st_crs(shapes))
+    crop_box <- st_bbox(
+      c(
+        xmin = xlim[1],
+        xmax = xlim[2],
+        ymin = ylim[1],
+        ymax = ylim[2]
+      ),
+      crs = st_crs(shapes)
+    )
     if (any(!is.na(admin1_borders_data))) {
       admin1_borders_data <- st_crop(admin1_borders_data, crop_box)
     }
@@ -450,7 +457,8 @@ make_comparison_map <- function(
       pull(zcta)
     if (length(dest_zctas) == 0) {
       stop(
-        "No ZCTAs found for CBSA code '", filter_dest_cbsa,
+        "No ZCTAs found for CBSA code '",
+        filter_dest_cbsa,
         "'. Check that this CBSA code exists in the crosswalk."
       )
     }
@@ -514,7 +522,8 @@ make_comparison_map <- function(
         pull(config$sci_origin_crosswalk$zcta_col)
       if (length(origin_zctas) == 0) {
         stop(
-          "No ZCTAs found for CBSA region '", cbsa_id,
+          "No ZCTAs found for CBSA region '",
+          cbsa_id,
           "'. Check that this CBSA code exists in the crosswalk."
         )
       }
@@ -620,10 +629,15 @@ make_comparison_map <- function(
     y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
     xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
     ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
-    crop_box <- st_bbox(c(
-      xmin = xlim[1], xmax = xlim[2],
-      ymin = ylim[1], ymax = ylim[2]
-    ), crs = st_crs(shapes))
+    crop_box <- st_bbox(
+      c(
+        xmin = xlim[1],
+        xmax = xlim[2],
+        ymin = ylim[1],
+        ymax = ylim[2]
+      ),
+      crs = st_crs(shapes)
+    )
     if (any(!is.na(admin1_borders_data))) {
       admin1_borders_data <- st_crop(admin1_borders_data, crop_box)
     }
