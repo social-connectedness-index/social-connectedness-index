@@ -18,7 +18,6 @@ gadm_shapefiles_output_dir <- file.path(
 gadm0_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm0.gpkg")
 gadm1_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm1.gpkg")
 gadm2_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm2.gpkg")
-gadm3_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm3.gpkg")
 
 geoboundaries_gpkg_path <- file.path(
   cleaned_shapefiles_dir,

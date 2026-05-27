@@ -97,39 +97,6 @@ process_gadm_level <- function(
 }
 
 
-#' Returns a tibble of the latest available population numbers for each country
-#' from the World Bank.
-#'
-#' @return Tibble containing country codes, names, and population estimates
-get_wb_pop_data <- function() {
-  wb_pop_raw = wb_data("SP.POP.TOTL", start_date = 2021, end_date = 2024)
-
-  wb_pop = wb_pop_raw %>%
-    pivot_wider(
-      names_from = date,
-      values_from = SP.POP.TOTL
-    ) %>%
-    select(
-      iso2c,
-      iso3c,
-      country_name = country,
-      population = coalesce("2024", "2023", "2022", "2021")
-    ) %>%
-    # some countries have multiple types of measures i.e. "official",
-    # "extrapolated", etc. the groupby takes the first non-null measure
-    # available
-    filter(!is.na(population)) %>%
-    group_by(iso2c) %>%
-    summarize(
-      iso3c = first(iso3c),
-      country_name = first(country_name),
-      population = first(population),
-    )
-
-  return(wb_pop)
-}
-
-
 #' Loads data from a GADM geopackage and saves cleaned shapefiles for each
 #' administrative level for downstream use.
 #'
@@ -184,17 +151,6 @@ load_gadm_data <- function(
       # not have specified GADM3 regions. We'll patch the GADM2 regions in later.
       !GID_0 == "NA"
     )
-
-  pop = get_wb_pop_data()
-
-  # Also drop any shapes that aren't in population data (except Kosovo and Taiwan).
-  # These are generally small islands.
-  isos_wo_pop <- filter(
-    gadm_level0,
-    !(GID_0 %in% pop$iso3c) & !GID_0 %in% c("TWN", "XKO")
-  ) %>%
-    st_drop_geometry() %>%
-    .$GID_0
 
   gadm0_all = process_gadm_level(
     gadm_level0,

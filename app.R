@@ -1034,10 +1034,6 @@ server <- function(input, output, session) {
     ignoreInit = TRUE
   )
 
-  parse_custom_countries <- function() {
-    input$custom_countries %||% character(0)
-  }
-
   download_filename <- function(ext) {
     region_id <- input$user_region_id
     choices <- tryCatch(
@@ -1065,7 +1061,7 @@ server <- function(input, output, session) {
       combined <- NULL
     } else {
       preset <- unique(unlist(country_groups[groups]))
-      custom <- parse_custom_countries()
+      custom <- input$custom_countries %||% character(0)
       combined <- unique(c(preset, custom))
       if (length(combined) == 0) {
         combined <- NULL

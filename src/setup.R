@@ -8,8 +8,7 @@ required_packages <- c(
   "rnaturalearth",
   "rnaturalearthdata",
   "sf",
-  "tidyverse",
-  "wbstats"
+  "tidyverse"
 )
 
 ensure_packages <- function(packages) {

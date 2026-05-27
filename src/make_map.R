@@ -28,7 +28,6 @@ make_map <- function(
   height = 25,
   dpi = 300,
   video_duration = 10,
-  video_fps = 30,
   return_data = FALSE,
   on_progress = NULL
 ) {
@@ -256,7 +255,6 @@ make_comparison_map <- function(
   height = 25,
   dpi = 300,
   video_duration = 10,
-  video_fps = 30,
   return_data = FALSE,
   on_progress = NULL
 ) {
