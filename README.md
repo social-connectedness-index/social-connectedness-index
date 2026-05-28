@@ -119,6 +119,22 @@ The tool uses these R packages: `av`, `countrycode`, `Hmisc`, `RColorBrewer`, `r
 
 **You do not need to install these packages manually.** The script will detect and install any missing packages automatically on the first run.
 
+### Node.js and mapshaper
+
+The `rmapshaper` R package is used with `sys = TRUE` to shell out to the [mapshaper](https://github.com/mbloch/mapshaper) CLI for geometry simplification. This requires:
+
+1. **Node.js** (v18 or later recommended): [https://nodejs.org](https://nodejs.org)
+2. **mapshaper** installed globally via npm:
+   ```bash
+   npm install -g mapshaper
+   ```
+
+The pipeline automatically detects Node.js installations from NVM (`~/.nvm`), Homebrew (`/opt/homebrew/bin`, `/usr/local/bin`), or standard system paths. If you use a different Node.js version manager (e.g., `fnm`, `volta`), ensure that `node` is on your shell's `PATH` before launching R, or add the appropriate directory to your `~/.Renviron`:
+
+```
+PATH=${PATH}:/path/to/your/node/bin
+```
+
 ---
 
 ## Step 1: One-Time Setup

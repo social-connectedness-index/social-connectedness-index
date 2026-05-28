@@ -531,7 +531,7 @@ build_map_plot <- function(
     map <- map +
       geom_sf(
         data = borders_data,
-        size = 1,
+        size = 1.5,
         fill = "transparent",
         color = border_color
       )
@@ -547,4 +547,53 @@ build_map_plot <- function(
   }
 
   map
+}
+
+
+ensure_node_on_path <- function() {
+  if (nzchar(Sys.which("node"))) {
+    return(invisible(NULL))
+  }
+  candidates <- c(
+    Sys.getenv("NVM_DIR"),
+    file.path(Sys.getenv("HOME"), ".nvm"),
+    "/usr/local/lib/nvm"
+  )
+  for (nvm_dir in candidates) {
+    if (!nzchar(nvm_dir) || !dir.exists(nvm_dir)) {
+      next
+    }
+    versions_dir <- file.path(nvm_dir, "versions", "node")
+    if (!dir.exists(versions_dir)) {
+      next
+    }
+    node_versions <- list.dirs(
+      versions_dir,
+      recursive = FALSE,
+      full.names = TRUE
+    )
+    if (length(node_versions) == 0) {
+      next
+    }
+    bin_dir <- file.path(sort(node_versions, decreasing = TRUE)[1], "bin")
+    if (file.exists(file.path(bin_dir, "node"))) {
+      Sys.setenv(PATH = paste(Sys.getenv("PATH"), bin_dir, sep = ":"))
+      message("Added Node.js to PATH: ", bin_dir)
+      return(invisible(NULL))
+    }
+  }
+  homebrew_dirs <- c("/opt/homebrew/bin", "/usr/local/bin")
+  for (d in homebrew_dirs) {
+    if (file.exists(file.path(d, "node"))) {
+      Sys.setenv(PATH = paste(Sys.getenv("PATH"), d, sep = ":"))
+      message("Added Node.js to PATH: ", d)
+      return(invisible(NULL))
+    }
+  }
+  warning(
+    "Node.js not found on PATH. ",
+    "The rmapshaper package requires Node.js and the mapshaper npm package ",
+    "for geometry simplification (sys = TRUE). ",
+    "Install Node.js (https://nodejs.org) and run: npm install -g mapshaper"
+  )
 }

@@ -45,6 +45,7 @@ create_dir_if_not_exists(maps_dir)
 create_dir_if_not_exists(us_cleaned_shapefiles_dir)
 create_dir_if_not_exists(nuts_shapefiles_output_dir)
 
+ensure_node_on_path()
 load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
 load_geoboundaries_shapefiles(geoboundaries_gpkg_path)
 clean_us_zcta_shapefile()

@@ -113,7 +113,7 @@ make_map <- function(
   }
 
   background_sf <- if (config$friend_country_key == "region_id") {
-    borders_sf %>% filter(sov_country == "US")
+    friend_sf
   } else {
     shapes
   }
@@ -495,7 +495,7 @@ make_comparison_map <- function(
   }
 
   background_sf <- if (config$friend_country_key == "region_id") {
-    borders_sf %>% filter(sov_country == "US")
+    friend_sf
   } else {
     shapes
   }
