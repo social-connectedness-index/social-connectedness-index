@@ -3,7 +3,6 @@ map_specs <- list(
     type = "country",
     user_region_id = "SE",
     sci_path = "data/sci_2026/country.csv",
-    breaks = c(1, 3, 5, 9, 15, 20, 30, 40, 50, 75),
     title = "Social Connectedness Index: Sweden"
   ),
 
@@ -12,7 +11,6 @@ map_specs <- list(
     user_region_id = "MOZ.1_1",
     sci_path = "data/sci_2026/gadm1.csv",
     friend_countries = africa_iso2_codes,
-    breaks = c(1, 3, 5, 10, 20, 40, 50, 75, 100, 115),
     xlim = c(-26, 58),
     ylim = c(-35, 35),
     title = "Social Connectedness Index: Cabo Delgado, Mozambique"
@@ -23,7 +21,6 @@ map_specs <- list(
     user_region_id = "MDG.1_1",
     sci_path = "data/sci_2026/gadm1.csv",
     friend_countries = africa_iso2_codes,
-    breaks = c(1, 3, 4, 6, 7, 9, 10, 12, 13, 15),
     xlim = c(-26, 58),
     ylim = c(-35, 35),
     title = "Social Connectedness Index: Antananarivo, Madagascar"
@@ -34,7 +31,6 @@ map_specs <- list(
     user_region_id = "IND.34.75_1",
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
     friend_countries = south_asia_iso2_codes,
-    breaks = c(1, 3, 5, 15, 25, 35, 40, 50, 60, 75),
     xlim = c(60, 98),
     ylim = c(5, 37),
     title = "Social Connectedness Index: Varanasi, India"
@@ -45,7 +41,6 @@ map_specs <- list(
     user_region_id = "IND.16.4_1",
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
     friend_countries = south_asia_iso2_codes,
-    breaks = c(1, 3, 5, 15, 25, 35, 40, 50, 60, 75),
     xlim = c(60, 98),
     ylim = c(5, 37),
     title = "Social Connectedness Index: Belgaum, India"
@@ -56,7 +51,6 @@ map_specs <- list(
     user_region_id = "BRA.4.38_2",
     sci_path = "data/sci_2026/gadm2_shard_BR.csv",
     friend_countries = south_america_iso2_codes,
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     xlim = c(-33, -85),
     ylim = c(12, -55),
     title = "Social Connectedness Index: Manaus, Brazil"
@@ -67,7 +61,6 @@ map_specs <- list(
     user_region_id = "CHL.14.5_1",
     sci_path = "data/sci_2026/gadm2_shard_DO.csv",
     friend_countries = south_america_iso2_codes,
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     xlim = c(-33, -85),
     ylim = c(12, -55),
     title = "Social Connectedness Index: Santiago, Chile"
@@ -78,7 +71,6 @@ map_specs <- list(
     user_region_id = "66186276B15934532614691",
     sci_path = "data/sci_2026/geoboundaries_adm1.csv",
     friend_countries = c("US"),
-    breaks = c(1, 3, 5, 7, 9, 12, 14, 16, 18, 20),
     xlim = c(-125, -66),
     ylim = c(25, 50),
     title = "Social Connectedness Index: Massachusetts, USA"
@@ -89,7 +81,6 @@ map_specs <- list(
     user_region_id = "70781695B5805413017960",
     sci_path = "data/sci_2026/geoboundaries_adm2_shard_TG.csv",
     friend_countries = c("SE"),
-    breaks = c(1, 3, 4, 6, 7, 9, 10, 12, 13, 15),
     title = "Social Connectedness Index: Stockholm, Sweden"
   ),
 
@@ -100,7 +91,6 @@ map_specs <- list(
     friend_countries = c("US"),
     xlim = c(-125, -66),
     ylim = c(25, 50),
-    breaks = c(1, 3, 4, 6, 7, 9, 10, 12, 13, 15),
     title = "Social Connectedness Index: Kings County, USA"
   ),
 
@@ -111,7 +101,6 @@ map_specs <- list(
     friend_countries = c("US"),
     xlim = c(-125, -66),
     ylim = c(25, 50),
-    breaks = c(1, 3, 4, 6, 7, 9, 10, 12, 13, 15),
     title = "Social Connectedness Index: Tonopah"
   ),
 
@@ -119,7 +108,6 @@ map_specs <- list(
     type = "gadm1_country",
     user_region_id = "IND.12_1",
     sci_path = "data/sci_2026/gadm1_to_country.csv",
-    breaks = c(1, 3, 5, 7, 10, 12, 15, 20, 25, 30),
     title = "Social Connectedness Index: Haryana, India"
   ),
 
@@ -127,7 +115,6 @@ map_specs <- list(
     type = "adm1_country",
     user_region_id = "1811400B11231190780494",
     sci_path = "data/sci_2026/geoboundaries_adm1_to_country.csv",
-    breaks = c(1, 3, 5, 7, 9, 12, 14, 16, 18, 20),
     title = "Social Connectedness Index: Uttar Pradesh"
   ),
 
@@ -135,7 +122,6 @@ map_specs <- list(
     type = "us_county_country",
     user_region_id = "06071",
     sci_path = "data/sci_2026/us_counties_to_country.csv",
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 40, 50),
     title = "Social Connectedness Index: San Bernardino"
   ),
 
@@ -143,7 +129,6 @@ map_specs <- list(
     type = "us_zcta_country",
     user_region_id = "02138",
     sci_path = "data/sci_2026/us_zcta_to_country.csv",
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 40, 50),
     title = "Social Connectedness Index: Cambridge"
   ),
 
@@ -152,7 +137,6 @@ map_specs <- list(
     user_region_id = "FR1",
     sci_path = "data/sci_2026/nuts1_2024.csv",
     friend_countries = nuts_cntr_codes,
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     xlim = c(-25, 45),
     ylim = c(34, 72),
     title = "Social Connectedness Index: Ile-de-France, France (NUTS1)"
@@ -163,7 +147,6 @@ map_specs <- list(
     user_region_id = "DE21",
     sci_path = "data/sci_2026/nuts2_2024.csv",
     friend_countries = nuts_cntr_codes,
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     xlim = c(-25, 45),
     ylim = c(34, 72),
     title = "Social Connectedness Index: Oberbayern, Germany (NUTS2)"
@@ -174,7 +157,6 @@ map_specs <- list(
     user_region_id = "DE300",
     sci_path = "data/sci_2026/nuts3_2024.csv",
     friend_countries = nuts_cntr_codes,
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     xlim = c(-25, 45),
     ylim = c(34, 72),
     title = "Social Connectedness Index: Berlin, Germany (NUTS3)"
@@ -184,7 +166,6 @@ map_specs <- list(
     type = "nuts1_country",
     user_region_id = "FR1",
     sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     title = "Social Connectedness Index: Ile-de-France, France (NUTS1 to Country)"
   ),
 
@@ -192,7 +173,6 @@ map_specs <- list(
     type = "nuts2_country",
     user_region_id = "DE21",
     sci_path = "data/sci_2026/nuts2_2024_to_country.csv",
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     title = "Social Connectedness Index: Oberbayern, Germany (NUTS2 to Country)"
   ),
 
@@ -200,7 +180,6 @@ map_specs <- list(
     type = "nuts3_country",
     user_region_id = "DE300",
     sci_path = "data/sci_2026/nuts3_2024_to_country.csv",
-    breaks = c(1, 3, 5, 7, 10, 15, 20, 30, 50, 75),
     title = "Social Connectedness Index: Berlin, Germany (NUTS3 to Country)"
   ),
 
@@ -259,7 +238,6 @@ map_specs <- list(
     friend_countries = c("US"),
     xlim = c(-125, -66),
     ylim = c(24, 50),
-    breaks = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
     title = "Where does the Netherlands\nhave the most friends in the US?"
   ),
 
@@ -267,7 +245,6 @@ map_specs <- list(
     type = "country_gadm1",
     user_region_id = "JP",
     sci_path = "data/sci_2026/gadm1_to_country.csv",
-    breaks = c(1, 3, 5, 9, 15, 20, 30, 40, 50, 75),
     title = "Where does Japan\nhave the most friends?"
   ),
 

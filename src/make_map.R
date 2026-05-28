@@ -264,6 +264,28 @@ make_map <- function(
     }
   }
 
+  if (is.null(breaks)) {
+    above_ref <- mapping_sf$scaled_sci_rel[
+      !is.na(mapping_sf$scaled_sci_rel) & mapping_sf$scaled_sci_rel >= 1
+    ]
+    if (length(above_ref) >= 9) {
+      upper_quantiles <- quantile(
+        above_ref,
+        probs = seq(0, 1, length.out = 10),
+        na.rm = TRUE
+      )
+      raw_breaks <- c(1, unname(upper_quantiles[2:9]))
+      for (digits in 0:2) {
+        candidate <- round(raw_breaks, digits)
+        if (length(unique(candidate)) == length(raw_breaks)) {
+          breaks <- candidate
+          break
+        }
+      }
+      if (is.null(breaks)) breaks <- unique(round(raw_breaks, 2))
+    }
+  }
+
   notify("Rendering map...")
   g <- build_map_plot(
     .data = mapping_sf,

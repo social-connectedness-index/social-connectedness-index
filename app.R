@@ -9,7 +9,7 @@ source("src/map_structs.R")
 # --- Configuration ---
 
 sci_data_dir <- "data/sci_2026"
-default_breaks <- "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
+default_breaks <- ""
 
 type_file_patterns <- list(
   country = "^country\\.csv$",
@@ -885,7 +885,7 @@ ui <- fluidPage(
           ),
           div(
             class = "help-hint",
-            "Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10' bins regions into ≤1x, 1–5x, 5–10x, and >10x). Without custom breaks, the legend uses deciles."
+            "Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10' bins regions into ≤1x, 1–5x, 5–10x, and >10x). When left empty, the first bin captures regions below the reference quantile and the remaining bins are equal-sized quantile buckets."
           )
         ),
 
