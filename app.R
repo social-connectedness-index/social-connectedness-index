@@ -665,8 +665,9 @@ ui <- fluidPage(
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
            Roboto, sans-serif; }
     .sidebar-panel { background-color: #f8f9fa; }
-    .btn-generate { width: 100%; margin: 15px 0; font-size: 16px;
-                    padding: 12px; }
+    .btn-generate { flex: 1; font-size: 16px; padding: 12px; }
+    .btn-reset { font-size: 16px; padding: 12px; }
+    .btn-row { display: flex; gap: 8px; margin: 15px 0; }
     .help-hint { color: #6c757d; font-size: 12px; margin-top: 2px; }
     .download-row { margin-top: 15px; }
     .download-row .btn { margin-right: 8px; }
@@ -749,27 +750,19 @@ ui <- fluidPage(
       ),
 
       hr(),
+      div(class = "section-label", "Friendships to"),
 
       selectInput(
         "origin_type",
-        "Origin region type",
+        "Region type",
         choices = setNames(names(region_type_labels), region_type_labels)
-      ),
-
-      selectInput(
-        "dest_type",
-        "Destination region type",
-        choices = setNames(
-          dest_choices_for_origin[["country"]],
-          region_type_labels[dest_choices_for_origin[["country"]]]
-        )
       ),
 
       conditionalPanel(
         condition = "input.map_mode == 'single'",
         selectizeInput(
           "user_region_id",
-          "Select region",
+          "Region",
           choices = NULL
         )
       ),
@@ -788,11 +781,23 @@ ui <- fluidPage(
         )
       ),
 
+      hr(),
+      div(class = "section-label", "Shown across"),
+
+      selectInput(
+        "dest_type",
+        "Region type",
+        choices = setNames(
+          dest_choices_for_origin[["country"]],
+          region_type_labels[dest_choices_for_origin[["country"]]]
+        )
+      ),
+
       conditionalPanel(
         condition = "input.dest_type == 'us_zcta' && (input.origin_type == 'us_zcta' || input.origin_type == 'us_cbsa')",
         selectizeInput(
           "dest_cbsa",
-          "Destination metro area (optional)",
+          "Metro area (optional)",
           choices = c("(All ZCTAs)" = "", cbsa_choices)
         )
       ),
@@ -806,7 +811,7 @@ ui <- fluidPage(
         ),
         selectizeInput(
           "country_group",
-          "Countries to show",
+          "Regions to show",
           choices = setdiff(names(country_groups), "(Custom only)"),
           selected = "All countries",
           multiple = TRUE,
@@ -826,13 +831,23 @@ ui <- fluidPage(
         )
       ),
 
+      hr(),
       textInput("title", "Title (optional)"),
 
-      actionButton(
-        "generate",
-        "Generate Map",
-        class = "btn-primary btn-generate",
-        icon = icon("map")
+      div(
+        class = "btn-row",
+        actionButton(
+          "generate",
+          "Generate Map",
+          class = "btn-primary btn-generate",
+          icon = icon("map")
+        ),
+        actionButton(
+          "reset",
+          "Reset",
+          class = "btn-default btn-reset",
+          icon = icon("refresh")
+        )
       ),
 
       hr(),
@@ -1311,6 +1326,46 @@ server <- function(input, output, session) {
     },
     ignoreInit = TRUE
   )
+
+  observeEvent(input$reset, {
+    updateSelectInput(session, "preset", selected = "")
+    updateRadioButtons(session, "map_mode", selected = "single")
+    updateSelectInput(
+      session,
+      "origin_type",
+      choices = setNames(names(region_type_labels), region_type_labels),
+      selected = "country"
+    )
+    dest_keys <- dest_choices_for_origin[["country"]]
+    updateSelectInput(
+      session,
+      "dest_type",
+      choices = setNames(dest_keys, region_type_labels[dest_keys]),
+      selected = "country"
+    )
+    updateSelectizeInput(session, "user_region_id", choices = NULL, selected = "")
+    updateSelectizeInput(session, "region_a_id", choices = NULL, selected = "")
+    updateSelectizeInput(session, "region_b_id", choices = NULL, selected = "")
+    updateSelectizeInput(session, "dest_cbsa", selected = "")
+    updateSelectizeInput(session, "country_group", selected = "All countries")
+    updateSelectizeInput(session, "custom_countries", selected = character(0))
+    updateTextInput(session, "title", value = "")
+    updateTextInput(session, "subtitle", value = "")
+    updateSelectInput(session, "color_preset", selected = "Blue (default)")
+    updateSelectInput(session, "comparison_color_preset", selected = names(comparison_color_presets)[1])
+    updateNumericInput(session, "reference_quantile", value = 0.25)
+    updateTextInput(session, "breaks", value = default_breaks)
+    updateTextInput(session, "comparison_breaks", value = "1.5, 2, 2.5, 3, 5")
+    updateCheckboxInput(session, "show_admin1_borders", value = TRUE)
+    updateNumericInput(session, "xlim_min", value = NA)
+    updateNumericInput(session, "xlim_max", value = NA)
+    updateNumericInput(session, "ylim_min", value = NA)
+    updateNumericInput(session, "ylim_max", value = NA)
+    updateNumericInput(session, "width", value = 30)
+    updateNumericInput(session, "height", value = 25)
+    updateNumericInput(session, "dpi", value = 300)
+    rv$map <- NULL
+  })
 
   download_filename <- function(ext) {
     choices <- tryCatch(
