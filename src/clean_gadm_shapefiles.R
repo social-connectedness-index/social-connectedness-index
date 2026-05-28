@@ -108,7 +108,7 @@ load_gadm_data <- function(
 ) {
   expected_files <- file.path(
     out_dir,
-    c("gadm0.gpkg", "gadm1.gpkg", "gadm2.gpkg", "gadm3.gpkg")
+    c("gadm0.gpkg", "gadm1.gpkg", "gadm2.gpkg")
   )
   if (all(file.exists(expected_files))) {
     message("GADM shapefiles already exist, skipping cleaning.")
@@ -131,7 +131,7 @@ load_gadm_data <- function(
     # in the Scottish GADM1 polygon. It isn't clear to me why this is but
     # for our purposes we merge them back into the Scottish shapefile.
     # This also has the pleasant benefit of stopping the 'NA' shape from
-    # spreading to the GADM2 and GADM3 granularities.
+    # spreading to the GADM2 granularity.
     mutate(GID_1 = if_else(GID_1 == 'NA', 'GBR.3_1', GID_1)) %>%
     group_by(GID_1) %>%
     summarize(
@@ -143,14 +143,6 @@ load_gadm_data <- function(
 
   gadm_level2 <- st_read(gadm_geopackage_path_unzipped, "ADM_2") %>%
     filter(!ENGTYPE_2 %in% c('Water body', 'Water Body', 'Waterbody'))
-
-  gadm_level3 <- st_read(gadm_geopackage_path_unzipped, "ADM_3") %>%
-    filter(
-      !ENGTYPE_3 %in% c('Water body', 'Water Body', 'Waterbody'),
-      # For some reason, Hong Kong is included here as a null row and does
-      # not have specified GADM3 regions. We'll patch the GADM2 regions in later.
-      !GID_0 == "NA"
-    )
 
   gadm0_all = process_gadm_level(
     gadm_level0,
@@ -174,18 +166,9 @@ load_gadm_data <- function(
     "NAME_2",
     "gadm2"
   )
-  gadm3_all = process_gadm_level(
-    gadm_level3,
-    "GID_0",
-    "GID_3",
-    "NAME_3",
-    "gadm3"
-  )
-
   # Here, we will carry forward the GADM regions for those countries that don't have definitions
   # all the way down the hierarchy. For example, CYP does not have defined GADM2 regions, so we
-  # will just carry forward is GADM1 regions to the GADM2 and GADM3 tables. We will define the
-  # level variable to match whatever they truly are for ease of linkage.
+  # will just carry forward its GADM1 regions to the GADM2 table.
   country_w_gadm1 <- gadm1_all %>%
     st_drop_geometry() %>%
     select(country) %>%
@@ -206,18 +189,6 @@ load_gadm_data <- function(
     gadm1_all %>% filter(!country %in% country_w_gadm2)
   )
 
-  country_w_gadm3 <- gadm3_all %>%
-    st_drop_geometry() %>%
-    select(country) %>%
-    distinct() %>%
-    pull(country)
-  gadm3_all <- rbind(
-    gadm3_all,
-    gadm2_all %>% filter(!country %in% country_w_gadm3),
-    # Hong Kong has the CHN country code but does not have defined GADM3.
-    gadm2_all %>% filter(substr(key, 1, 3) == "HKG")
-  )
-
   if (!dir.exists(out_dir)) {
     dir.create(out_dir)
   }
@@ -225,5 +196,4 @@ load_gadm_data <- function(
   st_write(gadm0_all, file.path(out_dir, "gadm0.gpkg"), delete_dsn = TRUE)
   st_write(gadm1_all, file.path(out_dir, "gadm1.gpkg"), delete_dsn = TRUE)
   st_write(gadm2_all, file.path(out_dir, "gadm2.gpkg"), delete_dsn = TRUE)
-  st_write(gadm3_all, file.path(out_dir, "gadm3.gpkg"), delete_dsn = TRUE)
 }
