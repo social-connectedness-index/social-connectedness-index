@@ -112,7 +112,11 @@ make_map <- function(
       filter(.data[[config$friend_region_key]] %in% dest_zctas)
   }
 
-  background_sf <- shapes
+  background_sf <- if (config$friend_country_key == "region_id") {
+    borders_sf %>% filter(sov_country == "US")
+  } else {
+    shapes
+  }
 
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
@@ -467,7 +471,11 @@ make_comparison_map <- function(
       filter(.data[[config$friend_region_key]] %in% dest_zctas)
   }
 
-  background_sf <- shapes
+  background_sf <- if (config$friend_country_key == "region_id") {
+    borders_sf %>% filter(sov_country == "US")
+  } else {
+    shapes
+  }
 
   borders_data <- if (config$friend_country_key == "region_id") {
     NA
