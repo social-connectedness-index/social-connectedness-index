@@ -308,6 +308,13 @@ region_id_config <- list(
   )
 )
 
+comparison_color_presets <- list(
+  "Red vs Blue" = list(color_a = "#d73027", color_b = "#4575b4"),
+  "Orange vs Teal" = list(color_a = "#e66101", color_b = "#5e3c99"),
+  "Green vs Purple" = list(color_a = "#1b7837", color_b = "#762a83"),
+  "Brown vs Blue-Green" = list(color_a = "#a6611a", color_b = "#018571")
+)
+
 color_presets <- list(
   "Blue (default)" = default_map_colors,
   "Red" = c(
@@ -497,16 +504,7 @@ resolve_sci_path <- function(type, region_id, sci_data_dir) {
   file.path(sci_data_dir, shard_file[1])
 }
 
-build_r_code <- function(input) {
-  map_type <- resolve_map_type(input$origin_type, input$dest_type)
-  sci_path <- resolve_sci_path(map_type, input$user_region_id, sci_data_dir)
-  lines <- c('source("src/setup.R")', "", "make_map(")
-  args <- c(
-    sprintf('  type = "%s"', map_type),
-    sprintf('  user_region_id = "%s"', input$user_region_id),
-    sprintf('  sci_path = "%s"', sci_path)
-  )
-
+build_r_code_shared_args <- function(input, args, is_compare = FALSE) {
   groups <- input$country_group %||% character(0)
   if (!"All countries" %in% groups) {
     grp_vars <- unlist(country_group_varnames[groups])
@@ -530,8 +528,22 @@ build_r_code <- function(input) {
     args <- c(args, sprintf('  filter_dest_cbsa = "%s"', dest_cbsa_val))
   }
 
-  if (nchar(trimws(input$breaks)) > 0) {
-    args <- c(args, sprintf("  breaks = c(%s)", input$breaks))
+  if (is_compare) {
+    breaks_text <- input$comparison_breaks %||% ""
+    if (nchar(trimws(breaks_text)) > 0) {
+      args <- c(
+        args,
+        sprintf(
+          "  breaks = sort(c(-log2(c(%s)), 0, log2(c(%s))))",
+          breaks_text,
+          breaks_text
+        )
+      )
+    }
+  } else {
+    if (nchar(trimws(input$breaks)) > 0) {
+      args <- c(args, sprintf("  breaks = c(%s)", input$breaks))
+    }
   }
 
   if (nchar(trimws(input$title)) > 0) {
@@ -545,29 +557,14 @@ build_r_code <- function(input) {
   if (!is.na(input$xlim_min) && !is.na(input$xlim_max)) {
     args <- c(
       args,
-      sprintf(
-        "  xlim = c(%s, %s)",
-        input$xlim_min,
-        input$xlim_max
-      )
+      sprintf("  xlim = c(%s, %s)", input$xlim_min, input$xlim_max)
     )
   }
 
   if (!is.na(input$ylim_min) && !is.na(input$ylim_max)) {
     args <- c(
       args,
-      sprintf(
-        "  ylim = c(%s, %s)",
-        input$ylim_min,
-        input$ylim_max
-      )
-    )
-  }
-
-  if (!is.na(input$reference_quantile) && input$reference_quantile != 0.25) {
-    args <- c(
-      args,
-      sprintf("  reference_quantile = %s", input$reference_quantile)
+      sprintf("  ylim = c(%s, %s)", input$ylim_min, input$ylim_max)
     )
   }
 
@@ -575,25 +572,81 @@ build_r_code <- function(input) {
     args <- c(args, "  show_admin1_borders = FALSE")
   }
 
-  if (input$color_preset != "Blue (default)") {
-    hex <- paste0(
-      '"',
-      color_presets[[input$color_preset]],
-      '"',
-      collapse = ", "
-    )
-    args <- c(args, sprintf("  color_palette = c(%s)", hex))
-  }
+  args
+}
 
-  region_slug <- gsub("[^a-zA-Z0-9]", "_", input$user_region_id)
-  args <- c(
-    args,
-    sprintf(
-      '  output_path = "output/maps/%s_%s.png"',
-      map_type,
-      region_slug
+build_r_code <- function(input) {
+  is_compare <- input$map_mode == "compare"
+  map_type <- resolve_map_type(input$origin_type, input$dest_type)
+
+  if (is_compare) {
+    sci_path <- resolve_sci_path(map_type, input$region_a_id, sci_data_dir)
+    lines <- c('source("src/setup.R")', "", "make_comparison_map(")
+
+    color_pair <- comparison_color_presets[[
+      input$comparison_color_preset %||% "Red vs Blue"
+    ]]
+
+    args <- c(
+      sprintf('  type = "%s"', map_type),
+      sprintf('  region_a_id = "%s"', input$region_a_id),
+      sprintf('  region_b_id = "%s"', input$region_b_id),
+      sprintf('  sci_path = "%s"', sci_path),
+      sprintf('  color_a = "%s"', color_pair$color_a),
+      sprintf('  color_b = "%s"', color_pair$color_b)
     )
-  )
+
+    args <- build_r_code_shared_args(input, args, is_compare = TRUE)
+
+    slug_a <- gsub("[^a-zA-Z0-9]", "_", input$region_a_id)
+    slug_b <- gsub("[^a-zA-Z0-9]", "_", input$region_b_id)
+    args <- c(
+      args,
+      sprintf(
+        '  output_path = "output/maps/%s_%s_vs_%s.png"',
+        map_type,
+        slug_a,
+        slug_b
+      )
+    )
+  } else {
+    sci_path <- resolve_sci_path(map_type, input$user_region_id, sci_data_dir)
+    lines <- c('source("src/setup.R")', "", "make_map(")
+    args <- c(
+      sprintf('  type = "%s"', map_type),
+      sprintf('  user_region_id = "%s"', input$user_region_id),
+      sprintf('  sci_path = "%s"', sci_path)
+    )
+
+    args <- build_r_code_shared_args(input, args)
+
+    if (!is.na(input$reference_quantile) && input$reference_quantile != 0.25) {
+      args <- c(
+        args,
+        sprintf("  reference_quantile = %s", input$reference_quantile)
+      )
+    }
+
+    if (input$color_preset != "Blue (default)") {
+      hex <- paste0(
+        '"',
+        color_presets[[input$color_preset]],
+        '"',
+        collapse = ", "
+      )
+      args <- c(args, sprintf("  color_palette = c(%s)", hex))
+    }
+
+    region_slug <- gsub("[^a-zA-Z0-9]", "_", input$user_region_id)
+    args <- c(
+      args,
+      sprintf(
+        '  output_path = "output/maps/%s_%s.png"',
+        map_type,
+        region_slug
+      )
+    )
+  }
 
   body <- paste(args, collapse = ",\n")
   paste0(
@@ -635,6 +688,21 @@ ui <- fluidPage(
                      font-size: 13px; text-transform: uppercase;
                      letter-spacing: 0.5px; }
     hr { border-top: 1px solid #e9ecef; }
+    .mode-toggle .shiny-input-radiogroup { margin: 0; width: 100%; }
+    .mode-toggle .control-label { display: none; }
+    .mode-toggle .shiny-options-group {
+      display: flex; background: #e9ecef; border-radius: 8px;
+      padding: 3px; width: 100%; }
+    .mode-toggle .radio-inline {
+      flex: 1; text-align: center; padding: 7px 10px; margin: 0;
+      border-radius: 6px; cursor: pointer; font-size: 13px;
+      font-weight: 500; color: #495057; transition: all 0.15s ease; }
+    .mode-toggle .radio-inline:hover { color: #212529; }
+    .mode-toggle .radio-inline input[type='radio'] {
+      position: absolute; opacity: 0; pointer-events: none; }
+    .mode-toggle .radio-inline:has(input:checked) {
+      background: white; color: #212529;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
     @media (max-width: 768px) {
       .sidebar-panel { width: 100% !important; }
       .main-panel { width: 100% !important; }
@@ -667,6 +735,21 @@ ui <- fluidPage(
       hr(),
       div(class = "section-label", "Map configuration"),
 
+      div(
+        class = "mode-toggle",
+        radioButtons(
+          "map_mode",
+          NULL,
+          choices = c(
+            "Single region" = "single",
+            "Compare two regions" = "compare"
+          ),
+          inline = TRUE
+        )
+      ),
+
+      hr(),
+
       selectInput(
         "origin_type",
         "Origin region type",
@@ -682,10 +765,27 @@ ui <- fluidPage(
         )
       ),
 
-      selectizeInput(
-        "user_region_id",
-        "Select region",
-        choices = NULL
+      conditionalPanel(
+        condition = "input.map_mode == 'single'",
+        selectizeInput(
+          "user_region_id",
+          "Select region",
+          choices = NULL
+        )
+      ),
+
+      conditionalPanel(
+        condition = "input.map_mode == 'compare'",
+        selectizeInput(
+          "region_a_id",
+          "Region A",
+          choices = NULL
+        ),
+        selectizeInput(
+          "region_b_id",
+          "Region B",
+          choices = NULL
+        )
       ),
 
       conditionalPanel(
@@ -742,33 +842,64 @@ ui <- fluidPage(
 
         textInput("subtitle", "Subtitle (optional)"),
 
-        selectInput(
-          "color_preset",
-          "Color palette",
-          choices = names(color_presets)
+        conditionalPanel(
+          condition = "input.map_mode == 'single'",
+          selectInput(
+            "color_preset",
+            "Color palette",
+            choices = names(color_presets)
+          )
         ),
 
-        numericInput(
-          "reference_quantile",
-          "Reference quantile",
-          value = 0.25,
-          min = 0,
-          max = 1,
-          step = 0.05
-        ),
-        div(
-          class = "help-hint",
-          "Each region's SCI is divided by this quantile's value to produce a multiplier (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile."
+        conditionalPanel(
+          condition = "input.map_mode == 'compare'",
+          selectInput(
+            "comparison_color_preset",
+            "Color palette",
+            choices = names(comparison_color_presets)
+          )
         ),
 
-        textInput(
-          "breaks",
-          "Custom breaks (comma-separated)",
-          value = default_breaks
+        conditionalPanel(
+          condition = "input.map_mode == 'single'",
+          numericInput(
+            "reference_quantile",
+            "Reference quantile",
+            value = 0.25,
+            min = 0,
+            max = 1,
+            step = 0.05
+          ),
+          div(
+            class = "help-hint",
+            "Each region's SCI is divided by this quantile's value to produce a multiplier (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile."
+          )
         ),
-        div(
-          class = "help-hint",
-          "Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10' bins regions into ≤1x, 1–5x, 5–10x, and >10x). Without custom breaks, the legend uses deciles."
+
+        conditionalPanel(
+          condition = "input.map_mode == 'single'",
+          textInput(
+            "breaks",
+            "Custom breaks (comma-separated)",
+            value = default_breaks
+          ),
+          div(
+            class = "help-hint",
+            "Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10' bins regions into ≤1x, 1–5x, 5–10x, and >10x). Without custom breaks, the legend uses deciles."
+          )
+        ),
+
+        conditionalPanel(
+          condition = "input.map_mode == 'compare'",
+          textInput(
+            "comparison_breaks",
+            "Comparison breaks (comma-separated multipliers)",
+            value = "1.5, 2, 2.5, 3, 5"
+          ),
+          div(
+            class = "help-hint",
+            "Symmetric multiplier thresholds on each side of 'Equal' (e.g., '1.5, 2, 3' creates bins at 1.5x, 2x, 3x in both directions)."
+          )
         ),
 
         checkboxInput(
@@ -851,6 +982,48 @@ server <- function(input, output, session) {
   output$has_map <- reactive(!is.null(rv$map))
   outputOptions(output, "has_map", suspendWhenHidden = FALSE)
 
+  update_region_choices <- function(skip = FALSE) {
+    if (skip) {
+      return()
+    }
+    tryCatch(
+      {
+        choices <- get_region_choices(input$origin_type)
+        is_large <- input$origin_type %in% c("gadm2", "adm2", "us_zcta")
+        if (is.null(choices)) {
+          choices <- character(0)
+        }
+        updateSelectizeInput(
+          session,
+          "user_region_id",
+          choices = choices,
+          selected = "",
+          server = is_large
+        )
+        updateSelectizeInput(
+          session,
+          "region_a_id",
+          choices = choices,
+          selected = "",
+          server = is_large
+        )
+        updateSelectizeInput(
+          session,
+          "region_b_id",
+          choices = choices,
+          selected = "",
+          server = is_large
+        )
+      },
+      error = function(e) {
+        showNotification(
+          paste("Could not load regions for this map type:", e$message),
+          type = "error"
+        )
+      }
+    )
+  }
+
   # Update destination choices and region ID choices when origin type changes
   observeEvent(input$origin_type, {
     dest_keys <- dest_choices_for_origin[[input$origin_type]]
@@ -864,49 +1037,27 @@ server <- function(input, output, session) {
       return()
     }
 
-    tryCatch(
-      {
-        choices <- get_region_choices(input$origin_type)
-        if (is.null(choices)) {
-          updateSelectizeInput(
-            session,
-            "user_region_id",
-            choices = character(0),
-            selected = ""
-          )
-        } else {
-          is_large <- input$origin_type %in% c("gadm2", "adm2", "us_zcta")
-          updateSelectizeInput(
-            session,
-            "user_region_id",
-            choices = choices,
-            selected = "",
-            server = is_large
-          )
-        }
-      },
-      error = function(e) {
-        showNotification(
-          paste("Could not load regions for this map type:", e$message),
-          type = "error"
-        )
-      }
-    )
+    update_region_choices()
   })
 
-  observeEvent(input$user_region_id, {
-    region_id <- input$user_region_id
-    if (is.null(region_id) || nchar(trimws(region_id)) == 0) {
-      return()
+  get_region_label <- function(region_id) {
+    choices <- get_region_choices(input$origin_type)
+    if (is.null(choices)) {
+      return(NULL)
     }
+    label <- names(choices)[match(region_id, choices)]
+    if (length(label) == 1 && !is.na(label) && nchar(label) > 0) {
+      label
+    } else {
+      NULL
+    }
+  }
+
+  auto_title_single <- function(region_id) {
     tryCatch(
       {
-        choices <- get_region_choices(input$origin_type)
-        if (is.null(choices)) {
-          return()
-        }
-        label <- names(choices)[match(region_id, choices)]
-        if (length(label) == 1 && !is.na(label) && nchar(label) > 0) {
+        label <- get_region_label(region_id)
+        if (!is.null(label)) {
           updateTextInput(
             session,
             "title",
@@ -920,7 +1071,43 @@ server <- function(input, output, session) {
       },
       error = function(e) NULL
     )
+  }
+
+  auto_title_compare <- function() {
+    tryCatch(
+      {
+        a_id <- input$region_a_id
+        b_id <- input$region_b_id
+        if (
+          is.null(a_id) ||
+            nchar(trimws(a_id)) == 0 ||
+            is.null(b_id) ||
+            nchar(trimws(b_id)) == 0
+        ) {
+          return()
+        }
+        label_a <- get_region_label(a_id) %||% a_id
+        label_b <- get_region_label(b_id) %||% b_id
+        updateTextInput(
+          session,
+          "title",
+          value = paste0(label_a, " vs. ", label_b)
+        )
+      },
+      error = function(e) NULL
+    )
+  }
+
+  observeEvent(input$user_region_id, {
+    region_id <- input$user_region_id
+    if (is.null(region_id) || nchar(trimws(region_id)) == 0) {
+      return()
+    }
+    auto_title_single(region_id)
   })
+
+  observeEvent(input$region_a_id, auto_title_compare())
+  observeEvent(input$region_b_id, auto_title_compare())
 
   # Auto-fill lat/lon as union of selected region bounds + custom country bboxes.
   # Region bounds are hardcoded (curated to exclude overseas territories).
@@ -1021,6 +1208,7 @@ server <- function(input, output, session) {
 
       tryCatch(
         {
+          updateRadioButtons(session, "map_mode", selected = "single")
           od <- type_to_origin_dest(spec$type)
           rv$skip_type_region_update <- TRUE
           updateSelectInput(session, "origin_type", selected = od$origin)
@@ -1125,51 +1313,46 @@ server <- function(input, output, session) {
   )
 
   download_filename <- function(ext) {
-    region_id <- input$user_region_id
     choices <- tryCatch(
       get_region_choices(input$origin_type),
       error = function(e) NULL
     )
-    label <- NULL
-    if (!is.null(choices)) {
-      label <- names(choices)[match(region_id, choices)]
+    make_slug <- function(region_id) {
+      label <- NULL
+      if (!is.null(choices)) {
+        label <- names(choices)[match(region_id, choices)]
+      }
+      if (is.null(label) || is.na(label) || nchar(label) == 0) {
+        label <- region_id
+      }
+      slug <- gsub("[^a-zA-Z0-9]+", "_", label)
+      gsub("^_|_$", "", slug)
     }
-    if (is.null(label) || is.na(label) || nchar(label) == 0) {
-      label <- region_id
+
+    if (input$map_mode == "compare") {
+      slug <- paste0(
+        make_slug(input$region_a_id),
+        "_vs_",
+        make_slug(input$region_b_id)
+      )
+    } else {
+      slug <- make_slug(input$user_region_id)
     }
-    slug <- gsub("[^a-zA-Z0-9]+", "_", label)
-    slug <- gsub("^_|_$", "", slug)
     paste0(slug, ".", ext)
   }
 
-  # Build make_map() arguments from current inputs
-  build_args <- function() {
-    map_type <- resolve_map_type(input$origin_type, input$dest_type)
-
+  resolve_friend_countries <- function() {
     groups <- input$country_group %||% character(0)
     if ("All countries" %in% groups) {
-      combined <- NULL
-    } else {
-      preset <- unique(unlist(country_groups[groups]))
-      custom <- input$custom_countries %||% character(0)
-      combined <- unique(c(preset, custom))
-      if (length(combined) == 0) {
-        combined <- NULL
-      }
+      return(NULL)
     }
+    preset <- unique(unlist(country_groups[groups]))
+    custom <- input$custom_countries %||% character(0)
+    combined <- unique(c(preset, custom))
+    if (length(combined) == 0) NULL else combined
+  }
 
-    sci_path <- resolve_sci_path(map_type, input$user_region_id, sci_data_dir)
-
-    args <- list(
-      type = map_type,
-      user_region_id = input$user_region_id,
-      sci_path = sci_path,
-      friend_countries = combined,
-      color_palette = color_presets[[input$color_preset]],
-      reference_quantile = input$reference_quantile,
-      show_admin1_borders = input$show_admin1_borders
-    )
-
+  add_shared_args <- function(args, is_compare = FALSE) {
     dest_cbsa_val <- input$dest_cbsa %||% ""
     if (nchar(trimws(dest_cbsa_val)) > 0) {
       args$filter_dest_cbsa <- dest_cbsa_val
@@ -1182,12 +1365,25 @@ server <- function(input, output, session) {
       args$subtitle <- input$subtitle
     }
 
-    if (nchar(trimws(input$breaks)) > 0) {
-      parsed <- suppressWarnings(
-        as.numeric(trimws(strsplit(input$breaks, ",")[[1]]))
-      )
-      parsed <- parsed[!is.na(parsed)]
-      if (length(parsed) > 0) args$breaks <- sort(parsed)
+    if (is_compare) {
+      breaks_text <- input$comparison_breaks %||% ""
+      if (nchar(trimws(breaks_text)) > 0) {
+        mults <- suppressWarnings(
+          as.numeric(trimws(strsplit(breaks_text, ",")[[1]]))
+        )
+        mults <- mults[!is.na(mults) & mults > 0]
+        if (length(mults) > 0) {
+          args$breaks <- sort(c(-log2(mults), 0, log2(mults)))
+        }
+      }
+    } else {
+      if (nchar(trimws(input$breaks)) > 0) {
+        parsed <- suppressWarnings(
+          as.numeric(trimws(strsplit(input$breaks, ",")[[1]]))
+        )
+        parsed <- parsed[!is.na(parsed)]
+        if (length(parsed) > 0) args$breaks <- sort(parsed)
+      }
     }
 
     us_types <- c("us_county", "us_zcta", "us_cbsa")
@@ -1211,13 +1407,93 @@ server <- function(input, output, session) {
     args
   }
 
+  # Build make_map() arguments from current inputs
+  build_args <- function() {
+    map_type <- resolve_map_type(input$origin_type, input$dest_type)
+    combined <- resolve_friend_countries()
+
+    sci_path <- resolve_sci_path(map_type, input$user_region_id, sci_data_dir)
+
+    args <- list(
+      type = map_type,
+      user_region_id = input$user_region_id,
+      sci_path = sci_path,
+      friend_countries = combined,
+      color_palette = color_presets[[input$color_preset]],
+      reference_quantile = input$reference_quantile,
+      show_admin1_borders = input$show_admin1_borders
+    )
+
+    add_shared_args(args, is_compare = FALSE)
+  }
+
+  build_comparison_args <- function() {
+    map_type <- resolve_map_type(input$origin_type, input$dest_type)
+    combined <- resolve_friend_countries()
+
+    sci_path <- resolve_sci_path(
+      map_type,
+      input$region_a_id,
+      sci_data_dir
+    )
+
+    color_pair <- comparison_color_presets[[
+      input$comparison_color_preset %||% "Red vs Blue"
+    ]]
+
+    label_a <- get_region_label(input$region_a_id) %||% input$region_a_id
+    label_b <- get_region_label(input$region_b_id) %||% input$region_b_id
+
+    args <- list(
+      type = map_type,
+      region_a_id = input$region_a_id,
+      region_b_id = input$region_b_id,
+      sci_path = sci_path,
+      label_a = label_a,
+      label_b = label_b,
+      color_a = color_pair$color_a,
+      color_b = color_pair$color_b,
+      friend_countries = combined,
+      show_admin1_borders = input$show_admin1_borders
+    )
+
+    add_shared_args(args, is_compare = TRUE)
+  }
+
   # Generate map on button click
   observeEvent(input$generate, {
-    if (
-      is.null(input$user_region_id) || nchar(trimws(input$user_region_id)) == 0
-    ) {
-      showNotification("Please select a region.", type = "warning")
-      return()
+    is_compare <- input$map_mode == "compare"
+
+    if (is_compare) {
+      a_id <- input$region_a_id
+      b_id <- input$region_b_id
+      if (
+        is.null(a_id) ||
+          nchar(trimws(a_id)) == 0 ||
+          is.null(b_id) ||
+          nchar(trimws(b_id)) == 0
+      ) {
+        showNotification(
+          "Please select both Region A and Region B.",
+          type = "warning"
+        )
+        return()
+      }
+      if (a_id == b_id) {
+        showNotification(
+          "Region A and Region B must be different.",
+          type = "warning"
+        )
+        return()
+      }
+    } else {
+      if (
+        is.null(input$user_region_id) ||
+          nchar(trimws(input$user_region_id)) == 0
+      ) {
+        showNotification("Please select a region.", type = "warning")
+        return()
+      }
     }
 
     w <- input$width
@@ -1244,11 +1520,12 @@ server <- function(input, output, session) {
     tryCatch(
       {
         map_type <- resolve_map_type(input$origin_type, input$dest_type)
-        sci_path <- resolve_sci_path(
-          map_type,
-          input$user_region_id,
-          sci_data_dir
-        )
+        ref_region <- if (is_compare) {
+          input$region_a_id
+        } else {
+          input$user_region_id
+        }
+        sci_path <- resolve_sci_path(map_type, ref_region, sci_data_dir)
         if (is.null(sci_path)) {
           showNotification(
             "Could not determine the SCI data file for this region and map type.",
@@ -1257,11 +1534,19 @@ server <- function(input, output, session) {
           return()
         }
 
-        args <- build_args()
-        args$on_progress <- show_step
-        rv$preview_width <- w
-        rv$preview_height <- h
-        rv$map <- do.call(make_map, args)
+        if (is_compare) {
+          args <- build_comparison_args()
+          args$on_progress <- show_step
+          rv$preview_width <- w
+          rv$preview_height <- h
+          rv$map <- do.call(make_comparison_map, args)
+        } else {
+          args <- build_args()
+          args$on_progress <- show_step
+          rv$preview_width <- w
+          rv$preview_height <- h
+          rv$map <- do.call(make_map, args)
+        }
         removeNotification(progress_id)
       },
       error = function(e) {

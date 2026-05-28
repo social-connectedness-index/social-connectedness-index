@@ -176,6 +176,7 @@ make_map <- function(
         stop("SCI shard file not found: ", shard_path)
       }
       load_sci_cached(shard_path) %>%
+        mutate(across(c(user_region, friend_region), as.character)) %>%
         filter(user_region %in% origin_zctas)
     }) %>%
       group_by(friend_region) %>%
@@ -534,6 +535,7 @@ make_comparison_map <- function(
           stop("SCI shard file not found: ", shard_path)
         }
         load_sci_cached(shard_path) %>%
+          mutate(across(c(user_region, friend_region), as.character)) %>%
           filter(user_region %in% origin_zctas)
       }) %>%
         group_by(friend_region) %>%
