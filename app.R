@@ -581,6 +581,7 @@ build_r_code <- function(input) {
 
   if (is_compare) {
     sci_path <- resolve_sci_path(map_type, input$region_a_id, sci_data_dir)
+    sci_path_b <- resolve_sci_path(map_type, input$region_b_id, sci_data_dir)
     lines <- c('source("src/setup.R")', "", "make_comparison_map(")
 
     color_pair <- comparison_color_presets[[
@@ -592,8 +593,17 @@ build_r_code <- function(input) {
       sprintf('  region_a_id = "%s"', input$region_a_id),
       sprintf('  region_b_id = "%s"', input$region_b_id),
       sprintf('  sci_path = "%s"', sci_path),
+      if (!identical(sci_path_b, sci_path)) {
+        sprintf('  sci_path_b = "%s"', sci_path_b)
+      },
       sprintf('  color_a = "%s"', color_pair$color_a),
-      sprintf('  color_b = "%s"', color_pair$color_b)
+      sprintf('  color_b = "%s"', color_pair$color_b),
+      if (nchar(trimws(input$label_a %||% "")) > 0) {
+        sprintf('  label_a = "%s"', input$label_a)
+      },
+      if (nchar(trimws(input$label_b %||% "")) > 0) {
+        sprintf('  label_b = "%s"', input$label_b)
+      }
     )
 
     args <- build_r_code_shared_args(input, args, is_compare = TRUE)
@@ -872,6 +882,12 @@ ui <- fluidPage(
             "comparison_color_preset",
             "Color palette",
             choices = names(comparison_color_presets)
+          ),
+          textInput("label_a", "Legend label for Region A (optional)"),
+          textInput("label_b", "Legend label for Region B (optional)"),
+          div(
+            class = "help-hint",
+            "Short names used in the legend. Leave empty to use the default region name."
           )
         ),
 
@@ -1343,7 +1359,12 @@ server <- function(input, output, session) {
       choices = setNames(dest_keys, region_type_labels[dest_keys]),
       selected = "country"
     )
-    updateSelectizeInput(session, "user_region_id", choices = NULL, selected = "")
+    updateSelectizeInput(
+      session,
+      "user_region_id",
+      choices = NULL,
+      selected = ""
+    )
     updateSelectizeInput(session, "region_a_id", choices = NULL, selected = "")
     updateSelectizeInput(session, "region_b_id", choices = NULL, selected = "")
     updateSelectizeInput(session, "dest_cbsa", selected = "")
@@ -1351,8 +1372,14 @@ server <- function(input, output, session) {
     updateSelectizeInput(session, "custom_countries", selected = character(0))
     updateTextInput(session, "title", value = "")
     updateTextInput(session, "subtitle", value = "")
+    updateTextInput(session, "label_a", value = "")
+    updateTextInput(session, "label_b", value = "")
     updateSelectInput(session, "color_preset", selected = "Blue (default)")
-    updateSelectInput(session, "comparison_color_preset", selected = names(comparison_color_presets)[1])
+    updateSelectInput(
+      session,
+      "comparison_color_preset",
+      selected = names(comparison_color_presets)[1]
+    )
     updateNumericInput(session, "reference_quantile", value = 0.25)
     updateTextInput(session, "breaks", value = default_breaks)
     updateTextInput(session, "comparison_breaks", value = "1.5, 2, 2.5, 3, 5")
@@ -1491,19 +1518,33 @@ server <- function(input, output, session) {
       input$region_a_id,
       sci_data_dir
     )
+    sci_path_b <- resolve_sci_path(
+      map_type,
+      input$region_b_id,
+      sci_data_dir
+    )
 
     color_pair <- comparison_color_presets[[
       input$comparison_color_preset %||% "Red vs Blue"
     ]]
 
-    label_a <- get_region_label(input$region_a_id) %||% input$region_a_id
-    label_b <- get_region_label(input$region_b_id) %||% input$region_b_id
+    label_a <- if (nchar(trimws(input$label_a %||% "")) > 0) {
+      input$label_a
+    } else {
+      get_region_label(input$region_a_id) %||% input$region_a_id
+    }
+    label_b <- if (nchar(trimws(input$label_b %||% "")) > 0) {
+      input$label_b
+    } else {
+      get_region_label(input$region_b_id) %||% input$region_b_id
+    }
 
     args <- list(
       type = map_type,
       region_a_id = input$region_a_id,
       region_b_id = input$region_b_id,
       sci_path = sci_path,
+      sci_path_b = sci_path_b,
       label_a = label_a,
       label_b = label_b,
       color_a = color_pair$color_a,
@@ -1587,6 +1628,20 @@ server <- function(input, output, session) {
             type = "error"
           )
           return()
+        }
+        if (is_compare) {
+          sci_path_b <- resolve_sci_path(
+            map_type,
+            input$region_b_id,
+            sci_data_dir
+          )
+          if (is.null(sci_path_b)) {
+            showNotification(
+              "Could not determine the SCI data file for Region B.",
+              type = "error"
+            )
+            return()
+          }
         }
 
         if (is_compare) {

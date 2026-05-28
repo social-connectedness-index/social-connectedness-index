@@ -353,6 +353,7 @@ make_comparison_map <- function(
   region_a_id,
   region_b_id,
   sci_path,
+  sci_path_b = NULL,
   label_a = NULL,
   label_b = NULL,
   color_a,
@@ -579,30 +580,36 @@ make_comparison_map <- function(
     join_col <- "friend_region"
   } else {
     notify("Reading SCI data...")
-    sci_df <- load_sci_cached(sci_path)
+    sci_df_a <- load_sci_cached(sci_path)
+    sci_path_b_resolved <- sci_path_b %||% sci_path
+    sci_df_b <- load_sci_cached(sci_path_b_resolved)
 
     filter_col <- config$sci_filter_col %||% "user_region"
     join_col <- config$sci_join_col %||% "friend_region"
     country_filter_col <- config$sci_country_filter_col %||% "friend_country"
 
-    sci_a <- sci_df %>%
+    sci_a <- sci_df_a %>%
       filter(.data[[filter_col]] == region_a_id) %>%
       select(all_of(join_col), scaled_sci_a = scaled_sci)
 
-    sci_b <- sci_df %>%
+    sci_b <- sci_df_b %>%
       filter(.data[[filter_col]] == region_b_id) %>%
       select(all_of(join_col), scaled_sci_b = scaled_sci)
 
     if (!is.null(friend_countries)) {
-      if (country_filter_col %in% names(sci_df)) {
-        sci_country_lookup <- sci_df %>%
+      if (country_filter_col %in% names(sci_df_a)) {
+        sci_country_lookup_a <- sci_df_a %>%
           distinct(across(all_of(c(join_col, country_filter_col))))
         sci_a <- sci_a %>%
-          inner_join(sci_country_lookup, by = join_col) %>%
+          inner_join(sci_country_lookup_a, by = join_col) %>%
           filter(.data[[country_filter_col]] %in% friend_countries) %>%
           select(-all_of(country_filter_col))
+      }
+      if (country_filter_col %in% names(sci_df_b)) {
+        sci_country_lookup_b <- sci_df_b %>%
+          distinct(across(all_of(c(join_col, country_filter_col))))
         sci_b <- sci_b %>%
-          inner_join(sci_country_lookup, by = join_col) %>%
+          inner_join(sci_country_lookup_b, by = join_col) %>%
           filter(.data[[country_filter_col]] %in% friend_countries) %>%
           select(-all_of(country_filter_col))
       }
