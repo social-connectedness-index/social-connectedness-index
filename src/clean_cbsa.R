@@ -19,11 +19,24 @@ clean_cbsa_shapefile <- function() {
 
   cbsa <- st_read(file.path(temp_dir, "cb_2025_us_cbsa_500k.shp"), quiet = TRUE)
 
-  cbsa %>%
+  cbsa_clean <- cbsa %>%
     filter(LSAD == "M1") %>%
     select(region_id = GEOID, name = NAME) %>%
     st_transform(crs = 4326) %>%
-    st_make_valid() %>%
+    st_make_valid()
+
+  if (file.exists(us_county_shapefile_path)) {
+    counties <- st_read(us_county_shapefile_path, quiet = TRUE)
+    nyc <- counties %>%
+      filter(region_id %in% nyc_county_fips) %>%
+      st_union() %>%
+      st_sf(geometry = .) %>%
+      mutate(region_id = nyc_cbsa_code, name = "New York City") %>%
+      st_make_valid()
+    cbsa_clean <- bind_rows(cbsa_clean, nyc)
+  }
+
+  cbsa_clean %>%
     st_write(output_path, delete_dsn = TRUE)
 
   message("Saved CBSA shapefile: ", output_path)
@@ -83,6 +96,12 @@ build_zcta_cbsa_crosswalk <- function() {
     inner_join(cbsa_delin, by = "fips") %>%
     select(zcta, cbsa_code, cbsa_title) %>%
     distinct(zcta, .keep_all = TRUE)
+
+  nyc_zctas <- zcta_county %>%
+    filter(fips %in% nyc_county_fips) %>%
+    mutate(cbsa_code = nyc_cbsa_code, cbsa_title = "New York City") %>%
+    select(zcta, cbsa_code, cbsa_title)
+  crosswalk <- bind_rows(crosswalk, nyc_zctas)
 
   write_csv(crosswalk, zcta_cbsa_crosswalk_path)
   message("Saved ZCTA-CBSA crosswalk: ", zcta_cbsa_crosswalk_path)

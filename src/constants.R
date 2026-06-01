@@ -517,6 +517,9 @@ central_asia_iso2_codes = c(
   "UZ" # UZB → Uzbekistan
 )
 
+nyc_county_fips <- c("36005", "36047", "36061", "36081", "36085")
+nyc_cbsa_code <- "NYC"
+
 nuts_cntr_codes = c(
   "AL", # Albania
   "AT", # Austria
