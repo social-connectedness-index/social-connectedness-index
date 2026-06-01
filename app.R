@@ -572,6 +572,10 @@ build_r_code_shared_args <- function(input, args, is_compare = FALSE) {
     args <- c(args, "  show_admin1_borders = FALSE")
   }
 
+  if (isTRUE(input$label_focal_region)) {
+    args <- c(args, "  label_focal_region = TRUE")
+  }
+
   args
 }
 
@@ -931,6 +935,12 @@ ui <- fluidPage(
             class = "help-hint",
             "Symmetric multiplier thresholds on each side of 'Equal' (e.g., '1.5, 2, 3' creates bins at 1.5x, 2x, 3x in both directions)."
           )
+        ),
+
+        checkboxInput(
+          "label_focal_region",
+          "Label selected region",
+          value = FALSE
         ),
 
         checkboxInput(
@@ -1503,7 +1513,8 @@ server <- function(input, output, session) {
       friend_countries = combined,
       color_palette = color_presets[[input$color_preset]],
       reference_quantile = input$reference_quantile,
-      show_admin1_borders = input$show_admin1_borders
+      show_admin1_borders = input$show_admin1_borders,
+      label_focal_region = isTRUE(input$label_focal_region)
     )
 
     add_shared_args(args, is_compare = FALSE)
@@ -1550,7 +1561,8 @@ server <- function(input, output, session) {
       color_a = color_pair$color_a,
       color_b = color_pair$color_b,
       friend_countries = combined,
-      show_admin1_borders = input$show_admin1_borders
+      show_admin1_borders = input$show_admin1_borders,
+      label_focal_region = isTRUE(input$label_focal_region)
     )
 
     add_shared_args(args, is_compare = TRUE)

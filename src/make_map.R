@@ -19,6 +19,7 @@ make_map <- function(
   na_color = "#BFBFBF",
   background_color = "white",
   filter_dest_cbsa = NULL,
+  label_focal_region = FALSE,
   title = NULL,
   subtitle = NULL,
   caption = NULL,
@@ -295,7 +296,7 @@ make_map <- function(
     background_sf = background_sf,
     borders_data = borders_data,
     admin1_borders_data = admin1_borders_data,
-    highlight_sf = user_region_sf,
+    highlight_sf = if (label_focal_region) user_region_sf else NULL,
     highlight_color = highlight_color,
     border_color = border_color,
     admin1_border_color = admin1_border_color,
@@ -372,6 +373,7 @@ make_comparison_map <- function(
   na_color = "#BFBFBF",
   background_color = "white",
   filter_dest_cbsa = NULL,
+  label_focal_region = FALSE,
   title = NULL,
   subtitle = NULL,
   caption = NULL,
@@ -708,11 +710,13 @@ make_comparison_map <- function(
     base_font_size = base_font_size
   )
 
-  if (nrow(region_a_sf) > 0) {
-    g <- g + geom_sf(data = region_a_sf, fill = highlight_color, color = NA)
-  }
-  if (nrow(region_b_sf) > 0) {
-    g <- g + geom_sf(data = region_b_sf, fill = highlight_color, color = NA)
+  if (label_focal_region) {
+    if (nrow(region_a_sf) > 0) {
+      g <- g + geom_sf(data = region_a_sf, fill = highlight_color, color = NA)
+    }
+    if (nrow(region_b_sf) > 0) {
+      g <- g + geom_sf(data = region_b_sf, fill = highlight_color, color = NA)
+    }
   }
 
   g <- g +
