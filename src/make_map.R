@@ -13,7 +13,7 @@ make_map <- function(
   },
   color_palette = NULL,
   highlight_color = "#FF0000",
-  border_color = "gray15",
+  border_color = "black",
   show_admin1_borders = TRUE,
   admin1_border_color = "gray35",
   na_color = "#BFBFBF",
@@ -366,7 +366,7 @@ make_comparison_map <- function(
   breaks = NULL,
   legend_name = NULL,
   break_label_format = NULL,
-  border_color = "gray15",
+  border_color = "black",
   show_admin1_borders = TRUE,
   admin1_border_color = "gray35",
   na_color = "#BFBFBF",
@@ -658,8 +658,7 @@ make_comparison_map <- function(
     )
 
   if (is.null(breaks)) {
-    nice_mults <- c(1.5, 2, 3, 5, 10)
-    breaks <- sort(c(-log2(nice_mults), 0, log2(nice_mults)))
+    breaks <- compute_comparison_breaks(comparison$log_ratio)
   }
 
   if (!is.null(filter_dest_cbsa)) {

@@ -420,7 +420,7 @@ build_map_plot <- function(
   admin1_borders_data = NA,
   highlight_sf = NULL,
   highlight_color = "#FF0000",
-  border_color = "gray15",
+  border_color = "black",
   admin1_border_color = "gray45",
   na_color = "#BFBFBF",
   name = NULL,
@@ -531,7 +531,7 @@ build_map_plot <- function(
     map <- map +
       geom_sf(
         data = borders_data,
-        size = 1.5,
+        size = 3,
         fill = "transparent",
         color = border_color
       )
@@ -549,6 +549,29 @@ build_map_plot <- function(
   map
 }
 
+
+compute_comparison_breaks <- function(log_ratio_values) {
+  nice_mults <- c(1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20)
+  nice_log2 <- log2(nice_mults)
+
+  vals <- log_ratio_values[!is.na(log_ratio_values)]
+  if (length(vals) == 0) {
+    return(sort(c(-log2(c(1.5, 2, 3, 5)), 0, log2(c(1.5, 2, 3, 5)))))
+  }
+
+  max_range <- quantile(abs(vals), 0.95)
+  in_range <- nice_log2[nice_log2 <= max_range * 1.1]
+
+  if (length(in_range) < 2) {
+  }
+
+  if (length(in_range) > 5) {
+    idx <- round(seq(1, length(in_range), length.out = 5))
+    in_range <- unique(in_range[idx])
+  }
+
+  sort(c(-rev(in_range), 0, in_range))
+}
 
 ensure_node_on_path <- function() {
   if (nzchar(Sys.which("node"))) {

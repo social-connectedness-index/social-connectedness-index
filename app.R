@@ -145,7 +145,7 @@ country_group_bounds <- list(
   "North America" = list(xlim = c(-168, -52), ylim = c(6, 83)),
   "Central America" = list(xlim = c(-118, -77), ylim = c(6, 33)),
   "South America" = list(xlim = c(-85, -33), ylim = c(-55, 12)),
-  "United States" = list(xlim = c(-125, -66), ylim = c(23, 54))
+  "United States" = list(xlim = c(-125, -66), ylim = c(25, 50))
 )
 
 # Per-country bounding boxes from the GADM0 shapefile (used to expand region
