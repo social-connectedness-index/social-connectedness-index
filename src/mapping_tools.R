@@ -568,7 +568,7 @@ build_map_plot <- function(
     map <- map +
       geom_sf(
         data = borders_data,
-        size = 3,
+        size = 2,
         fill = "transparent",
         color = border_color
       )
