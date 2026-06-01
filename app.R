@@ -42,6 +42,7 @@ type_file_patterns <- list(
   country_nuts1 = "^nuts1_2024_to_country\\.csv$",
   country_nuts2 = "^nuts2_2024_to_country\\.csv$",
   country_nuts3 = "^nuts3_2024_to_country\\.csv$",
+  country_us_cbsa = "^us_zcta_to_country\\.csv$",
   country_us_county = "^us_counties_to_country\\.csv$",
   country_us_zcta = "^us_zcta_to_country\\.csv$"
 )
@@ -71,7 +72,8 @@ dest_choices_for_origin <- list(
     "nuts2",
     "nuts3",
     "us_county",
-    "us_zcta"
+    "us_zcta",
+    "us_cbsa"
   ),
   gadm1 = c("gadm1", "country"),
   gadm2 = c("gadm2", "country"),

@@ -395,6 +395,26 @@ map_type_configs <- list(
     sci_join_col = "user_region",
     sci_country_filter_col = "user_country"
   ),
+  country_us_cbsa = list(
+    friend_sf = list(path = us_cbsa_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),
+    highlight_region_key = "sov_country",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_filter_col = "friend_region",
+    sci_join_col = "user_region",
+    sci_country_filter_col = "user_country",
+    sci_crosswalk = list(
+      path = zcta_cbsa_crosswalk_path,
+      from_col = "zcta",
+      to_col = "cbsa_code"
+    )
+  ),
   country_us_county = list(
     friend_sf = list(path = us_county_shapefile_path, layer = NULL),
     friend_region_key = "region_id",
