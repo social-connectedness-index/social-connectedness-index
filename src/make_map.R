@@ -248,6 +248,8 @@ make_map <- function(
     y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
     xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
     ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
+    borders_data <- NA
+    admin1_borders_data <- shapes
   }
 
   if (is.null(breaks)) {
@@ -654,6 +656,8 @@ make_comparison_map <- function(
     y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
     xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
     ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
+    borders_data <- NA
+    admin1_borders_data <- shapes
   }
 
   notify("Rendering map...")
