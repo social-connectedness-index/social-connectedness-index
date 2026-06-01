@@ -232,6 +232,23 @@ map_type_configs <- list(
     highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
     highlight_region_key = "region_id"
   ),
+  us_zcta_county = list(
+    friend_sf = list(path = us_county_shapefile_path, layer = NULL),
+    friend_region_key = "region_id",
+    friend_country_key = "region_id",
+    highlight_sf = list(path = us_zcta_shapefile_path, layer = NULL),
+    highlight_region_key = "region_id",
+    admin1_borders = list(
+      path = gadm1_shapefile_path,
+      layer = NULL,
+      country_key = "sov_country"
+    ),
+    sci_crosswalk = list(
+      path = zcta_county_crosswalk_path,
+      from_col = "zcta",
+      to_col = "fips"
+    )
+  ),
   us_zcta_cbsa = list(
     friend_sf = list(path = us_cbsa_shapefile_path, layer = NULL),
     friend_region_key = "region_id",
@@ -543,7 +560,7 @@ build_map_plot <- function(
   }
 
   if (!is.null(xlims) || !is.null(ylims)) {
-    map <- map + coord_sf(xlim = xlims, ylim = ylims)
+    map <- map + coord_sf(xlim = xlims, ylim = ylims, expand = FALSE)
   }
 
   map

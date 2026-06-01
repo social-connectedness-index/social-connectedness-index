@@ -49,6 +49,11 @@ zcta_cbsa_crosswalk_path <- file.path(
   "zcta_cbsa_crosswalk.csv"
 )
 
+zcta_county_crosswalk_path <- file.path(
+  data_dir,
+  "zcta_county_crosswalk.csv"
+)
+
 nuts_gpkg_input <- file.path(
   input_shapefiles_dir,
   "NUTS_RG_01M_2024_4326.gpkg"

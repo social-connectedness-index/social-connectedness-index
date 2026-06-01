@@ -31,6 +31,7 @@ type_file_patterns <- list(
   nuts3_country = "^nuts3_2024_to_country\\.csv$",
   us_county_country = "^us_counties_to_country\\.csv$",
   us_zcta_country = "^us_zcta_to_country\\.csv$",
+  us_zcta_county = "^us_zcta_shard_",
   us_zcta_cbsa = "^us_zcta_shard_",
   us_cbsa_zcta = "^us_zcta_shard_",
   us_cbsa = "^us_zcta_shard_",
@@ -80,13 +81,16 @@ dest_choices_for_origin <- list(
   nuts2 = c("nuts2", "country"),
   nuts3 = c("nuts3", "country"),
   us_county = c("us_county", "country"),
-  us_zcta = c("us_zcta", "us_cbsa", "country"),
+  us_zcta = c("us_zcta", "us_county", "us_cbsa", "country"),
   us_cbsa = c("us_zcta", "us_cbsa")
 )
 
 resolve_map_type <- function(origin, dest) {
   if (origin == dest) {
     return(origin)
+  }
+  if (origin == "us_zcta" && dest == "us_county") {
+    return("us_zcta_county")
   }
   if (origin == "us_zcta" && dest == "us_cbsa") {
     return("us_zcta_cbsa")
@@ -101,6 +105,9 @@ resolve_map_type <- function(origin, dest) {
 }
 
 type_to_origin_dest <- function(type) {
+  if (type == "us_zcta_county") {
+    return(list(origin = "us_zcta", dest = "us_county"))
+  }
   if (type == "us_zcta_cbsa") {
     return(list(origin = "us_zcta", dest = "us_cbsa"))
   }
@@ -444,7 +451,7 @@ resolve_sci_path <- function(type, region_id, sci_data_dir) {
     return(file.path(sci_data_dir, files[1]))
   }
 
-  if (type %in% c("us_zcta", "us_zcta_cbsa")) {
+  if (type %in% c("us_zcta", "us_zcta_cbsa", "us_zcta_county")) {
     shard_file <- paste0("us_zcta_shard_", substr(region_id, 1, 1), ".csv")
     if (shard_file %in% files) {
       return(file.path(sci_data_dir, shard_file))
@@ -808,7 +815,7 @@ ui <- fluidPage(
       ),
 
       conditionalPanel(
-        condition = "input.dest_type == 'us_zcta' && (input.origin_type == 'us_zcta' || input.origin_type == 'us_cbsa')",
+        condition = "input.dest_type == 'us_zcta'",
         selectizeInput(
           "dest_cbsa",
           "Metro area (optional)",
@@ -817,12 +824,7 @@ ui <- fluidPage(
       ),
 
       conditionalPanel(
-        condition = paste0(
-          "!(",
-          "(['us_zcta','us_county','us_cbsa'].indexOf(input.origin_type) >= 0) && ",
-          "(['us_zcta','us_county','us_cbsa'].indexOf(input.dest_type) >= 0)",
-          ")"
-        ),
+        condition = "['us_zcta','us_county','us_cbsa'].indexOf(input.dest_type) < 0",
         selectizeInput(
           "country_group",
           "Regions to show",

@@ -248,21 +248,6 @@ make_map <- function(
     y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
     xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
     ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
-    crop_box <- st_bbox(
-      c(
-        xmin = xlim[1],
-        xmax = xlim[2],
-        ymin = ylim[1],
-        ymax = ylim[2]
-      ),
-      crs = st_crs(shapes)
-    )
-    if (any(!is.na(admin1_borders_data))) {
-      admin1_borders_data <- st_crop(admin1_borders_data, crop_box)
-    }
-    if (any(!is.na(borders_data))) {
-      borders_data <- st_crop(borders_data, crop_box)
-    }
   }
 
   if (is.null(breaks)) {
@@ -669,21 +654,6 @@ make_comparison_map <- function(
     y_pad <- (bbox[["ymax"]] - bbox[["ymin"]]) * 0.05
     xlim <- c(bbox[["xmin"]] - x_pad, bbox[["xmax"]] + x_pad)
     ylim <- c(bbox[["ymin"]] - y_pad, bbox[["ymax"]] + y_pad)
-    crop_box <- st_bbox(
-      c(
-        xmin = xlim[1],
-        xmax = xlim[2],
-        ymin = ylim[1],
-        ymax = ylim[2]
-      ),
-      crs = st_crs(shapes)
-    )
-    if (any(!is.na(admin1_borders_data))) {
-      admin1_borders_data <- st_crop(admin1_borders_data, crop_box)
-    }
-    if (any(!is.na(borders_data))) {
-      borders_data <- st_crop(borders_data, crop_box)
-    }
   }
 
   notify("Rendering map...")
@@ -729,7 +699,7 @@ make_comparison_map <- function(
     )
 
   if (!is.null(xlim) || !is.null(ylim)) {
-    g <- g + coord_sf(xlim = xlim, ylim = ylim)
+    g <- g + coord_sf(xlim = xlim, ylim = ylim, expand = FALSE)
   }
 
   if (!is.null(output_path)) {

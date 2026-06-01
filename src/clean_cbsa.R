@@ -106,3 +106,40 @@ build_zcta_cbsa_crosswalk <- function() {
   write_csv(crosswalk, zcta_cbsa_crosswalk_path)
   message("Saved ZCTA-CBSA crosswalk: ", zcta_cbsa_crosswalk_path)
 }
+
+
+build_zcta_county_crosswalk <- function() {
+  if (file.exists(zcta_county_crosswalk_path)) {
+    message("ZCTA-county crosswalk already exists, skipping.")
+    return(invisible(NULL))
+  }
+
+  zcta_county_path <- file.path(
+    input_shapefiles_dir,
+    "tab20_zcta520_county20_natl.txt"
+  )
+
+  if (!file.exists(zcta_county_path)) {
+    message("ZCTA-County file not found, skipping crosswalk.")
+    return(invisible(NULL))
+  }
+
+  crosswalk <- read_delim(
+    zcta_county_path,
+    delim = "|",
+    show_col_types = FALSE
+  ) %>%
+    filter(!is.na(GEOID_ZCTA5_20), GEOID_ZCTA5_20 != "") %>%
+    select(
+      zcta = GEOID_ZCTA5_20,
+      fips = GEOID_COUNTY_20,
+      area = AREALAND_PART
+    ) %>%
+    group_by(zcta) %>%
+    slice_max(area, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    select(zcta, fips)
+
+  write_csv(crosswalk, zcta_county_crosswalk_path)
+  message("Saved ZCTA-county crosswalk: ", zcta_county_crosswalk_path)
+}
