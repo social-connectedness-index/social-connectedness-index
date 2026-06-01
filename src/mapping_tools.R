@@ -563,6 +563,7 @@ compute_comparison_breaks <- function(log_ratio_values) {
   in_range <- nice_log2[nice_log2 <= max_range * 1.1]
 
   if (length(in_range) < 2) {
+    in_range <- nice_log2[seq_len(min(3, length(nice_log2)))]
   }
 
   if (length(in_range) > 5) {
