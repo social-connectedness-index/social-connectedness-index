@@ -929,11 +929,11 @@ ui <- fluidPage(
           textInput(
             "comparison_breaks",
             "Comparison breaks (comma-separated multipliers)",
-            value = "1.5, 2, 2.5, 3, 5"
+            value = ""
           ),
           div(
             class = "help-hint",
-            "Symmetric multiplier thresholds on each side of 'Equal' (e.g., '1.5, 2, 3' creates bins at 1.5x, 2x, 3x in both directions)."
+            "Symmetric multiplier thresholds on each side of 'Equal' (e.g., '1.5, 2, 3' creates bins at 1.5x, 2x, 3x in both directions). Leave empty to auto-compute from the data."
           )
         ),
 
