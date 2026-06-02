@@ -18,7 +18,8 @@ clean_nuts_shapefiles <- function() {
     nuts_level <- nuts_all %>%
       filter(LEVL_CODE == level) %>%
       select(NUTS_ID, CNTR_CODE, NAME_LATN) %>%
-      st_make_valid()
+      st_make_valid() %>%
+      ms_simplify(keep = 0.10, sys = TRUE, keep_shapes = TRUE)
 
     st_write(
       nuts_level,

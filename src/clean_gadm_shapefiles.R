@@ -157,14 +157,16 @@ load_gadm_data <- function(
     "GID_0",
     "GID_1",
     "NAME_1",
-    "gadm1"
+    "gadm1",
+    0.10
   )
   gadm2_all = process_gadm_level(
     gadm_level2,
     "GID_0",
     "GID_2",
     "NAME_2",
-    "gadm2"
+    "gadm2",
+    0.10
   )
   # Here, we will carry forward the GADM regions for those countries that don't have definitions
   # all the way down the hierarchy. For example, CYP does not have defined GADM2 regions, so we

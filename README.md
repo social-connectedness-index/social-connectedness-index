@@ -65,7 +65,8 @@ Think of the workflow in **two clear phases**:
 
    * Installs any missing R packages
    * Loads, cleans, and standardizes shapefiles
-   * Saves cleaned versions to disk
+   * Preprocesses shapefiles and SCI data into R's native `.rds` format for faster loading
+   * Saves cleaned and preprocessed versions to disk
 
 2. **Map creation** (repeat as needed)
 
@@ -95,6 +96,7 @@ Other key files:
 | `src/make_map.R`                | The `make_map()` function (public API)             |
 | `src/constants.R`               | File paths and country code lists                  |
 | `src/mapping_tools.R`           | Internal map rendering helpers and config          |
+| `src/preprocess.R`              | Converts shapefiles and CSVs to `.rds` for faster loading (runs once) |
 | `src/scalars.R`                 | Computes summary statistics for the paper          |
 | `src/clean_gadm_shapefiles.R`   | Cleans GADM shapefiles (runs once automatically)   |
 | `src/clean_geoboundaries.R`     | Downloads and cleans geoBoundaries (runs once)     |
@@ -145,9 +147,10 @@ The first time you run `src/main.R`, it will:
 
 * install any missing R packages
 * load and clean your shapefiles
-* save cleaned versions to `data/cleaned_shapefiles/`
+* preprocess shapefiles and SCI data into `.rds` format (R's fast binary format) for quicker loading on future runs
+* save cleaned and preprocessed versions to `data/cleaned_shapefiles/`
 
-**You only need to do this once per machine.** On subsequent runs, the script detects that the cleaned files already exist and skips this step.
+**You only need to do this once per machine.** On subsequent runs, the script detects that the cleaned and preprocessed files already exist and skips this step.
 
 ### What to do
 
@@ -168,8 +171,8 @@ The first time you run `src/main.R`, it will:
 ### What you should expect
 
 * This can take several minutes on the first run
-* You will see messages about shapefiles loading and cleaning
-* New folders and files will appear in `data/cleaned_shapefiles/`
+* You will see messages about shapefiles loading, cleaning, and preprocessing
+* New folders and files will appear in `data/cleaned_shapefiles/` (`.gpkg` and `.rds` files)
 
 If this finishes without errors, you are set.
 
@@ -452,7 +455,7 @@ The maps will be saved as PNG files in `output/maps/`. Each map is named after i
 
 **Map shows no colored regions**: Check that your `user_region_id` exists in the SCI data file and that `friend_countries` includes the countries you expect to see.
 
-**Want to re-run the cleaning step**: Delete the relevant files in `data/cleaned_shapefiles/` and run `src/main.R` again. The cleaning will re-run for any missing output files.
+**Want to re-run the cleaning step**: Run `./cleanup.sh` to delete all cleaned shapefiles, preprocessed `.rds` files, and generated outputs, then run `src/main.R` again. Alternatively, delete specific files in `data/cleaned_shapefiles/` — the cleaning and preprocessing will re-run for any missing output files.
 
 ---
 

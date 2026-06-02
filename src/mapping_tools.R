@@ -1,9 +1,26 @@
+rds_path_for_shapefile <- function(gpkg_path, layer = NULL) {
+  dir <- dirname(gpkg_path)
+  base <- tools::file_path_sans_ext(basename(gpkg_path))
+  if (!is.null(layer)) {
+    file.path(dir, paste0(base, "_", layer, ".rds"))
+  } else {
+    file.path(dir, paste0(base, ".rds"))
+  }
+}
+
+needs_iso2_conversion <- function(sf_data) {
+  !isTRUE(attr(sf_data, "iso2_converted"))
+}
+
 .shapefile_cache <- new.env(parent = emptyenv())
 
 load_shapefile_cached <- function(path, layer = NULL) {
   cache_key <- paste0(path, "|", layer %||% "")
   if (!exists(cache_key, envir = .shapefile_cache)) {
-    sf_obj <- if (is.null(layer)) {
+    rds <- rds_path_for_shapefile(path, layer)
+    sf_obj <- if (file.exists(rds)) {
+      readRDS(rds)
+    } else if (is.null(layer)) {
       st_read(dsn = path, quiet = TRUE)
     } else {
       st_read(dsn = path, layer = layer, quiet = TRUE)
@@ -22,11 +39,13 @@ clear_shapefile_cache <- function() {
 
 load_sci_cached <- function(path) {
   if (!exists(path, envir = .sci_cache)) {
-    assign(
-      path,
-      read_csv(path, na = c(""), show_col_types = FALSE),
-      envir = .sci_cache
-    )
+    rds <- paste0(tools::file_path_sans_ext(path), ".rds")
+    df <- if (file.exists(rds)) {
+      readRDS(rds)
+    } else {
+      read_csv(path, na = c(""), show_col_types = FALSE)
+    }
+    assign(path, df, envir = .sci_cache)
   }
   get(path, envir = .sci_cache)
 }

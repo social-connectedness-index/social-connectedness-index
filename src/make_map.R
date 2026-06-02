@@ -68,14 +68,26 @@ make_map <- function(
   )
   borders_sf <- load_shapefile_cached(gadm0_shapefile_path, NULL)
 
-  if (config$friend_country_key %in% c("sov_country", "shapeGroup")) {
+  if (
+    config$friend_country_key %in%
+      c("sov_country", "shapeGroup") &&
+      needs_iso2_conversion(friend_sf)
+  ) {
     friend_sf <- iso3_to_iso2(friend_sf, config$friend_country_key)
   }
 
-  borders_sf <- iso3_to_iso2(borders_sf, "sov_country") %>%
-    st_transform(st_crs(friend_sf))
+  if (needs_iso2_conversion(borders_sf)) {
+    borders_sf <- iso3_to_iso2(borders_sf, "sov_country")
+  }
+  if (!identical(st_crs(borders_sf), st_crs(friend_sf))) {
+    borders_sf <- st_transform(borders_sf, st_crs(friend_sf))
+  }
 
-  if (config$highlight_region_key %in% c("sov_country", "shapeGroup")) {
+  if (
+    config$highlight_region_key %in%
+      c("sov_country", "shapeGroup") &&
+      needs_iso2_conversion(highlight_sf_all)
+  ) {
     highlight_sf_all <- iso3_to_iso2(
       highlight_sf_all,
       config$highlight_region_key
@@ -139,10 +151,16 @@ make_map <- function(
       config$admin1_borders$layer
     )
     admin1_country_key <- config$admin1_borders$country_key
-    if (admin1_country_key %in% c("sov_country", "shapeGroup")) {
+    if (
+      admin1_country_key %in%
+        c("sov_country", "shapeGroup") &&
+        needs_iso2_conversion(admin1_sf)
+    ) {
       admin1_sf <- iso3_to_iso2(admin1_sf, admin1_country_key)
     }
-    admin1_sf <- st_transform(admin1_sf, st_crs(friend_sf))
+    if (!identical(st_crs(admin1_sf), st_crs(friend_sf))) {
+      admin1_sf <- st_transform(admin1_sf, st_crs(friend_sf))
+    }
     if (!is.null(friend_countries)) {
       admin1_borders_data <- admin1_sf %>%
         filter(.data[[admin1_country_key]] %in% friend_countries)
@@ -438,14 +456,26 @@ make_comparison_map <- function(
   )
   borders_sf <- load_shapefile_cached(gadm0_shapefile_path, NULL)
 
-  if (config$friend_country_key %in% c("sov_country", "shapeGroup")) {
+  if (
+    config$friend_country_key %in%
+      c("sov_country", "shapeGroup") &&
+      needs_iso2_conversion(friend_sf)
+  ) {
     friend_sf <- iso3_to_iso2(friend_sf, config$friend_country_key)
   }
 
-  borders_sf <- iso3_to_iso2(borders_sf, "sov_country") %>%
-    st_transform(st_crs(friend_sf))
+  if (needs_iso2_conversion(borders_sf)) {
+    borders_sf <- iso3_to_iso2(borders_sf, "sov_country")
+  }
+  if (!identical(st_crs(borders_sf), st_crs(friend_sf))) {
+    borders_sf <- st_transform(borders_sf, st_crs(friend_sf))
+  }
 
-  if (config$highlight_region_key %in% c("sov_country", "shapeGroup")) {
+  if (
+    config$highlight_region_key %in%
+      c("sov_country", "shapeGroup") &&
+      needs_iso2_conversion(highlight_sf_all)
+  ) {
     highlight_sf_all <- iso3_to_iso2(
       highlight_sf_all,
       config$highlight_region_key
@@ -509,10 +539,16 @@ make_comparison_map <- function(
       config$admin1_borders$layer
     )
     admin1_country_key <- config$admin1_borders$country_key
-    if (admin1_country_key %in% c("sov_country", "shapeGroup")) {
+    if (
+      admin1_country_key %in%
+        c("sov_country", "shapeGroup") &&
+        needs_iso2_conversion(admin1_sf)
+    ) {
       admin1_sf <- iso3_to_iso2(admin1_sf, admin1_country_key)
     }
-    admin1_sf <- st_transform(admin1_sf, st_crs(friend_sf))
+    if (!identical(st_crs(admin1_sf), st_crs(friend_sf))) {
+      admin1_sf <- st_transform(admin1_sf, st_crs(friend_sf))
+    }
     if (!is.null(friend_countries)) {
       admin1_borders_data <- admin1_sf %>%
         filter(.data[[admin1_country_key]] %in% friend_countries)

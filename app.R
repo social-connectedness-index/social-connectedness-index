@@ -6,6 +6,14 @@ library(shiny)
 source("src/setup.R")
 source("src/map_structs.R")
 
+message("Warming shapefile cache...")
+load_shapefile_cached(gadm0_shapefile_path)
+load_shapefile_cached(gadm1_shapefile_path)
+load_shapefile_cached(us_county_shapefile_path)
+load_shapefile_cached(us_cbsa_shapefile_path)
+load_shapefile_cached(nuts1_shapefile_path)
+message("Shapefile cache warm.")
+
 # --- Configuration ---
 
 sci_data_dir <- "data/sci_2026"
@@ -161,19 +169,24 @@ country_group_bounds <- list(
 # bounds when the user adds individual countries via custom_countries).
 country_bbox <- tryCatch(
   {
-    gadm0 <- st_read(gadm0_shapefile_path, quiet = TRUE)
+    gadm0 <- load_shapefile_cached(gadm0_shapefile_path)
+    is_preprocessed <- !needs_iso2_conversion(gadm0)
     bboxes <- list()
-    for (iso3 in unique(gadm0$sov_country)) {
-      iso2 <- countrycode::countrycode(
-        iso3,
-        "iso3c",
-        "iso2c",
-        custom_match = c("XKX" = "XK", "XKO" = "XK")
-      )
+    for (code in unique(gadm0$sov_country)) {
+      iso2 <- if (is_preprocessed) {
+        code
+      } else {
+        countrycode::countrycode(
+          code,
+          "iso3c",
+          "iso2c",
+          custom_match = c("XKX" = "XK", "XKO" = "XK")
+        )
+      }
       if (is.na(iso2)) {
         next
       }
-      bb <- st_bbox(gadm0[gadm0$sov_country == iso3, ])
+      bb <- st_bbox(gadm0[gadm0$sov_country == code, ])
       bboxes[[iso2]] <- list(
         xlim = c(bb[["xmin"]], bb[["xmax"]]),
         ylim = c(bb[["ymin"]], bb[["ymax"]])
@@ -397,9 +410,17 @@ build_region_choices <- function(cfg) {
   region_names <- sf_data[[cfg$name]]
 
   if (!is.null(cfg$country_col)) {
+    origin <- cfg$country_origin
+    if (
+      !needs_iso2_conversion(sf_data) &&
+        origin == "iso3c" &&
+        cfg$country_col %in% c("sov_country", "shapeGroup")
+    ) {
+      origin <- "iso2c"
+    }
     country_names <- countrycode::countrycode(
       sf_data[[cfg$country_col]],
-      cfg$country_origin,
+      origin,
       "country.name",
       custom_match = c("XKO" = "Kosovo", "XKX" = "Kosovo", "XK" = "Kosovo")
     )
@@ -486,13 +507,17 @@ resolve_sci_path <- function(type, region_id, sci_data_dir) {
     sf_data <- load_shapefile_cached(geoboundaries_gpkg_path, "adm2")
     match_row <- sf_data[sf_data$shapeID == region_id, ]
     if (nrow(match_row) > 0) {
-      iso3 <- match_row$shapeGroup[1]
-      country_iso2 <- countrycode::countrycode(
-        iso3,
-        "iso3c",
-        "iso2c",
-        custom_match = c("XKX" = "XK")
-      )
+      group_code <- match_row$shapeGroup[1]
+      country_iso2 <- if (!needs_iso2_conversion(sf_data)) {
+        group_code
+      } else {
+        countrycode::countrycode(
+          group_code,
+          "iso3c",
+          "iso2c",
+          custom_match = c("XKX" = "XK")
+        )
+      }
     }
   }
 

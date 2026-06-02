@@ -23,7 +23,8 @@ clean_cbsa_shapefile <- function() {
     filter(LSAD == "M1") %>%
     select(region_id = GEOID, name = NAME) %>%
     st_transform(crs = 4326) %>%
-    st_make_valid()
+    st_make_valid() %>%
+    ms_simplify(keep = 0.10, sys = TRUE, keep_shapes = TRUE)
 
   if (file.exists(us_county_shapefile_path)) {
     counties <- st_read(us_county_shapefile_path, quiet = TRUE)

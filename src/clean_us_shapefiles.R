@@ -44,6 +44,7 @@ clean_us_zcta_shapefile <- function() {
     select(region_id = ZCTA5CE20) %>%
     st_transform(crs = 4326) %>%
     st_make_valid() %>%
+    ms_simplify(keep = 0.10, sys = TRUE, keep_shapes = TRUE) %>%
     st_difference(great_lakes) %>%
     st_write(
       file.path(
@@ -82,6 +83,7 @@ clean_us_county_shapefile <- function() {
     select(region_id) %>%
     st_transform(crs = 4326) %>%
     st_make_valid() %>%
+    ms_simplify(keep = 0.10, sys = TRUE, keep_shapes = TRUE) %>%
     st_difference(great_lakes) %>%
     st_write(
       file.path(
