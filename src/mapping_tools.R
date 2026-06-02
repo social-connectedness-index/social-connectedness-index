@@ -524,7 +524,7 @@ build_map_plot <- function(
       fill = na_color,
       color = NA
     ) +
-    geom_sf(aes(fill = !!sym(col)), size = 0.001, color = NA) +
+    geom_sf(aes(fill = !!sym(col)), linewidth = 0.001, color = NA) +
     binned_scale(
       aesthetics = "fill",
       palette = function(x) pal,
@@ -577,7 +577,7 @@ build_map_plot <- function(
     map <- map +
       geom_sf(
         data = admin1_borders_data,
-        size = 0.75,
+        linewidth = 0.75,
         fill = "transparent",
         color = admin1_border_color
       )
@@ -587,7 +587,7 @@ build_map_plot <- function(
     map <- map +
       geom_sf(
         data = borders_data,
-        size = 2,
+        linewidth = 2,
         fill = "transparent",
         color = border_color
       )

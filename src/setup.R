@@ -1,7 +1,6 @@
 required_packages <- c(
   "av",
   "countrycode",
-  "Hmisc",
   "RColorBrewer",
   "readxl",
   "rmapshaper",

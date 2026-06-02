@@ -1278,7 +1278,13 @@ server <- function(input, output, session) {
 
       tryCatch(
         {
-          updateRadioButtons(session, "map_mode", selected = "single")
+          is_compare <- "region_a_id" %in% names(spec)
+          updateRadioButtons(
+            session,
+            "map_mode",
+            selected = if (is_compare) "compare" else "single"
+          )
+
           od <- type_to_origin_dest(spec$type)
           rv$skip_type_region_update <- TRUE
           updateSelectInput(session, "origin_type", selected = od$origin)
@@ -1292,25 +1298,72 @@ server <- function(input, output, session) {
           )
 
           choices <- get_region_choices(od$origin)
-          if (is.null(choices)) {
-            updateSelectizeInput(
-              session,
-              "user_region_id",
-              choices = character(0),
-              selected = spec$user_region_id
+          is_large <- od$origin %in% c("gadm2", "adm2", "us_zcta")
+
+          if (is_compare) {
+            if (is.null(choices)) {
+              updateSelectizeInput(
+                session, "region_a_id",
+                choices = character(0), selected = spec$region_a_id
+              )
+              updateSelectizeInput(
+                session, "region_b_id",
+                choices = character(0), selected = spec$region_b_id
+              )
+            } else {
+              updateSelectizeInput(
+                session, "region_a_id",
+                choices = choices, selected = spec$region_a_id,
+                server = is_large
+              )
+              updateSelectizeInput(
+                session, "region_b_id",
+                choices = choices, selected = spec$region_b_id,
+                server = is_large
+              )
+            }
+            updateTextInput(
+              session, "label_a", value = spec$label_a %||% ""
+            )
+            updateTextInput(
+              session, "label_b", value = spec$label_b %||% ""
+            )
+
+            matched_color <- names(comparison_color_presets)[1]
+            if (!is.null(spec$color_a) && !is.null(spec$color_b)) {
+              for (name in names(comparison_color_presets)) {
+                pair <- comparison_color_presets[[name]]
+                if (pair$color_a == spec$color_a &&
+                    pair$color_b == spec$color_b) {
+                  matched_color <- name
+                  break
+                }
+              }
+            }
+            updateSelectInput(
+              session, "comparison_color_preset", selected = matched_color
             )
           } else {
-            is_large <- od$origin %in% c("gadm2", "adm2", "us_zcta")
-            updateSelectizeInput(
-              session,
-              "user_region_id",
-              choices = choices,
-              selected = spec$user_region_id,
-              server = is_large
-            )
+            if (is.null(choices)) {
+              updateSelectizeInput(
+                session, "user_region_id",
+                choices = character(0), selected = spec$user_region_id
+              )
+            } else {
+              updateSelectizeInput(
+                session, "user_region_id",
+                choices = choices, selected = spec$user_region_id,
+                server = is_large
+              )
+            }
           }
-          updateTextInput(session, "title", value = spec$title %||% "")
-          updateTextInput(session, "subtitle", value = "")
+
+          updateTextInput(
+            session, "title", value = spec$title %||% ""
+          )
+          updateTextInput(
+            session, "subtitle", value = spec$subtitle %||% ""
+          )
 
           matched_group <- "All countries"
           if (!is.null(spec$friend_countries)) {

@@ -48,7 +48,7 @@ shiny::runApp()
 The app lets you:
 
 * **Load presets** — start from a working example and modify it
-* **Select map type** — dropdown with all 16 map types
+* **Select map type** — dropdown with all available map types
 * **Pick SCI data** — auto-filtered to match the selected type
 * **Choose countries** — preset groups (Europe, Africa, etc.) or all
 * **Set custom breaks, colors, zoom** — via an expandable "Advanced options" panel
@@ -117,7 +117,7 @@ Before running anything, make sure you have:
 * [**R**](https://cran.r-project.org/) (version 4.0 or later recommended)
 * [**RStudio**](https://posit.co/download/rstudio-desktop/)
 
-The tool uses these R packages: `av`, `countrycode`, `Hmisc`, `RColorBrewer`, `readxl`, `rmapshaper`, `rgeoboundaries`, `rnaturalearth`, `rnaturalearthdata`, `sf`, `tidyverse`, and `wbstats`.
+The tool uses these R packages: `av`, `countrycode`, `RColorBrewer`, `readxl`, `rmapshaper`, `rgeoboundaries`, `rnaturalearth`, `rnaturalearthdata`, `sf`, and `tidyverse`.
 
 **You do not need to install these packages manually.** The script will detect and install any missing packages automatically on the first run.
 
@@ -211,7 +211,9 @@ These types color **sub-national regions** based on SCI to a selected region at 
 | `gadm2`      | GADM level 2 (districts)    | GADM level 2                | SCI from a district to other districts               |
 | `adm1`       | geoBoundaries ADM1          | geoBoundaries ADM1          | SCI from Massachusetts to other US states            |
 | `adm2`       | geoBoundaries ADM2          | geoBoundaries ADM2          | SCI from Stockholm municipality to Swedish regions   |
-| `nuts`       | NUTS regions                | NUTS region                 | SCI from Hamburg (NUTS1) to European NUTS1 regions   |
+| `nuts1`      | NUTS level 1 regions        | NUTS level 1 region         | SCI from Ile-de-France to European NUTS1 regions     |
+| `nuts2`      | NUTS level 2 regions        | NUTS level 2 region         | SCI from Oberbayern to European NUTS2 regions        |
+| `nuts3`      | NUTS level 3 regions        | NUTS level 3 region         | SCI from Berlin to European NUTS3 regions            |
 | `us_county`  | US counties                 | US county                   | SCI from Kings County to other US counties           |
 | `us_zcta`    | US ZIP Code areas           | US ZIP Code area            | SCI from a ZIP code to other ZIP codes               |
 | `us_cbsa`    | US metro areas (CBSAs)      | US metro area (CBSA)        | SCI from New York metro to other metros              |
@@ -220,24 +222,44 @@ These types color **sub-national regions** based on SCI to a selected region at 
 
 These types map between different US geographic levels by aggregating ZCTA-level SCI data via a crosswalk:
 
-| Type           | Friends colored as     | Source highlighted as  | Example use case                                          |
-| -------------- | ---------------------- | ---------------------- | --------------------------------------------------------- |
-| `us_zcta_cbsa` | US metro areas (CBSAs) | US ZIP Code area       | SCI from a ZIP code, aggregated to metro areas            |
-| `us_cbsa_zcta` | US ZIP Code areas      | US metro area (CBSA)   | SCI from a metro area, shown at ZIP code level            |
+| Type             | Friends colored as     | Source highlighted as  | Example use case                                          |
+| ---------------- | ---------------------- | ---------------------- | --------------------------------------------------------- |
+| `us_zcta_cbsa`   | US metro areas (CBSAs) | US ZIP Code area       | SCI from a ZIP code, aggregated to metro areas            |
+| `us_cbsa_zcta`   | US ZIP Code areas      | US metro area (CBSA)   | SCI from a metro area, shown at ZIP code level            |
+| `us_zcta_county` | US counties            | US ZIP Code area       | SCI from a ZIP code, aggregated to counties               |
 
 ### Region-to-country types
 
 These types color **countries** based on SCI from a sub-national region:
 
-| Type               | Friends colored as | Source highlighted as  | Example use case                                  |
-| ------------------ | ------------------ | ---------------------- | ------------------------------------------------- |
-| `gadm1_country`    | Countries          | GADM level 1           | SCI from a GADM1 region to all countries          |
-| `gadm2_country`    | Countries          | GADM level 2           | SCI from a GADM2 district to all countries        |
-| `adm1_country`     | Countries          | geoBoundaries ADM1     | SCI from Uttar Pradesh to all countries           |
-| `adm2_country`     | Countries          | geoBoundaries ADM2     | SCI from a geoBoundaries district to all countries|
-| `nuts_country`     | Countries          | NUTS region            | SCI from Hamburg to all countries                 |
-| `us_county_country`| Countries          | US county              | SCI from San Bernardino County to all countries   |
-| `us_zcta_country`  | Countries          | US ZIP Code area       | SCI from Cambridge (02138) to all countries       |
+| Type                | Friends colored as | Source highlighted as  | Example use case                                   |
+| ------------------- | ------------------ | ---------------------- | -------------------------------------------------- |
+| `gadm1_country`     | Countries          | GADM level 1           | SCI from a GADM1 region to all countries           |
+| `gadm2_country`     | Countries          | GADM level 2           | SCI from a GADM2 district to all countries         |
+| `adm1_country`      | Countries          | geoBoundaries ADM1     | SCI from Uttar Pradesh to all countries            |
+| `adm2_country`      | Countries          | geoBoundaries ADM2     | SCI from a geoBoundaries district to all countries |
+| `nuts1_country`     | Countries          | NUTS level 1           | SCI from Ile-de-France to all countries            |
+| `nuts2_country`     | Countries          | NUTS level 2           | SCI from Oberbayern to all countries               |
+| `nuts3_country`     | Countries          | NUTS level 3           | SCI from Berlin to all countries                   |
+| `us_county_country` | Countries          | US county              | SCI from San Bernardino County to all countries    |
+| `us_zcta_country`   | Countries          | US ZIP Code area       | SCI from Cambridge (02138) to all countries        |
+
+### Country-to-region types
+
+These types color **sub-national regions** based on SCI from a country (the reverse direction of region-to-country):
+
+| Type                | Friends colored as     | Source highlighted as | Example use case                                       |
+| ------------------- | ---------------------- | --------------------- | ------------------------------------------------------ |
+| `country_gadm1`     | GADM level 1 (states)  | Country               | Where does Japan have the most friends? (GADM1)        |
+| `country_gadm2`     | GADM level 2 (districts)| Country              | Where does Japan have the most friends? (GADM2)        |
+| `country_adm1`      | geoBoundaries ADM1     | Country               | Where does Japan have the most friends? (ADM1)         |
+| `country_adm2`      | geoBoundaries ADM2     | Country               | Where does Japan have the most friends? (ADM2)         |
+| `country_nuts1`     | NUTS level 1           | Country               | Where does Japan have the most friends in Europe? (NUTS1)|
+| `country_nuts2`     | NUTS level 2           | Country               | Where does Japan have the most friends in Europe? (NUTS2)|
+| `country_nuts3`     | NUTS level 3           | Country               | Where does Japan have the most friends in Europe? (NUTS3)|
+| `country_us_cbsa`   | US metro areas (CBSAs) | Country               | Where does the Netherlands have the most friends? (CBSAs)|
+| `country_us_county` | US counties            | Country               | Where does the Netherlands have the most friends? (counties)|
+| `country_us_zcta`   | US ZIP Code areas      | Country               | Where does the Netherlands have the most friends? (ZCTAs)|
 
 ---
 
@@ -279,16 +301,34 @@ The file you use depends on the map type:
 | `gadm2`                      | `data/sci_2026/gadm2_shard_XX.csv` (see below)    |
 | `adm1`                       | `data/sci_2026/geoboundaries_adm1.csv`            |
 | `adm2`                       | `data/sci_2026/geoboundaries_adm2_shard_XX.csv`   |
-| `nuts`                       | `data/sci_2026/nuts1_2024.csv` (or nuts2, nuts3)  |
+| `nuts1`                      | `data/sci_2026/nuts1_2024.csv`                    |
+| `nuts2`                      | `data/sci_2026/nuts2_2024.csv`                    |
+| `nuts3`                      | `data/sci_2026/nuts3_2024.csv`                    |
 | `us_county`                  | `data/sci_2026/us_counties.csv`                   |
 | `us_zcta`                    | `data/sci_2026/us_zcta_shard_X.csv`               |
 | `us_cbsa`                    | `data/sci_2026/us_zcta_shard_X.csv` (all shards)  |
 | `us_zcta_cbsa`               | `data/sci_2026/us_zcta_shard_X.csv`               |
 | `us_cbsa_zcta`               | `data/sci_2026/us_zcta_shard_X.csv` (all shards)  |
+| `us_zcta_county`             | `data/sci_2026/us_zcta_shard_X.csv`               |
 | `gadm1_country`              | `data/sci_2026/gadm1_to_country.csv`              |
-| `nuts_country`               | `data/sci_2026/nuts1_2024_to_country.csv`         |
+| `gadm2_country`              | `data/sci_2026/gadm2_to_country.csv`              |
+| `adm1_country`               | `data/sci_2026/geoboundaries_adm1_to_country.csv` |
+| `adm2_country`               | `data/sci_2026/geoboundaries_adm2_to_country.csv` |
+| `nuts1_country`              | `data/sci_2026/nuts1_2024_to_country.csv`         |
+| `nuts2_country`              | `data/sci_2026/nuts2_2024_to_country.csv`         |
+| `nuts3_country`              | `data/sci_2026/nuts3_2024_to_country.csv`         |
 | `us_county_country`          | `data/sci_2026/us_counties_to_country.csv`        |
 | `us_zcta_country`            | `data/sci_2026/us_zcta_to_country.csv`            |
+| `country_gadm1`              | `data/sci_2026/gadm1_to_country.csv`              |
+| `country_gadm2`              | `data/sci_2026/gadm2_to_country.csv`              |
+| `country_adm1`               | `data/sci_2026/geoboundaries_adm1_to_country.csv` |
+| `country_adm2`               | `data/sci_2026/geoboundaries_adm2_to_country.csv` |
+| `country_nuts1`              | `data/sci_2026/nuts1_2024_to_country.csv`         |
+| `country_nuts2`              | `data/sci_2026/nuts2_2024_to_country.csv`         |
+| `country_nuts3`              | `data/sci_2026/nuts3_2024_to_country.csv`         |
+| `country_us_cbsa`            | `data/sci_2026/us_zcta_to_country.csv`            |
+| `country_us_county`          | `data/sci_2026/us_counties_to_country.csv`        |
+| `country_us_zcta`            | `data/sci_2026/us_zcta_to_country.csv`            |
 
 **Sharded files**: Some SCI files are split into shards by country or region (e.g., `gadm2_shard_BR.csv`). Use the shard that contains the region you want to map from. The shard suffix typically corresponds to the ISO-2 country code of the source region.
 
@@ -419,7 +459,7 @@ Beyond the fields available in `map_structs.R`, `make_map()` accepts:
 | `legend_name`          | `"Likelihood of Friendship"`    | Legend title text                             |
 | `color_palette`        | default blue ramp               | Vector of hex colors for the color scale     |
 | `highlight_color`      | `"#FF0000"`                     | Fill color for the source region             |
-| `border_color`         | `"gray20"`                      | Country border color                         |
+| `border_color`         | `"black"`                       | Country border color                         |
 | `na_color`             | `"#BFBFBF"`                     | Fill for regions with no data                |
 | `background_color`     | `"white"`                       | Plot background color                        |
 | `subtitle`             | `NULL`                          | Subtitle text                                |
@@ -431,6 +471,51 @@ Beyond the fields available in `map_structs.R`, `make_map()` accepts:
 | `height`               | `25`                            | Output height in inches                      |
 | `dpi`                  | `300`                           | Output resolution                            |
 | `return_data`          | `FALSE`                         | If `TRUE`, returns a list with plot and data |
+
+---
+
+## Using `make_comparison_map()` Directly
+
+`make_comparison_map()` produces a diverging-color map comparing the social connections of two regions. Regions more connected to Region A are colored in one direction, and regions more connected to Region B in the other.
+
+### Example
+
+```r
+make_comparison_map(
+  type = "country",
+  region_a_id = "DE",
+  region_b_id = "BR",
+  sci_path = "data/sci_2026/country.csv",
+  label_a = "Germany",
+  label_b = "Brazil",
+  color_a = "#FFCC00",
+  color_b = "#009739",
+  title = "Germany vs Brazil",
+  subtitle = "Friendship Links to Germany vs Brazil",
+  output_path = "output/maps/de_vs_br.png"
+)
+```
+
+### Parameters
+
+| Parameter              | Default                         | Description                                          |
+| ---------------------- | ------------------------------- | ---------------------------------------------------- |
+| `type`                 | (required)                      | Map type (same types as `make_map()`)                |
+| `region_a_id`          | (required)                      | Region ID for the first region                       |
+| `region_b_id`          | (required)                      | Region ID for the second region                      |
+| `sci_path`             | (required)                      | Path to SCI data for Region A                        |
+| `sci_path_b`           | `NULL`                          | Path to SCI data for Region B (defaults to `sci_path`)|
+| `label_a`              | `NULL`                          | Legend label for Region A                            |
+| `label_b`              | `NULL`                          | Legend label for Region B                            |
+| `color_a`              | (required)                      | Color for regions more connected to A                |
+| `color_b`              | (required)                      | Color for regions more connected to B                |
+| `color_mid`            | `"white"`                       | Color for equally connected regions                  |
+| `friend_countries`     | `NULL`                          | Countries to include (same as `make_map()`)          |
+| `breaks`               | auto-computed                   | Custom break points (in log2 ratio space)            |
+
+All other display parameters (`xlim`, `ylim`, `border_color`, `output_path`, etc.) work the same as in `make_map()`.
+
+Comparison specs can also be defined in `map_structs.R` — use `region_a_id` and `region_b_id` instead of `user_region_id`, and the batch runner will automatically dispatch to `make_comparison_map()`.
 
 ---
 
