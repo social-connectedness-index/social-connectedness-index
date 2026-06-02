@@ -577,7 +577,7 @@ build_map_plot <- function(
     map <- map +
       geom_sf(
         data = admin1_borders_data,
-        linewidth = 0.75,
+        linewidth = 0.5,
         fill = "transparent",
         color = admin1_border_color
       )
@@ -587,7 +587,7 @@ build_map_plot <- function(
     map <- map +
       geom_sf(
         data = borders_data,
-        linewidth = 2,
+        linewidth = 1,
         fill = "transparent",
         color = border_color
       )
@@ -599,7 +599,7 @@ build_map_plot <- function(
   }
 
   if (!is.null(xlims) || !is.null(ylims)) {
-    map <- map + coord_sf(xlim = xlims, ylim = ylims, expand = FALSE)
+    map <- map + coord_sf(xlim = xlims, ylim = ylims)
   }
 
   map

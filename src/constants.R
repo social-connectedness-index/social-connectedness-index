@@ -68,33 +68,7 @@ nuts1_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts1.gpkg")
 nuts2_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts2.gpkg")
 nuts3_shapefile_path <- file.path(nuts_shapefiles_output_dir, "nuts3.gpkg")
 
-sci_2021_dir <- file.path(data_dir, "sci_2021")
-
-country_sci_2021 <- file.path(
-  sci_2021_dir,
-  "countries-countries-fb-social-connectedness-index-october-2021.tsv"
-)
-
-counties_sci_2021 <- file.path(
-  sci_2021_dir,
-  "county_county.tsv"
-)
-
 sci_2026_dir <- file.path(data_dir, "sci_2026")
-
-country_sci_2026 <- file.path(
-  sci_2026_dir,
-  "country.csv"
-)
-
-counties_sci_2026 <- file.path(
-  sci_2026_dir,
-  "us_counties.csv"
-)
-
-scalar_output_fp <- file.path(output_dir, "scalars.txt")
-internal_scalars_fp <- file.path(data_dir, "internal_scalars.txt")
-external_scalars_fp <- file.path(data_dir, "external_scalars.txt")
 
 iso3_sovereign_iso3_xwalk = c(
   "AIA" = "GBR", # Anguilla

@@ -1,8 +1,6 @@
 source("src/setup.R")
 source("src/map_structs.R")
 
-output_master_scalars_file()
-
 output_format <- "png" # "png" for images, "mp4" for videos
 
 for (spec_name in names(map_specs)) {

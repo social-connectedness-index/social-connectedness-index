@@ -12,5 +12,3 @@ rm -f data/sci_2026/*.rds
 
 # Delete generated outputs
 rm -rf output/maps/*
-rm -f output/scalars.txt
-rm -f data/external_scalars.txt

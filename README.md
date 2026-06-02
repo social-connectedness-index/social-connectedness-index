@@ -24,13 +24,16 @@ There are **three ways** to use this tool, from easiest to most flexible:
 
 If you just want to get maps as fast as possible:
 
-1. Install [R](https://cran.r-project.org/) and [RStudio](https://posit.co/download/rstudio-desktop/)
-2. Download your SCI data from the [Humanitarian Data Exchange](https://data.humdata.org/dataset/social-connectedness-index) and place the files in `data/sci_2026/`
-3. Download the shapefiles you need (see [Data and Shapefiles](#data-and-shapefiles) below) and place them in `data/input_shapefiles/`
-4. Open `social-connectedness-index.Rproj` in RStudio
-5. Open `src/map_structs.R`, edit the map definitions to specify the maps you want (see [Editing map_structs.R](#step-2-editing-map_structsr))
-6. Open `src/main.R` and run the entire script (`Cmd+A` then `Cmd+Enter` on Mac, or `Ctrl+A` then `Ctrl+Enter` on Windows)
-7. Your maps will appear in `output/maps/`
+1. Install [R](https://cran.r-project.org/), [RStudio](https://posit.co/download/rstudio-desktop/), [Node.js](https://nodejs.org), and [mapshaper](https://github.com/mbloch/mapshaper) (`npm install -g mapshaper`)
+2. Download all data by running the download script from the repository root:
+   ```bash
+   ./download_data.sh
+   ```
+   This downloads all SCI data and shapefiles automatically (~5 GB total). It is safe to re-run — it skips files that already exist. See [Automated Download](#automated-download) for details.
+3. Open `social-connectedness-index.Rproj` in RStudio
+4. Open `src/map_structs.R`, edit the map definitions to specify the maps you want (see [Editing map_structs.R](#step-2-editing-map_structsr))
+5. Open `src/main.R` and run the entire script (`Cmd+A` then `Cmd+Enter` on Mac, or `Ctrl+A` then `Ctrl+Enter` on Windows)
+6. Your maps will appear in `output/maps/`
 
 On the first run, the script will automatically install any missing R packages and clean the shapefiles. On subsequent runs, the cleaning step is skipped automatically, so re-runs are fast.
 
@@ -38,7 +41,7 @@ On the first run, the script will automatically install any missing R packages a
 
 ## Interactive App
 
-After completing the one-time setup (steps 1–4 of Quick Start above), you can launch an interactive Shiny app to create maps without editing any code:
+After completing the one-time setup (steps 1–3 of Quick Start above), you can launch an interactive Shiny app to create maps without editing any code:
 
 ```r
 install.packages("shiny")  # only needed once
@@ -91,20 +94,20 @@ Other key files:
 
 | File / Folder                   | Purpose                                            |
 | ------------------------------- | -------------------------------------------------- |
+| `download_data.sh`              | Downloads all SCI data and shapefiles (`./download_data.sh`) |
 | `app.R`                         | Interactive Shiny app (run with `shiny::runApp()`) |
 | `src/setup.R`                   | Shared setup: packages, sources, shapefile cleaning|
 | `src/make_map.R`                | The `make_map()` function (public API)             |
 | `src/constants.R`               | File paths and country code lists                  |
 | `src/mapping_tools.R`           | Internal map rendering helpers and config          |
 | `src/preprocess.R`              | Converts shapefiles and CSVs to `.rds` for faster loading (runs once) |
-| `src/scalars.R`                 | Computes summary statistics for the paper          |
 | `src/clean_gadm_shapefiles.R`   | Cleans GADM shapefiles (runs once automatically)   |
 | `src/clean_geoboundaries.R`     | Downloads and cleans geoBoundaries (runs once)     |
 | `src/clean_us_shapefiles.R`     | Cleans US Census shapefiles (runs once)            |
 | `src/clean_cbsa.R`              | Cleans CBSA shapefiles and builds ZCTA-CBSA crosswalk (runs once) |
 | `src/clean_nuts_shapefiles.R`   | Cleans NUTS shapefiles (runs once)                 |
-| `data/sci_2026/`                | SCI data files (you download these)                |
-| `data/input_shapefiles/`        | Raw shapefiles (you download these)                |
+| `data/sci_2026/`                | SCI data files (downloaded by `download_data.sh`)  |
+| `data/input_shapefiles/`        | Raw shapefiles (downloaded by `download_data.sh`)  |
 | `data/cleaned_shapefiles/`      | Cleaned shapefiles (generated automatically)       |
 | `output/maps/`                  | Generated map images (PNG)                         |
 
@@ -139,6 +142,25 @@ PATH=${PATH}:/path/to/your/node/bin
 
 ---
 
+## Automated Download
+
+The `download_data.sh` script downloads **all** SCI data files and shapefiles in one step:
+
+```bash
+./download_data.sh
+```
+
+This downloads:
+
+* **SCI 2026 data** — all CSV files from the [Humanitarian Data Exchange](https://data.humdata.org/dataset/social-connectedness-index), including sharded files hosted on Google Drive, placed in `data/sci_2026/`
+* **Shapefiles** — GADM, NUTS, US Census TIGER/Line (ZCTA, county, CBSA), crosswalk files, and OMB delineation file, placed in `data/input_shapefiles/`
+
+The script is safe to re-run — it skips files that already exist. The total download is approximately **5 GB** (the GADM shapefile alone is ~2.5 GB). geoBoundaries shapefiles are not included; they are downloaded automatically via API when you first run the R scripts.
+
+If you prefer to download files individually, see [Data and Shapefiles](#data-and-shapefiles) for manual download links.
+
+---
+
 ## Step 1: One-Time Setup
 
 ### What this step does
@@ -154,13 +176,7 @@ The first time you run `src/main.R`, it will:
 
 ### What to do
 
-1. Download the SCI data and the shapefiles that are applicable to your use case. Download links are in the [Data and Shapefiles](#data-and-shapefiles) section below.
-
-   * **GADM**: Download and place in `data/input_shapefiles/`
-   * **NUTS**: Download and place in `data/input_shapefiles/`
-   * **US counties and ZCTAs**: Download and place in `data/input_shapefiles/`
-   * **US CBSAs** (metro areas): Download the CBSA shapefile, ZCTA-county relationship file, and OMB delineation file, and place them in `data/input_shapefiles/` (see [US Metro Areas (CBSA)](#us-metro-areas-cbsa) below)
-   * **geoBoundaries**: No download needed. The script downloads these via API automatically.
+1. Run `./download_data.sh` from the repository root to download all SCI data and shapefiles automatically (see [Automated Download](#automated-download)). Alternatively, you can download files manually — see [Data and Shapefiles](#data-and-shapefiles) for individual download links.
 
 2. Open the R project file (`social-connectedness-index.Rproj`) in RStudio
 
