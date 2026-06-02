@@ -1303,66 +1303,90 @@ server <- function(input, output, session) {
           if (is_compare) {
             if (is.null(choices)) {
               updateSelectizeInput(
-                session, "region_a_id",
-                choices = character(0), selected = spec$region_a_id
+                session,
+                "region_a_id",
+                choices = character(0),
+                selected = spec$region_a_id
               )
               updateSelectizeInput(
-                session, "region_b_id",
-                choices = character(0), selected = spec$region_b_id
+                session,
+                "region_b_id",
+                choices = character(0),
+                selected = spec$region_b_id
               )
             } else {
               updateSelectizeInput(
-                session, "region_a_id",
-                choices = choices, selected = spec$region_a_id,
+                session,
+                "region_a_id",
+                choices = choices,
+                selected = spec$region_a_id,
                 server = is_large
               )
               updateSelectizeInput(
-                session, "region_b_id",
-                choices = choices, selected = spec$region_b_id,
+                session,
+                "region_b_id",
+                choices = choices,
+                selected = spec$region_b_id,
                 server = is_large
               )
             }
             updateTextInput(
-              session, "label_a", value = spec$label_a %||% ""
+              session,
+              "label_a",
+              value = spec$label_a %||% ""
             )
             updateTextInput(
-              session, "label_b", value = spec$label_b %||% ""
+              session,
+              "label_b",
+              value = spec$label_b %||% ""
             )
 
             matched_color <- names(comparison_color_presets)[1]
             if (!is.null(spec$color_a) && !is.null(spec$color_b)) {
               for (name in names(comparison_color_presets)) {
                 pair <- comparison_color_presets[[name]]
-                if (pair$color_a == spec$color_a &&
-                    pair$color_b == spec$color_b) {
+                if (
+                  pair$color_a == spec$color_a &&
+                    pair$color_b == spec$color_b
+                ) {
                   matched_color <- name
                   break
                 }
               }
             }
             updateSelectInput(
-              session, "comparison_color_preset", selected = matched_color
+              session,
+              "comparison_color_preset",
+              selected = matched_color
             )
           } else {
             if (is.null(choices)) {
               updateSelectizeInput(
-                session, "user_region_id",
-                choices = character(0), selected = spec$user_region_id
+                session,
+                "user_region_id",
+                choices = character(0),
+                selected = spec$user_region_id
               )
             } else {
               updateSelectizeInput(
-                session, "user_region_id",
-                choices = choices, selected = spec$user_region_id,
+                session,
+                "user_region_id",
+                choices = choices,
+                selected = spec$user_region_id,
                 server = is_large
               )
             }
           }
 
           updateTextInput(
-            session, "title", value = spec$title %||% ""
+            session,
+            "title",
+            value = spec$title %||% ""
           )
           updateTextInput(
-            session, "subtitle", value = spec$subtitle %||% ""
+            session,
+            "subtitle",
+            value = spec$subtitle %||% ""
           )
 
           matched_group <- "All countries"
