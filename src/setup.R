@@ -8,14 +8,25 @@ required_packages <- c(
   "rnaturalearth",
   "rnaturalearthdata",
   "sf",
+  "shiny",
   "tidyverse"
 )
+
+# Packages not on CRAN need their own repos. rgeoboundaries was removed from
+# CRAN (2024-11-26) and is now distributed via the wmgeolab r-universe.
+package_repos <- list(
+  rgeoboundaries = c("https://wmgeolab.r-universe.dev", "https://cloud.r-project.org")
+)
+default_repos <- "https://cloud.r-project.org"
 
 ensure_packages <- function(packages) {
   missing <- packages[!sapply(packages, requireNamespace, quietly = TRUE)]
   if (length(missing) > 0) {
     message("Installing missing packages: ", paste(missing, collapse = ", "))
-    install.packages(missing, repos = "https://cloud.r-project.org")
+    for (pkg in missing) {
+      repos <- if (!is.null(package_repos[[pkg]])) package_repos[[pkg]] else default_repos
+      install.packages(pkg, repos = repos)
+    }
   }
   invisible(lapply(packages, library, character.only = TRUE))
 }
