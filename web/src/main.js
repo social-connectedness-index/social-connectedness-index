@@ -160,6 +160,18 @@ function manualBbox() {
   return v.every((n) => !Number.isNaN(n)) ? v : null;
 }
 
+// Output image size in px from Width(in) x Height(in) x DPI, capped so the
+// canvas stays a sane size in the browser.
+function outputPixels() {
+  const win = parseFloat($("width").value) || 30;
+  const hin = parseFloat($("height").value) || 25;
+  const dpi = parseFloat($("dpi").value) || 300;
+  let w = win * dpi, h = hin * dpi;
+  const cap = 4000, m = Math.max(w, h);
+  if (m > cap) { const s = cap / m; w *= s; h *= s; }
+  return { w: Math.round(w), h: Math.round(h) };
+}
+
 // ---- auto-fill lon/lat (ported from app.R update_bounds) -------------------
 
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -222,6 +234,7 @@ async function generate() {
     const colorById = colorsFor(rel, active, bins.allBreaks, palette);
     const highlightId = $("highlight").checked && t.sourceGeo === t.friendGeo ? $("sourceA").value : null;
 
+    const { w, h } = outputPixels();
     lastCanvas = renderMap({
       friendGeo,
       colorById,
@@ -233,11 +246,16 @@ async function generate() {
       subtitle: $("subtitle").value,
       caption: CAPTION,
       legend: { title: "Likelihood of Friendship", colors: palette, labels: bins.legendBreaks.map(labelSingle) },
+      width: w,
+      height: h,
     });
 
-    const prev = $("preview");
-    prev.innerHTML = "";
-    prev.appendChild(lastCanvas);
+    const c = $("mapContainer");
+    c.innerHTML = "";
+    c.appendChild(lastCanvas);
+    c.style.display = "";
+    $("downloadRow").style.display = "";
+    $("placeholder").style.display = "none";
     step("");
   } catch (e) {
     showError(e);
@@ -256,9 +274,8 @@ function downloadBlob(blob, filename) {
 
 const slug = () => (sourceLabelText().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "sci_map");
 
-async function download() {
+async function download(fmt) {
   if (!lastCanvas) { showError(new Error("Generate a map first.")); return; }
-  const fmt = $("format").value;
   try {
     if (fmt === "png") {
       lastCanvas.toBlob((b) => downloadBlob(b, `${slug()}.png`), "image/png");
@@ -313,10 +330,16 @@ function reset() {
   $("customCountries").selectedIndex = -1;
   for (const id of ["title", "subtitle", "breaks", "xmin", "xmax", "ymin", "ymax"]) $(id).value = "";
   $("refq").value = "0.25";
+  $("width").value = "30"; $("height").value = "25"; $("dpi").value = "300";
   $("palette").selectedIndex = 0;
   $("borders").checked = true;
   $("highlight").checked = false;
   $("status").textContent = "";
+  lastCanvas = null;
+  $("mapContainer").style.display = "none";
+  $("mapContainer").innerHTML = "";
+  $("downloadRow").style.display = "none";
+  $("placeholder").style.display = "";
   refreshSources().catch(showError);
 }
 
@@ -382,7 +405,9 @@ async function init() {
   $("customCountries").addEventListener("change", autoFillBounds);
   $("sourceSearch").addEventListener("input", renderSourceOptions);
   $("generate").addEventListener("click", generate);
-  $("download").addEventListener("click", download);
+  $("dlPng").addEventListener("click", () => download("png"));
+  $("dlJpg").addEventListener("click", () => download("jpg"));
+  $("dlMp4").addEventListener("click", () => download("mp4"));
   $("reset").addEventListener("click", reset);
   $("showCode").addEventListener("click", () => {
     $("codeBox").value = buildRCode();

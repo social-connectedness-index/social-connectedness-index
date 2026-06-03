@@ -3,40 +3,48 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Social Connectedness Index — Map Maker</title>
+    <title>Social Connectedness Index — Map Generator</title>
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
     <aside id="panel">
-      <h1>Social Connectedness Index</h1>
-      <p class="sub">Make a map of where a region's Facebook friendships are.</p>
+      <h1>Social Connectedness Index <span class="muted">Map Generator</span></h1>
 
-      <label>Load a preset</label>
+      <div class="section-label">Sample Maps</div>
       <select id="preset"></select>
 
-      <label>Map from (origin)</label>
+      <hr />
+      <div class="section-label">Friendships to</div>
+      <label>Region type</label>
       <select id="originType"></select>
-
-      <label id="labelA">Source region</label>
+      <label>Region</label>
       <input id="sourceSearch" type="text" placeholder="Type to filter…" autocomplete="off" />
       <select id="sourceA" size="6"></select>
 
-      <label>Map to (destination)</label>
+      <hr />
+      <div class="section-label">Shown across</div>
+      <label>Region type</label>
       <select id="destType"></select>
-
       <div id="countryWrap">
-        <label>Show countries (groups)</label>
+        <label>Regions to show</label>
         <select id="group" multiple size="4"></select>
-        <label>Add individual countries</label>
         <select id="customCountries" multiple size="4"></select>
-        <p class="hint">Leave both empty to show all countries.</p>
+        <div class="help-hint">Additional countries are combined with the region groups above.</div>
       </div>
 
+      <hr />
       <label>Title (optional)</label>
-      <input id="title" type="text" placeholder="Auto-generated if blank" />
+      <input id="title" type="text" />
 
+      <div class="btn-row">
+        <button id="generate" class="btn-generate">Generate Map</button>
+        <button id="reset" class="btn-reset">Reset</button>
+      </div>
+
+      <hr />
       <details>
         <summary>Advanced options</summary>
+
         <label>Subtitle (optional)</label>
         <input id="subtitle" type="text" />
 
@@ -45,39 +53,39 @@
 
         <label>Reference quantile</label>
         <input id="refq" type="number" min="0" max="1" step="0.05" value="0.25" />
+        <div class="help-hint">
+          Each region's SCI is divided by this quantile's value to produce a multiplier
+          (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile.
+        </div>
 
         <label>Custom breaks (comma-separated)</label>
-        <input id="breaks" type="text" placeholder="e.g. 1, 2, 5, 10" />
+        <input id="breaks" type="text" />
+        <div class="help-hint">
+          Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10'
+          bins regions into ≤1x, 1–5x, 5–10x, and &gt;10x). When left empty, the first bin
+          captures regions below the reference quantile and the remaining bins are equal-sized
+          quantile buckets.
+        </div>
 
-        <label class="check"><input id="borders" type="checkbox" checked /> Show region borders</label>
-        <label class="check"><input id="highlight" type="checkbox" /> Highlight source region</label>
+        <label class="check"><input id="highlight" type="checkbox" /> Label selected region</label>
+        <label class="check"><input id="borders" type="checkbox" checked /> Show state borders</label>
 
-        <label>Manual zoom (optional)</label>
         <div class="grid2">
-          <input id="xmin" type="number" placeholder="min lon" />
-          <input id="xmax" type="number" placeholder="max lon" />
-          <input id="ymin" type="number" placeholder="min lat" />
-          <input id="ymax" type="number" placeholder="max lat" />
+          <div><label>Min Longitude</label><input id="xmin" type="number" /></div>
+          <div><label>Max Longitude</label><input id="xmax" type="number" /></div>
+        </div>
+        <div class="grid2">
+          <div><label>Min Latitude</label><input id="ymin" type="number" /></div>
+          <div><label>Max Latitude</label><input id="ymax" type="number" /></div>
+        </div>
+        <div class="grid3">
+          <div><label>Width (in)</label><input id="width" type="number" min="5" value="30" /></div>
+          <div><label>Height (in)</label><input id="height" type="number" min="5" value="25" /></div>
+          <div><label>DPI</label><input id="dpi" type="number" min="72" value="300" /></div>
         </div>
       </details>
 
-      <div class="actions">
-        <button id="generate" class="primary">Generate map</button>
-        <div class="row2">
-          <select id="format">
-            <option value="png">PNG</option>
-            <option value="jpg">JPG</option>
-            <option value="mp4">MP4 (portrait)</option>
-          </select>
-          <button id="download">Download</button>
-        </div>
-        <div class="row2">
-          <button id="reset">Reset</button>
-          <button id="showCode">Export R code</button>
-        </div>
-      </div>
       <div id="status"></div>
-
       <p class="foot">
         Data: Social Connectedness Index ·
         <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">HDX</a>
@@ -85,7 +93,17 @@
     </aside>
 
     <main id="mapWrap">
-      <div id="preview"><p class="placeholder">Pick a source region and click <b>Generate map</b>.</p></div>
+      <div id="placeholder" class="placeholder">
+        <h4>No map generated yet</h4>
+        <p>Select a preset to get started, or fill in the parameters and click Generate Map.</p>
+      </div>
+      <div id="mapContainer" class="map-container" style="display:none"></div>
+      <div id="downloadRow" class="download-row" style="display:none">
+        <button id="dlPng" class="btn-success">PNG</button>
+        <button id="dlJpg" class="btn-info">JPG</button>
+        <button id="dlMp4" class="btn-secondary">MP4</button>
+        <button id="showCode" class="btn-outline">Export R Code</button>
+      </div>
     </main>
 
     <div id="codeModal" class="modal">

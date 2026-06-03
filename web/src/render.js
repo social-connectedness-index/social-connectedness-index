@@ -32,13 +32,15 @@ function eachPolygon(geom, cb) {
   else if (geom.type === "GeometryCollection") (geom.geometries || []).forEach((g) => eachPolygon(g, cb));
 }
 
-// Render and return a fully-drawn canvas at print resolution.
+// Render and return a fully-drawn canvas at the given pixel size (width x height),
+// laying the map + chrome out to fill it (like ggsave at a fixed width/height/dpi).
 export function renderMap(opts) {
   const {
     friendGeo, colorById, activeIds, naColor = NA_COLOR, bbox,
     showBorders = true, borderColor = "#555",
     highlightId = null, highlightColor = "#FF0000",
     title = "", subtitle = "", caption = "", legend,
+    width = 1800, height = 1500,
   } = opts;
 
   const [minLon, minLat, maxLon, maxLat] = bbox;
@@ -46,27 +48,19 @@ export function renderMap(opts) {
   const cosLat = Math.max(Math.cos(meanLatRad), 0.05);
   const lonSpan = (maxLon - minLon) * cosLat;
   const latSpan = maxLat - minLat || 1;
-  const mapAspect = lonSpan / latSpan;
 
-  // Image size: aim for a ~1600px map area, clamp width so legend/title fit.
-  const targetMap = 1600;
-  let mapW = mapAspect >= 1 ? targetMap : targetMap * mapAspect;
-  mapW = Math.min(Math.max(mapW, 900), 2200);
-  const margin = Math.round(mapW * 0.03);
-  const titleFs = Math.round(mapW / 26);
-  const subFs = Math.round(mapW / 42);
-  const capFs = Math.round(mapW / 80);
+  const W = Math.round(width);
+  const H = Math.round(height);
+  const margin = Math.round(W * 0.025);
+  const titleFs = Math.round(W / 40);
+  const subFs = Math.round(W / 58);
+  const capFs = Math.round(W / 95);
+  const legendFs = Math.round(W / 80);
   const titleLines = title ? title.split("\n").length : 0;
   const subLines = subtitle ? subtitle.split("\n").length : 0;
   const capLines = caption ? caption.split("\n").length : 0;
-  const titleSpace = titleLines * titleFs * 1.25 + subLines * subFs * 1.4 + (title || subtitle ? margin : 0);
-  const legendSpace = Math.round(mapW * 0.13);
-  const captionSpace = capLines ? capLines * capFs * 1.3 + margin * 0.4 : 0;
-
-  const W = Math.round(mapW + 2 * margin);
-  const mapAreaW = W - 2 * margin;
-  const mapAreaH = mapAreaW / mapAspect;
-  const H = Math.round(titleSpace + mapAreaH + legendSpace + captionSpace + 2 * margin);
+  const captionSpace = capLines ? capLines * capFs * 1.4 + margin * 0.3 : 0;
+  const legendSpace = Math.round(legendFs * 4.8);
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
@@ -78,7 +72,7 @@ export function renderMap(opts) {
   ctx.textBaseline = "alphabetic";
 
   // Title / subtitle
-  let y = margin + titleFs;
+  let y = margin + (titleLines ? titleFs : 0);
   if (title) {
     ctx.fillStyle = "#111";
     ctx.font = `bold ${titleFs}px Helvetica, Arial, sans-serif`;
@@ -92,8 +86,8 @@ export function renderMap(opts) {
     y += subLines * subFs * 1.4 + subFs;
   }
 
-  // Map area
-  const mapTop = (title || subtitle ? y + margin * 0.3 : margin);
+  // Map area (between title and legend/caption)
+  const mapTop = (title || subtitle ? y + margin * 0.4 : margin);
   const mapBottom = H - legendSpace - captionSpace - margin;
   const mapLeft = margin;
   const mapRight = W - margin;
@@ -145,12 +139,12 @@ export function renderMap(opts) {
   }
 
   // Legend + caption
-  drawLegend(ctx, legend, W, mapBottom + margin * 0.6, capFs);
+  drawLegend(ctx, legend, W, mapBottom + legendFs * 1.2, legendFs);
   if (caption) {
     ctx.fillStyle = "#555";
     ctx.font = `${capFs}px Helvetica, Arial, sans-serif`;
-    const cy = H - captionSpace - margin * 0.2 + capFs;
-    caption.split("\n").forEach((ln, i) => ctx.fillText(ln, W / 2, cy + i * capFs * 1.3));
+    const cy = H - captionSpace + capFs;
+    caption.split("\n").forEach((ln, i) => ctx.fillText(ln, W / 2, cy + i * capFs * 1.4));
   }
   return canvas;
 }
@@ -158,11 +152,11 @@ export function renderMap(opts) {
 function drawLegend(ctx, legend, W, yTop, baseFs) {
   if (!legend || !legend.colors.length) return;
   const n = legend.colors.length;
-  const swW = Math.min((W * 0.8) / n, 90);
+  const swW = Math.min((W * 0.85) / n, W * 0.06);
   const barW = swW * n;
   const x0 = (W - barW) / 2;
-  const fs = Math.round(baseFs * 1.1);
-  const swH = Math.round(fs * 1.6);
+  const fs = baseFs;
+  const swH = Math.round(fs * 1.5);
 
   ctx.textAlign = "center";
   if (legend.title) {
