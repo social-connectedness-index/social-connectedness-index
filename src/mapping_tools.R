@@ -63,10 +63,10 @@ iso3_to_iso2 <- function(sf_data, col) {
 }
 
 default_map_colors <- c(
-  "#d1dfe5",
-  "#c7d9e2",
-  "#bed3de",
-  "#b5ccda",
+  "#e0ebef",
+  "#d6e5ea",
+  "#ccdee6",
+  "#c2d7e1",
   "#acc6d7",
   "#a3bfd3",
   "#99b7cd",
