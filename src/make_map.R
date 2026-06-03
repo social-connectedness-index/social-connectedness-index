@@ -1,3 +1,97 @@
+# Assemble the SCI values for one source region into a friend-region -> scaled_sci
+# table. This is the shared data-assembly core used by both make_map() (which then
+# normalizes and joins to geometry) and the offline web-export pipeline (export/).
+# Returns list(data = <tibble with columns [join_col], scaled_sci>, join_col = <chr>).
+assemble_sci_data <- function(
+  type,
+  user_region_id,
+  sci_path,
+  friend_countries = NULL,
+  dest_zctas = NULL,
+  notify = function(msg) {}
+) {
+  if (!type %in% names(map_type_configs)) {
+    stop(
+      "Unknown map type '",
+      type,
+      "'. Valid types: ",
+      paste(names(map_type_configs), collapse = ", ")
+    )
+  }
+  config <- map_type_configs[[type]]
+
+  if (!is.null(config$sci_origin_crosswalk)) {
+    notify("Aggregating SCI from origin metro area...")
+    origin_xwalk <- load_sci_cached(config$sci_origin_crosswalk$path) %>%
+      mutate(across(everything(), as.character))
+    origin_zctas <- origin_xwalk %>%
+      filter(
+        .data[[config$sci_origin_crosswalk$cbsa_col]] == user_region_id
+      ) %>%
+      pull(config$sci_origin_crosswalk$zcta_col)
+    if (length(origin_zctas) == 0) {
+      stop(
+        "No ZCTAs found for CBSA region '",
+        user_region_id,
+        "'. Check that this CBSA code exists in the crosswalk."
+      )
+    }
+    shard_digits <- unique(substr(origin_zctas, 1, 1))
+    sci_dir <- dirname(sci_path)
+    sci_filtered <- map_dfr(shard_digits, function(d) {
+      shard_path <- file.path(sci_dir, paste0("us_zcta_shard_", d, ".csv"))
+      if (!file.exists(shard_path)) {
+        stop("SCI shard file not found: ", shard_path)
+      }
+      load_sci_cached(shard_path) %>%
+        mutate(across(c(user_region, friend_region), as.character)) %>%
+        filter(user_region %in% origin_zctas)
+    }) %>%
+      group_by(friend_region) %>%
+      summarise(scaled_sci = sum(scaled_sci), .groups = "drop")
+    join_col <- "friend_region"
+  } else {
+    notify("Reading SCI data...")
+    sci_df <- load_sci_cached(sci_path)
+
+    filter_col <- config$sci_filter_col %||% "user_region"
+    country_filter_col <- config$sci_country_filter_col %||% "friend_country"
+    join_col <- config$sci_join_col %||% "friend_region"
+
+    sci_filtered <- sci_df %>%
+      filter(.data[[filter_col]] == user_region_id)
+
+    if (!is.null(friend_countries)) {
+      sci_filtered <- sci_filtered %>%
+        filter(.data[[country_filter_col]] %in% friend_countries)
+    }
+  }
+
+  if (!is.null(config$sci_crosswalk)) {
+    notify("Aggregating via crosswalk...")
+    xwalk <- load_sci_cached(config$sci_crosswalk$path) %>%
+      mutate(across(
+        all_of(c(config$sci_crosswalk$from_col, config$sci_crosswalk$to_col)),
+        as.character
+      ))
+    sci_filtered <- sci_filtered %>%
+      inner_join(
+        xwalk,
+        by = setNames(config$sci_crosswalk$from_col, join_col)
+      ) %>%
+      group_by(across(all_of(config$sci_crosswalk$to_col))) %>%
+      summarise(scaled_sci = sum(scaled_sci), .groups = "drop")
+    join_col <- config$sci_crosswalk$to_col
+  }
+
+  if (!is.null(dest_zctas)) {
+    sci_filtered <- sci_filtered %>%
+      filter(.data[[join_col]] %in% dest_zctas)
+  }
+
+  list(data = sci_filtered, join_col = join_col)
+}
+
 make_map <- function(
   type,
   user_region_id,
@@ -175,74 +269,16 @@ make_map <- function(
   user_region_sf <- highlight_sf_all %>%
     filter(.data[[config$highlight_region_key]] == user_region_id)
 
-  if (!is.null(config$sci_origin_crosswalk)) {
-    notify("Aggregating SCI from origin metro area...")
-    origin_xwalk <- load_sci_cached(config$sci_origin_crosswalk$path) %>%
-      mutate(across(everything(), as.character))
-    origin_zctas <- origin_xwalk %>%
-      filter(
-        .data[[config$sci_origin_crosswalk$cbsa_col]] == user_region_id
-      ) %>%
-      pull(config$sci_origin_crosswalk$zcta_col)
-    if (length(origin_zctas) == 0) {
-      stop(
-        "No ZCTAs found for CBSA region '",
-        user_region_id,
-        "'. Check that this CBSA code exists in the crosswalk."
-      )
-    }
-    shard_digits <- unique(substr(origin_zctas, 1, 1))
-    sci_dir <- dirname(sci_path)
-    sci_filtered <- map_dfr(shard_digits, function(d) {
-      shard_path <- file.path(sci_dir, paste0("us_zcta_shard_", d, ".csv"))
-      if (!file.exists(shard_path)) {
-        stop("SCI shard file not found: ", shard_path)
-      }
-      load_sci_cached(shard_path) %>%
-        mutate(across(c(user_region, friend_region), as.character)) %>%
-        filter(user_region %in% origin_zctas)
-    }) %>%
-      group_by(friend_region) %>%
-      summarise(scaled_sci = sum(scaled_sci), .groups = "drop")
-    join_col <- "friend_region"
-  } else {
-    notify("Reading SCI data...")
-    sci_df <- load_sci_cached(sci_path)
-
-    filter_col <- config$sci_filter_col %||% "user_region"
-    country_filter_col <- config$sci_country_filter_col %||% "friend_country"
-    join_col <- config$sci_join_col %||% "friend_region"
-
-    sci_filtered <- sci_df %>%
-      filter(.data[[filter_col]] == user_region_id)
-
-    if (!is.null(friend_countries)) {
-      sci_filtered <- sci_filtered %>%
-        filter(.data[[country_filter_col]] %in% friend_countries)
-    }
-  }
-
-  if (!is.null(config$sci_crosswalk)) {
-    notify("Aggregating via crosswalk...")
-    xwalk <- load_sci_cached(config$sci_crosswalk$path) %>%
-      mutate(across(
-        all_of(c(config$sci_crosswalk$from_col, config$sci_crosswalk$to_col)),
-        as.character
-      ))
-    sci_filtered <- sci_filtered %>%
-      inner_join(
-        xwalk,
-        by = setNames(config$sci_crosswalk$from_col, join_col)
-      ) %>%
-      group_by(across(all_of(config$sci_crosswalk$to_col))) %>%
-      summarise(scaled_sci = sum(scaled_sci), .groups = "drop")
-    join_col <- config$sci_crosswalk$to_col
-  }
-
-  if (!is.null(dest_zctas)) {
-    sci_filtered <- sci_filtered %>%
-      filter(.data[[join_col]] %in% dest_zctas)
-  }
+  assembled <- assemble_sci_data(
+    type = type,
+    user_region_id = user_region_id,
+    sci_path = sci_path,
+    friend_countries = friend_countries,
+    dest_zctas = dest_zctas,
+    notify = notify
+  )
+  sci_filtered <- assembled$data
+  join_col <- assembled$join_col
 
   sci_ref <- quantile(
     sci_filtered$scaled_sci,

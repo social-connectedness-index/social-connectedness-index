@@ -12,8 +12,12 @@ We also include **Relevant Literature.bib**, which contains references to papers
 
 This tool lets you create high-quality maps of the **Social Connectedness Index (SCI)** with *very little code editing*. You do **not** need to understand spatial data or GIS concepts to use it successfully.
 
-There are **three ways** to use this tool, from easiest to most flexible:
+There are **four ways** to use this tool, from easiest to most flexible:
 
+0. **Web app (no install)** — A static, browser-based map maker that runs entirely
+   in your browser (no R, no server). Great for sharing a public link. It currently
+   supports the lightweight map types (country, state/province, NUTS1, US county,
+   and comparisons). See [`web/README.md`](web/README.md) to run or deploy it.
 1. **Interactive app** — Launch a point-and-click Shiny app: `shiny::runApp()` (see [Interactive App](#interactive-app))
 2. **Batch mode** — Edit `src/map_structs.R` and run `src/main.R` to generate multiple maps at once (see [Quick Start](#quick-start))
 3. **Scripting** — Call `make_map()` directly in R for full control (see [Using make_map() Directly](#using-make_map-directly))

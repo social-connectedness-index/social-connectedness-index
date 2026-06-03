@@ -11,5 +11,12 @@ data
 # Secrets
 private_keys.json
 
+# Web app (Node/Vite)
+web/node_modules
+web/dist
+web/.wrangler
+# Note: web/public/data/ (R-exported map assets) is already covered by the "data"
+# rule above. It is deployed via `wrangler pages deploy` from web/dist, not git.
+
 # OS
 .DS_Store
