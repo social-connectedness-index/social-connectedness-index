@@ -24,12 +24,14 @@ There are **three ways** to use this tool, from easiest to most flexible:
 
 If you just want to get maps as fast as possible:
 
-1. Install [R](https://cran.r-project.org/), [RStudio](https://posit.co/download/rstudio-desktop/), [Node.js](https://nodejs.org), and [mapshaper](https://github.com/mbloch/mapshaper) (`npm install -g mapshaper`)
-2. Download all data by running the download script from the repository root:
+1. Clone this repository and run the setup script:
    ```bash
-   ./download_data.sh
+   git clone https://github.com/social-connectedness-index/social-connectedness-index.git
+   cd social-connectedness-index
+   ./setup.sh
    ```
-   This downloads all SCI data and shapefiles automatically (~5 GB total). It is safe to re-run — it skips files that already exist. See [Automated Download](#automated-download) for details.
+   This installs R, Node.js, and mapshaper (via Homebrew on Mac or apt on Linux), then downloads all SCI data and shapefiles (~5 GB). It is safe to re-run — it skips anything already installed or downloaded. See [Setup](#setup) for details.
+2. Install [RStudio](https://posit.co/download/rstudio-desktop/) (if not already installed)
 3. Open `social-connectedness-index.Rproj` in RStudio
 4. Open `src/map_structs.R`, edit the map definitions to specify the maps you want (see [Editing map_structs.R](#step-2-editing-map_structsr))
 5. Open `src/main.R` and run the entire script (`Cmd+A` then `Cmd+Enter` on Mac, or `Ctrl+A` then `Ctrl+Enter` on Windows)
@@ -41,7 +43,7 @@ On the first run, the script will automatically install any missing R packages a
 
 ## Interactive App
 
-After completing the one-time setup (steps 1–3 of Quick Start above), you can launch an interactive Shiny app to create maps without editing any code:
+After completing the one-time setup (steps 1–3 of the Quick Start above), you can launch an interactive Shiny app to create maps without editing any code:
 
 ```r
 install.packages("shiny")  # only needed once
@@ -94,7 +96,8 @@ Other key files:
 
 | File / Folder                   | Purpose                                            |
 | ------------------------------- | -------------------------------------------------- |
-| `download_data.sh`              | Downloads all SCI data and shapefiles (`./download_data.sh`) |
+| `setup.sh`                      | Installs prerequisites and downloads data (`./setup.sh`) |
+| `download_data.sh`              | Downloads SCI data and shapefiles only (`./download_data.sh`) |
 | `app.R`                         | Interactive Shiny app (run with `shiny::runApp()`) |
 | `src/setup.R`                   | Shared setup: packages, sources, shapefile cleaning|
 | `src/make_map.R`                | The `make_map()` function (public API)             |
@@ -113,51 +116,43 @@ Other key files:
 
 ---
 
-## Step 0: Prerequisites
+## Setup
 
-Before running anything, make sure you have:
+The `setup.sh` script installs all prerequisites and downloads all data in one step:
+
+```bash
+./setup.sh
+```
+
+This will:
+
+1. **Install R** — via Homebrew (macOS) or apt (Ubuntu/Debian)
+2. **Install Node.js** — via Homebrew (macOS) or apt (Ubuntu/Debian)
+3. **Install mapshaper** — via npm (used for shapefile simplification)
+4. **Download all data** — SCI CSV files from the [Humanitarian Data Exchange](https://data.humdata.org/dataset/social-connectedness-index) and shapefiles from GADM, Eurostat, and the US Census Bureau
+
+The script is safe to re-run — it skips anything already installed or downloaded. The data download is approximately **5 GB** (the GADM shapefile alone is ~2.5 GB). geoBoundaries shapefiles are not included in the download; they are fetched automatically via API when you first run the R scripts.
+
+**RStudio** must be installed manually: [https://posit.co/download/rstudio-desktop/](https://posit.co/download/rstudio-desktop/)
+
+The tool uses these R packages: `av`, `countrycode`, `RColorBrewer`, `readxl`, `rmapshaper`, `rgeoboundaries`, `rnaturalearth`, `rnaturalearthdata`, `sf`, and `tidyverse`. **You do not need to install these packages manually.** The R scripts will detect and install any missing packages automatically on the first run.
+
+### Manual installation
+
+If you prefer to install prerequisites yourself, or are on Windows:
 
 * [**R**](https://cran.r-project.org/) (version 4.0 or later recommended)
 * [**RStudio**](https://posit.co/download/rstudio-desktop/)
+* [**Node.js**](https://nodejs.org) (v18 or later recommended)
+* **mapshaper**: `npm install -g mapshaper`
 
-The tool uses these R packages: `av`, `countrycode`, `RColorBrewer`, `readxl`, `rmapshaper`, `rgeoboundaries`, `rnaturalearth`, `rnaturalearthdata`, `sf`, and `tidyverse`.
+Then run `./download_data.sh` to download the SCI data and shapefiles, or download them individually from the links in [Data and Shapefiles](#data-and-shapefiles).
 
-**You do not need to install these packages manually.** The script will detect and install any missing packages automatically on the first run.
-
-### Node.js and mapshaper
-
-The `rmapshaper` R package is used with `sys = TRUE` to shell out to the [mapshaper](https://github.com/mbloch/mapshaper) CLI for geometry simplification. This requires:
-
-1. **Node.js** (v18 or later recommended): [https://nodejs.org](https://nodejs.org)
-2. **mapshaper** installed globally via npm:
-   ```bash
-   npm install -g mapshaper
-   ```
-
-The pipeline automatically detects Node.js installations from NVM (`~/.nvm`), Homebrew (`/opt/homebrew/bin`, `/usr/local/bin`), or standard system paths. If you use a different Node.js version manager (e.g., `fnm`, `volta`), ensure that `node` is on your shell's `PATH` before launching R, or add the appropriate directory to your `~/.Renviron`:
+The R pipeline automatically detects Node.js installations from NVM (`~/.nvm`), Homebrew (`/opt/homebrew/bin`, `/usr/local/bin`), or standard system paths. If you use a different Node.js version manager (e.g., `fnm`, `volta`), ensure that `node` is on your shell's `PATH` before launching R, or add the appropriate directory to your `~/.Renviron`:
 
 ```
 PATH=${PATH}:/path/to/your/node/bin
 ```
-
----
-
-## Automated Download
-
-The `download_data.sh` script downloads **all** SCI data files and shapefiles in one step:
-
-```bash
-./download_data.sh
-```
-
-This downloads:
-
-* **SCI 2026 data** — all CSV files from the [Humanitarian Data Exchange](https://data.humdata.org/dataset/social-connectedness-index), including sharded files hosted on Google Drive, placed in `data/sci_2026/`
-* **Shapefiles** — GADM, NUTS, US Census TIGER/Line (ZCTA, county, CBSA), crosswalk files, and OMB delineation file, placed in `data/input_shapefiles/`
-
-The script is safe to re-run — it skips files that already exist. The total download is approximately **5 GB** (the GADM shapefile alone is ~2.5 GB). geoBoundaries shapefiles are not included; they are downloaded automatically via API when you first run the R scripts.
-
-If you prefer to download files individually, see [Data and Shapefiles](#data-and-shapefiles) for manual download links.
 
 ---
 
@@ -176,7 +171,7 @@ The first time you run `src/main.R`, it will:
 
 ### What to do
 
-1. Run `./download_data.sh` from the repository root to download all SCI data and shapefiles automatically (see [Automated Download](#automated-download)). Alternatively, you can download files manually — see [Data and Shapefiles](#data-and-shapefiles) for individual download links.
+1. Run `./setup.sh` to install prerequisites and download all data (see [Setup](#setup)). If you've already done this, skip to step 2.
 
 2. Open the R project file (`social-connectedness-index.Rproj`) in RStudio
 
