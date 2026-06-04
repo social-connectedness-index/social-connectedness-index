@@ -1,8 +1,10 @@
 # export_all.R — Build all compact web assets for the static SCI map site.
 #
 # Usage:
-#   Rscript export/export_all.R            # everything (Phase-1 levels)
+#   Rscript export/export_all.R            # everything (all levels + types)
 #   Rscript export/export_all.R country    # only the named type(s)/level(s)
+#   Rscript export/export_all.R geo:gadm2  # geometry only; sci:gadm2 for SCI only
+#   Rscript export/export_all.R meta       # just the metadata files
 #
 # Reads the cleaned shapefiles + SCI data already present under data/ and writes
 # CDN-ready files under web/public/data/. Does NOT source src/setup.R (so it skips

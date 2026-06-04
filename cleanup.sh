@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# cleanup.sh — Deletes cleaned shapefiles, generated crosswalks, preprocessed
+# .rds caches, and generated map outputs. Source CSVs and raw downloads are kept.
+# The cleaning/preprocessing steps re-run automatically on the next run of main.R.
+set -euo pipefail
 
 # Delete cleaned shapefiles and preprocessed .rds (forces re-cleaning on next run)
 rm -rf data/cleaned_shapefiles/*

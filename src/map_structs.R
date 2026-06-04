@@ -51,8 +51,8 @@ map_specs <- list(
     user_region_id = "BRA.4.38_2",
     sci_path = "data/sci_2026/gadm2_shard_BR.csv",
     friend_countries = south_america_iso2_codes,
-    xlim = c(-33, -85),
-    ylim = c(12, -55),
+    xlim = c(-85, -33),
+    ylim = c(-55, 12),
     title = "Social Connectedness Index: Manaus, Brazil"
   ),
 
@@ -61,8 +61,8 @@ map_specs <- list(
     user_region_id = "CHL.14.5_1",
     sci_path = "data/sci_2026/gadm2_shard_DO.csv",
     friend_countries = south_america_iso2_codes,
-    xlim = c(-33, -85),
-    ylim = c(12, -55),
+    xlim = c(-85, -33),
+    ylim = c(-55, 12),
     title = "Social Connectedness Index: Santiago, Chile"
   ),
 

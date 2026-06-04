@@ -1,6 +1,6 @@
 # Assemble the SCI values for one source region into a friend-region -> scaled_sci
-# table. This is the shared data-assembly core used by both make_map() (which then
-# normalizes and joins to geometry) and the offline web-export pipeline (export/).
+# table. Used by make_map() (which then normalizes and joins to geometry); the
+# offline web-export pipeline (export/) has its own bulk equivalent in export_sci.R.
 # Returns list(data = <tibble with columns [join_col], scaled_sci>, join_col = <chr>).
 assemble_sci_data <- function(
   type,

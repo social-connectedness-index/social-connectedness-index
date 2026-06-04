@@ -51,8 +51,9 @@ download_and_write_layer <- function(adm_level, country_codes, output_file) {
 }
 
 
-#' Uses API calls to pull in the geoBoundaries data, saving levels 1 to 3 into
-#' a single gpkg file.
+#' Uses API calls to pull in the geoBoundaries data, saving levels 1 and 2 into
+#' a single gpkg file. (Only adm1/adm2 are used by the mapping tool, so adm3+ are
+#' not downloaded.)
 #'
 #' @param geoboundaries_gpkg_path Path for saving geoBoundaries gpkg
 load_geoboundaries_shapefiles <- function(
@@ -60,7 +61,7 @@ load_geoboundaries_shapefiles <- function(
 ) {
   if (file.exists(geoboundaries_gpkg_path)) {
     layers <- st_layers(geoboundaries_gpkg_path)$name
-    if (all(c("adm1", "adm2", "adm3") %in% layers)) {
+    if (all(c("adm1", "adm2") %in% layers)) {
       message("geoBoundaries gpkg already exists, skipping download.")
       return(invisible(NULL))
     }
@@ -74,7 +75,7 @@ load_geoboundaries_shapefiles <- function(
     filter(!str_detect(shapeGroup, '\\d'))
   country_codes <- sort(unique(all_countries$shapeGroup))
   message(str_glue("Found {length(country_codes)} countries"))
-  for (adm_level in 1:3) {
+  for (adm_level in 1:2) {
     download_and_write_layer(adm_level, country_codes, geoboundaries_gpkg_path)
   }
 }

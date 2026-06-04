@@ -16,10 +16,11 @@ There are **four ways** to use this tool, from easiest to most flexible:
 
 0. **Web app (no install)** — Make maps right in your browser at
    **[social-connectedness.org](https://social-connectedness.org/)** — no R, no
-   server, nothing to download. It produces the same static maps as the tool below
-   and currently supports country, state/province (GADM1), NUTS1, and US county
-   levels (more granularities coming). Source and deploy instructions are in
-   [`web/README.md`](web/README.md).
+   server, nothing to download. It produces the same static maps as the tool below,
+   supports almost all of the map types listed in [Map Types](#map-types) (country,
+   GADM1/2, NUTS1/2/3, US county/ZCTA/metro, and their region↔country directions),
+   and can render both single-region and comparison maps with PNG/JPG/SVG/PDF/MP4
+   downloads. Source and deploy instructions are in [`web/README.md`](web/README.md).
 1. **Interactive app** — Launch a point-and-click Shiny app: `shiny::runApp()` (see [Interactive App](#interactive-app))
 2. **Batch mode** — Edit `src/map_structs.R` and run `src/main.R` to generate multiple maps at once (see [Quick Start](#quick-start))
 3. **Scripting** — Call `make_map()` directly in R for full control (see [Using make_map() Directly](#using-make_map-directly))
@@ -64,7 +65,7 @@ The app lets you:
 * **Choose countries** — preset groups (Europe, Africa, etc.) or all
 * **Set custom breaks, colors, zoom** — via an expandable "Advanced options" panel
 * **Preview** the map in your browser
-* **Download** as PNG or PDF
+* **Download** as PNG, PDF, SVG, or MP4
 
 ---
 
@@ -674,6 +675,16 @@ To use the CBSA (Core-Based Statistical Area / metro area) map types (`us_cbsa`,
    * Download from: https://www.census.gov/geographies/reference-files/time-series/demo/metro-micro/delineation-files.html
 
 On the first run, the script builds a ZCTA-CBSA crosswalk from files (2) and (3) and saves it to `data/zcta_cbsa_crosswalk.csv`. This crosswalk is used to aggregate ZCTA-level SCI data to the metro area level. The crosswalk and cleaned CBSA shapefile are cached and only rebuilt if their output files are deleted.
+
+# License
+
+The **code** in this repository is released under the [MIT License](LICENSE).
+
+This license covers the mapping code only. It does **not** cover the third-party
+data and shapefiles the tool downloads (the Social Connectedness Index, GADM,
+geoBoundaries, Eurostat NUTS, and U.S. Census data), each of which has its own
+terms and citation requirements — see [Data and Shapefiles](#data-and-shapefiles)
+and `Relevant Literature.bib`.
 
 # Contact
 
