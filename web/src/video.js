@@ -8,7 +8,7 @@ export function mp4Supported() {
 }
 
 // Returns a Blob (video/mp4). `seconds` of the still image at `fps`.
-export async function encodeMp4(sourceCanvas, { seconds = 4, fps = 30, portrait = true } = {}) {
+export async function encodeMp4(sourceCanvas, { seconds = 10, fps = 30, portrait = true } = {}) {
   if (!mp4Supported()) {
     throw new Error("MP4 export needs a browser with WebCodecs (Chrome, Edge, or Safari 17+). Try PNG or JPG.");
   }

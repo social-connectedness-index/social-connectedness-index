@@ -55,7 +55,10 @@ geo_levels <- list(
   us_zcta = list(
     path = us_zcta_shapefile_path,
     key = "region_id", name_col = NULL, country_col = NULL,
-    iso2 = FALSE, keep = 0.02, shard_by = "zcta1"
+    # Higher detail than other levels: ZIP shapes are inspected closely on metro
+    # (CBSA) maps. keep=0.08 + 4-decimal coords (~11 m) vs the default 3 (~110 m).
+    # Shards stay well under the 25 MiB/file cap and metro maps load only a few.
+    iso2 = FALSE, keep = 0.08, precision = 4, shard_by = "zcta1"
   )
 )
 
@@ -66,10 +69,10 @@ shard_keys_for <- function(sf_obj, strategy) {
   stop("Unknown shard_by strategy: ", strategy)
 }
 
-write_geojson <- function(sf_obj, dest) {
+write_geojson <- function(sf_obj, dest, precision = 3) {
   if (file.exists(dest)) file.remove(dest)
   st_write(sf_obj, dest, driver = "GeoJSON",
-           layer_options = "COORDINATE_PRECISION=3", quiet = TRUE)
+           layer_options = paste0("COORDINATE_PRECISION=", precision), quiet = TRUE)
 }
 
 # Compact id -> [name, country] lookup for the source dropdown / search, so the
@@ -127,7 +130,7 @@ export_geo_level <- function(level, out_root) {
             nrow(sf_obj), " features)")
     simp <- ms_simplify(sf_obj, keep = cfg$keep, keep_shapes = TRUE, sys = TRUE)
     dest <- file.path(geo_dir, paste0(level, ".geojson"))
-    write_geojson(simp, dest)
+    write_geojson(simp, dest, cfg$precision %||% 3)
     message("  [geo] ", level, " — wrote ", basename(dest), " (",
             round(file.info(dest)$size / 1e6, 1), " MB)")
   } else {
@@ -147,7 +150,7 @@ export_geo_level <- function(level, out_root) {
       simp <- ms_simplify(sf_obj[keys == k, ], keep = cfg$keep,
                           keep_shapes = TRUE, sys = TRUE)
       dest <- file.path(out_dir, paste0(k, ".geojson"))
-      write_geojson(simp, dest)
+      write_geojson(simp, dest, cfg$precision %||% 3)
       max_mb <- max(max_mb, file.info(dest)$size / 1e6)
     }
     jsonlite::write_json(as.list(uniq), file.path(out_dir, "_parts.json"),

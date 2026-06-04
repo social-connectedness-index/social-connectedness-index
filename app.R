@@ -269,6 +269,19 @@ cbsa_choices <- tryCatch(
   error = function(e) character(0)
 )
 
+# Sample-map dropdown choices: display the human-readable `label` (falling back
+# to the internal key) while keeping the map_specs key as the selected value.
+preset_choices <- local({
+  keys <- names(map_specs)
+  labels <- vapply(
+    map_specs,
+    function(s) if (!is.null(s$label)) s$label else "",
+    character(1)
+  )
+  names(keys) <- ifelse(nzchar(labels), labels, keys)
+  keys[order(names(keys))]
+})
+
 region_id_config <- list(
   gadm1 = list(
     path = gadm1_shapefile_path,
@@ -778,7 +791,7 @@ ui <- fluidPage(
       selectInput(
         "preset",
         NULL,
-        choices = c("(Start from scratch)" = "", names(map_specs))
+        choices = c("(Start from scratch)" = "", preset_choices)
       ),
 
       hr(),
@@ -1286,8 +1299,16 @@ server <- function(input, output, session) {
           )
 
           od <- type_to_origin_dest(spec$type)
-          rv$skip_type_region_update <- TRUE
+          # Only suppress the origin_type observer's region refresh when the
+          # origin actually changes — otherwise the observer never fires and the
+          # skip flag would stay TRUE, breaking the next manual origin change.
+          if (input$origin_type != od$origin) {
+            rv$skip_type_region_update <- TRUE
+          }
           updateSelectInput(session, "origin_type", selected = od$origin)
+          # Presets never target a single metro; clear any prior metro filter so
+          # a leftover selection doesn't silently restrict the new map's ZIPs.
+          updateSelectizeInput(session, "dest_cbsa", selected = "")
           dest_keys <- dest_choices_for_origin[[od$origin]]
           dest_opts <- setNames(dest_keys, region_type_labels[dest_keys])
           updateSelectInput(
@@ -1551,8 +1572,11 @@ server <- function(input, output, session) {
   }
 
   add_shared_args <- function(args, is_compare = FALSE) {
+    # The metro filter only makes sense for ZIP-level destinations. Guard on
+    # dest_type so a value left over in the (now-hidden) input from a previous
+    # ZIP map doesn't get applied to a county/CBSA/etc. map.
     dest_cbsa_val <- input$dest_cbsa %||% ""
-    if (nchar(trimws(dest_cbsa_val)) > 0) {
+    if (input$dest_type == "us_zcta" && nchar(trimws(dest_cbsa_val)) > 0) {
       args$filter_dest_cbsa <- dest_cbsa_val
     }
 

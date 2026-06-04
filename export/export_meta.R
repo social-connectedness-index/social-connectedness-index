@@ -8,16 +8,20 @@
 # Phase-1 type table. sourceGeo = geometry that populates the source dropdown;
 # friendGeo = geometry that gets colored; friendByCountry = whether country-group
 # selection filters/zooms the friend regions (false for US-only friend levels).
+# `admin1Geo` = the geometry whose borders the "Show state borders" toggle draws
+# (mirrors map_type_configs$admin1_borders in the R tool): gadm1 for US levels +
+# gadm2, nuts1 for NUTS2/3. When NULL the friend regions ARE the toggled level,
+# so the frontend strokes the friend outlines instead (country/gadm1/nuts1).
 meta_types <- list(
   country           = list(label = "Country -> Country",            sourceGeo = "country",   friendGeo = "country",   friendByCountry = TRUE),
   gadm1             = list(label = "State/Province -> State",       sourceGeo = "gadm1",     friendGeo = "gadm1",     friendByCountry = TRUE),
-  gadm2             = list(label = "District/County -> District",   sourceGeo = "gadm2",     friendGeo = "gadm2",     friendByCountry = TRUE),
+  gadm2             = list(label = "District/County -> District",   sourceGeo = "gadm2",     friendGeo = "gadm2",     friendByCountry = TRUE,  admin1Geo = "gadm1"),
   nuts1             = list(label = "NUTS1 -> NUTS1 (Europe)",       sourceGeo = "nuts1",     friendGeo = "nuts1",     friendByCountry = TRUE),
-  nuts2             = list(label = "NUTS2 -> NUTS2 (Europe)",       sourceGeo = "nuts2",     friendGeo = "nuts2",     friendByCountry = TRUE),
-  nuts3             = list(label = "NUTS3 -> NUTS3 (Europe)",       sourceGeo = "nuts3",     friendGeo = "nuts3",     friendByCountry = TRUE),
-  us_county         = list(label = "US County -> US County",        sourceGeo = "us_county", friendGeo = "us_county", friendByCountry = FALSE),
-  us_cbsa           = list(label = "US Metro (CBSA) -> US Metro",   sourceGeo = "us_cbsa",   friendGeo = "us_cbsa",   friendByCountry = FALSE),
-  us_zcta           = list(label = "US ZIP (ZCTA) -> US ZIP",       sourceGeo = "us_zcta",   friendGeo = "us_zcta",   friendByCountry = FALSE),
+  nuts2             = list(label = "NUTS2 -> NUTS2 (Europe)",       sourceGeo = "nuts2",     friendGeo = "nuts2",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
+  nuts3             = list(label = "NUTS3 -> NUTS3 (Europe)",       sourceGeo = "nuts3",     friendGeo = "nuts3",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
+  us_county         = list(label = "US County -> US County",        sourceGeo = "us_county", friendGeo = "us_county", friendByCountry = FALSE, admin1Geo = "gadm1"),
+  us_cbsa           = list(label = "US Metro (CBSA) -> US Metro",   sourceGeo = "us_cbsa",   friendGeo = "us_cbsa",   friendByCountry = FALSE, admin1Geo = "gadm1"),
+  us_zcta           = list(label = "US ZIP (ZCTA) -> US ZIP",       sourceGeo = "us_zcta",   friendGeo = "us_zcta",   friendByCountry = FALSE, admin1Geo = "gadm1"),
   gadm1_country     = list(label = "State/Province -> Country",     sourceGeo = "gadm1",     friendGeo = "country",   friendByCountry = TRUE),
   gadm2_country     = list(label = "District/County -> Country",    sourceGeo = "gadm2",     friendGeo = "country",   friendByCountry = TRUE),
   nuts1_country     = list(label = "NUTS1 -> Country",              sourceGeo = "nuts1",     friendGeo = "country",   friendByCountry = TRUE),
@@ -26,17 +30,17 @@ meta_types <- list(
   us_county_country = list(label = "US County -> Country",          sourceGeo = "us_county", friendGeo = "country",   friendByCountry = TRUE),
   us_zcta_country   = list(label = "US ZIP (ZCTA) -> Country",      sourceGeo = "us_zcta",   friendGeo = "country",   friendByCountry = TRUE),
   country_gadm1     = list(label = "Country -> State/Province",     sourceGeo = "country",   friendGeo = "gadm1",     friendByCountry = TRUE),
-  country_gadm2     = list(label = "Country -> District/County",    sourceGeo = "country",   friendGeo = "gadm2",     friendByCountry = TRUE),
+  country_gadm2     = list(label = "Country -> District/County",    sourceGeo = "country",   friendGeo = "gadm2",     friendByCountry = TRUE,  admin1Geo = "gadm1"),
   country_nuts1     = list(label = "Country -> NUTS1 (Europe)",     sourceGeo = "country",   friendGeo = "nuts1",     friendByCountry = TRUE),
-  country_nuts2     = list(label = "Country -> NUTS2 (Europe)",     sourceGeo = "country",   friendGeo = "nuts2",     friendByCountry = TRUE),
-  country_nuts3     = list(label = "Country -> NUTS3 (Europe)",     sourceGeo = "country",   friendGeo = "nuts3",     friendByCountry = TRUE),
-  country_us_county = list(label = "Country -> US County",          sourceGeo = "country",   friendGeo = "us_county", friendByCountry = FALSE),
-  country_us_cbsa   = list(label = "Country -> US Metro (CBSA)",    sourceGeo = "country",   friendGeo = "us_cbsa",   friendByCountry = FALSE),
-  country_us_zcta   = list(label = "Country -> US ZIP (ZCTA)",      sourceGeo = "country",   friendGeo = "us_zcta",   friendByCountry = FALSE),
+  country_nuts2     = list(label = "Country -> NUTS2 (Europe)",     sourceGeo = "country",   friendGeo = "nuts2",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
+  country_nuts3     = list(label = "Country -> NUTS3 (Europe)",     sourceGeo = "country",   friendGeo = "nuts3",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
+  country_us_county = list(label = "Country -> US County",          sourceGeo = "country",   friendGeo = "us_county", friendByCountry = FALSE, admin1Geo = "gadm1"),
+  country_us_cbsa   = list(label = "Country -> US Metro (CBSA)",    sourceGeo = "country",   friendGeo = "us_cbsa",   friendByCountry = FALSE, admin1Geo = "gadm1"),
+  country_us_zcta   = list(label = "Country -> US ZIP (ZCTA)",      sourceGeo = "country",   friendGeo = "us_zcta",   friendByCountry = FALSE, admin1Geo = "gadm1"),
   # US cross-level
-  us_zcta_county    = list(label = "US ZIP (ZCTA) -> US County",       sourceGeo = "us_zcta", friendGeo = "us_county", friendByCountry = FALSE),
-  us_zcta_cbsa      = list(label = "US ZIP (ZCTA) -> US Metro (CBSA)", sourceGeo = "us_zcta", friendGeo = "us_cbsa",   friendByCountry = FALSE),
-  us_cbsa_zcta      = list(label = "US Metro (CBSA) -> US ZIP (ZCTA)", sourceGeo = "us_cbsa", friendGeo = "us_zcta",   friendByCountry = FALSE)
+  us_zcta_county    = list(label = "US ZIP (ZCTA) -> US County",       sourceGeo = "us_zcta", friendGeo = "us_county", friendByCountry = FALSE, admin1Geo = "gadm1"),
+  us_zcta_cbsa      = list(label = "US ZIP (ZCTA) -> US Metro (CBSA)", sourceGeo = "us_zcta", friendGeo = "us_cbsa",   friendByCountry = FALSE, admin1Geo = "gadm1"),
+  us_cbsa_zcta      = list(label = "US Metro (CBSA) -> US ZIP (ZCTA)", sourceGeo = "us_cbsa", friendGeo = "us_zcta",   friendByCountry = FALSE, admin1Geo = "gadm1")
 )
 
 # Geometry levels that are sharded on disk (frontend lazy-loads per shard) and
@@ -73,10 +77,13 @@ export_meta <- function(out_root) {
     "Maritime SE Asia" = maritime_southeast_asia_iso2_codes,
     "United States"    = c("US")
   )
+  # auto_unbox = FALSE so single-code groups (e.g. "United States" = "US") stay
+  # JSON arrays — otherwise the frontend's `groups[g].forEach` blows up on a
+  # collapsed scalar string.
   jsonlite::write_json(
     groups,
     file.path(out_root, "groups.json"),
-    auto_unbox = TRUE, pretty = TRUE
+    auto_unbox = FALSE, pretty = TRUE
   )
 
   palettes <- list(
@@ -194,6 +201,8 @@ export_meta <- function(out_root) {
     is_compare <- "region_a_id" %in% names(spec)
 
     p <- list(name = nm, origin = od$origin, dest = od$dest, group = grp)
+    p$label <- if (!is.null(spec$label)) spec$label else nm
+    if (!is.null(spec$filter_dest_cbsa)) p$destCbsa <- spec$filter_dest_cbsa
     if (is_compare) {
       p$mode <- "compare"
       p$regionA <- spec$region_a_id
@@ -218,6 +227,39 @@ export_meta <- function(out_root) {
     file.path(out_root, "presets.json"),
     auto_unbox = TRUE, pretty = TRUE
   )
+
+  # Metro (CBSA) -> ZCTA crosswalk. Powers the web app's "Metro area" ZIP filter,
+  # mirroring the Shiny app's filter_dest_cbsa feature. One entry per metro:
+  # { code, title, zctas: [...] }, sorted by title. The frontend lazy-loads this
+  # only when the destination level is US ZIP. cbsa_code values match what
+  # make_map(filter_dest_cbsa=) expects (the crosswalk is its source of truth).
+  cbsa_path <- tryCatch(zcta_cbsa_crosswalk_path, error = function(e) NULL)
+  if (!is.null(cbsa_path) && file.exists(cbsa_path)) {
+    xwalk <- readr::read_csv(cbsa_path, col_types = readr::cols(.default = "c"))
+    cbsa_list <- xwalk %>%
+      dplyr::group_by(cbsa_code) %>%
+      dplyr::summarise(
+        title = dplyr::first(cbsa_title),
+        zctas = list(sort(unique(zcta))),
+        .groups = "drop"
+      ) %>%
+      dplyr::arrange(title)
+    cbsa_out <- lapply(seq_len(nrow(cbsa_list)), function(i) {
+      list(
+        code = cbsa_list$cbsa_code[i],
+        title = cbsa_list$title[i],
+        zctas = cbsa_list$zctas[[i]]
+      )
+    })
+    jsonlite::write_json(
+      cbsa_out,
+      file.path(out_root, "cbsa_zcta.json"),
+      auto_unbox = TRUE, pretty = FALSE
+    )
+    message("  [meta] wrote cbsa_zcta.json (", length(cbsa_out), " metros)")
+  } else {
+    message("  [meta] skipped cbsa_zcta.json (crosswalk not found)")
+  }
 
   message("  [meta] wrote manifest.json, groups.json, palettes.json, countries.json, bounds.json, presets.json")
   invisible(NULL)

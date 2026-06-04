@@ -1,6 +1,7 @@
 map_specs <- list(
   sweden_country = list(
     type = "country",
+    label = "Sweden",
     user_region_id = "SE",
     sci_path = "data/sci_2026/country.csv",
     title = "Social Connectedness Index: Sweden"
@@ -8,6 +9,7 @@ map_specs <- list(
 
   cabo_delgado_gadm1 = list(
     type = "gadm1",
+    label = "Cabo Delgado, Mozambique",
     user_region_id = "MOZ.1_1",
     sci_path = "data/sci_2026/gadm1.csv",
     friend_countries = africa_iso2_codes,
@@ -18,6 +20,7 @@ map_specs <- list(
 
   antananarivo_gadm1 = list(
     type = "gadm1",
+    label = "Antananarivo, Madagascar",
     user_region_id = "MDG.1_1",
     sci_path = "data/sci_2026/gadm1.csv",
     friend_countries = africa_iso2_codes,
@@ -28,6 +31,7 @@ map_specs <- list(
 
   varanasi_gadm2 = list(
     type = "gadm2",
+    label = "Varanasi, India",
     user_region_id = "IND.34.75_1",
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
     friend_countries = south_asia_iso2_codes,
@@ -38,6 +42,7 @@ map_specs <- list(
 
   belgaum_gadm2 = list(
     type = "gadm2",
+    label = "Belgaum, India",
     user_region_id = "IND.16.4_1",
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
     friend_countries = south_asia_iso2_codes,
@@ -48,6 +53,7 @@ map_specs <- list(
 
   manaus_gadm2 = list(
     type = "gadm2",
+    label = "Manaus, Brazil",
     user_region_id = "BRA.4.38_2",
     sci_path = "data/sci_2026/gadm2_shard_BR.csv",
     friend_countries = south_america_iso2_codes,
@@ -58,6 +64,7 @@ map_specs <- list(
 
   santiago_gadm2 = list(
     type = "gadm2",
+    label = "Santiago, Chile",
     user_region_id = "CHL.14.5_1",
     sci_path = "data/sci_2026/gadm2_shard_DO.csv",
     friend_countries = south_america_iso2_codes,
@@ -68,6 +75,7 @@ map_specs <- list(
 
   massachusetts_adm1 = list(
     type = "adm1",
+    label = "Massachusetts, USA",
     user_region_id = "66186276B15934532614691",
     sci_path = "data/sci_2026/geoboundaries_adm1.csv",
     friend_countries = c("US"),
@@ -78,6 +86,7 @@ map_specs <- list(
 
   stockholm_adm2 = list(
     type = "adm2",
+    label = "Stockholm, Sweden",
     user_region_id = "70781695B5805413017960",
     sci_path = "data/sci_2026/geoboundaries_adm2_shard_TG.csv",
     friend_countries = c("SE"),
@@ -86,6 +95,7 @@ map_specs <- list(
 
   kings_us_county = list(
     type = "us_county",
+    label = "Kings County (Brooklyn), NY",
     user_region_id = "36047",
     sci_path = "data/sci_2026/us_counties.csv",
     friend_countries = c("US"),
@@ -96,6 +106,7 @@ map_specs <- list(
 
   tonopah_us_zcta = list(
     type = "us_zcta",
+    label = "Tonopah, NV (ZIP code)",
     user_region_id = "89049",
     sci_path = "data/sci_2026/us_zcta_shard_8.csv",
     friend_countries = c("US"),
@@ -106,6 +117,7 @@ map_specs <- list(
 
   haryana_gadm1_country = list(
     type = "gadm1_country",
+    label = "Haryana, India → Countries",
     user_region_id = "IND.12_1",
     sci_path = "data/sci_2026/gadm1_to_country.csv",
     title = "Social Connectedness Index: Haryana, India"
@@ -113,6 +125,7 @@ map_specs <- list(
 
   uttar_pradesh_adm1_country = list(
     type = "adm1_country",
+    label = "Uttar Pradesh → Countries",
     user_region_id = "1811400B11231190780494",
     sci_path = "data/sci_2026/geoboundaries_adm1_to_country.csv",
     title = "Social Connectedness Index: Uttar Pradesh"
@@ -120,6 +133,7 @@ map_specs <- list(
 
   san_bernardino_us_county_country = list(
     type = "us_county_country",
+    label = "San Bernardino, CA → Countries",
     user_region_id = "06071",
     sci_path = "data/sci_2026/us_counties_to_country.csv",
     title = "Social Connectedness Index: San Bernardino"
@@ -127,6 +141,7 @@ map_specs <- list(
 
   cambridge_us_zcta_country = list(
     type = "us_zcta_country",
+    label = "Cambridge, MA (ZIP) → Countries",
     user_region_id = "02138",
     sci_path = "data/sci_2026/us_zcta_to_country.csv",
     title = "Social Connectedness Index: Cambridge"
@@ -134,6 +149,7 @@ map_specs <- list(
 
   ile_de_france_nuts1 = list(
     type = "nuts1",
+    label = "Ile-de-France, France (NUTS1)",
     user_region_id = "FR1",
     sci_path = "data/sci_2026/nuts1_2024.csv",
     friend_countries = nuts_cntr_codes,
@@ -144,6 +160,7 @@ map_specs <- list(
 
   oberbayern_nuts2 = list(
     type = "nuts2",
+    label = "Oberbayern, Germany (NUTS2)",
     user_region_id = "DE21",
     sci_path = "data/sci_2026/nuts2_2024.csv",
     friend_countries = nuts_cntr_codes,
@@ -154,6 +171,7 @@ map_specs <- list(
 
   berlin_nuts3 = list(
     type = "nuts3",
+    label = "Berlin, Germany (NUTS3)",
     user_region_id = "DE300",
     sci_path = "data/sci_2026/nuts3_2024.csv",
     friend_countries = nuts_cntr_codes,
@@ -164,6 +182,7 @@ map_specs <- list(
 
   ile_de_france_nuts1_country = list(
     type = "nuts1_country",
+    label = "Ile-de-France (NUTS1) → Countries",
     user_region_id = "FR1",
     sci_path = "data/sci_2026/nuts1_2024_to_country.csv",
     title = "Social Connectedness Index: Ile-de-France, France (NUTS1 to Country)"
@@ -171,6 +190,7 @@ map_specs <- list(
 
   oberbayern_nuts2_country = list(
     type = "nuts2_country",
+    label = "Oberbayern (NUTS2) → Countries",
     user_region_id = "DE21",
     sci_path = "data/sci_2026/nuts2_2024_to_country.csv",
     title = "Social Connectedness Index: Oberbayern, Germany (NUTS2 to Country)"
@@ -178,6 +198,7 @@ map_specs <- list(
 
   berlin_nuts3_country = list(
     type = "nuts3_country",
+    label = "Berlin (NUTS3) → Countries",
     user_region_id = "DE300",
     sci_path = "data/sci_2026/nuts3_2024_to_country.csv",
     title = "Social Connectedness Index: Berlin, Germany (NUTS3 to Country)"
@@ -185,6 +206,7 @@ map_specs <- list(
 
   de_vs_br = list(
     type = "country",
+    label = "Germany vs Brazil",
     region_a_id = "DE",
     region_b_id = "BR",
     sci_path = "data/sci_2026/country.csv",
@@ -199,6 +221,7 @@ map_specs <- list(
 
   srh_vs_rr = list(
     type = "gadm2",
+    label = "Hyderabad vs Jaipur (IPL)",
     region_a_id = "IND.32.2_1",
     region_b_id = "IND.29.17_1",
     sci_path = "data/sci_2026/gadm2_shard_JO.csv",
@@ -216,6 +239,7 @@ map_specs <- list(
 
   spurs_vs_thunder = list(
     type = "us_county",
+    label = "San Antonio vs Oklahoma City (NBA)",
     region_a_id = "48029",
     region_b_id = "40109",
     sci_path = "data/sci_2026/us_counties.csv",
@@ -233,6 +257,7 @@ map_specs <- list(
 
   netherlands_us_counties = list(
     type = "country_us_county",
+    label = "Netherlands → US Counties",
     user_region_id = "NL",
     sci_path = "data/sci_2026/us_counties_to_country.csv",
     friend_countries = c("US"),
@@ -243,6 +268,7 @@ map_specs <- list(
 
   japan_country_gadm1 = list(
     type = "country_gadm1",
+    label = "Japan → States/Provinces",
     user_region_id = "JP",
     sci_path = "data/sci_2026/gadm1_to_country.csv",
     title = "Where does Japan\nhave the most friends?"
@@ -250,6 +276,7 @@ map_specs <- list(
 
   nl_vs_de_us_counties = list(
     type = "country_us_county",
+    label = "Netherlands vs Germany (US Counties)",
     region_a_id = "NL",
     region_b_id = "DE",
     sci_path = "data/sci_2026/us_counties_to_country.csv",

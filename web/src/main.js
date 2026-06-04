@@ -11,13 +11,14 @@ import {
 } from "./sci.js";
 import { computeBbox, renderMap } from "./render.js";
 import { encodeMp4, mp4Supported } from "./video.js";
-import { downloadSvg, downloadPdf } from "./export_vector.js";
+import { downloadSvg } from "./export_vector.js";
 
 const base = import.meta.env.BASE_URL;
 const dataUrl = (p) => `${base}data/${p}`;
 const $ = (id) => document.getElementById(id);
 
 const CAPTION = "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab";
+const SHARE_URL = "https://social-connectedness.org/";
 const MAX_OPTIONS = 1500; // cap rendered <option>s for huge levels (us_zcta)
 
 // ---- type system ----------------------------------------------------------
@@ -90,6 +91,7 @@ function sciPathFor(type, sourceId, country) {
 // ---- state & data loading -------------------------------------------------
 
 let manifest, groups, palettes, countries, bounds, presets;
+let cbsaList = null;       // [{ code, title, zctas:[...] }] — lazy-loaded
 const geoCache = {};      // level (or "level/shard") -> FeatureCollection
 const partsCache = {};    // sharded level -> [shardKey,...]
 const namesCache = {};    // level -> { id: [name, country] }
@@ -248,9 +250,15 @@ function selectedCountryCodes() {
 
 // Resolve the friend geometry, loading only the shards we need for sharded
 // levels. Returns { geo, codes, hint }.
-async function loadFriendGeo(t, sourceCountry) {
+async function loadFriendGeo(t, sourceCountry, metroZctas = null) {
   let hint = "";
   if (!isSharded(t.friendGeo)) return { geo: await getGeometry(t.friendGeo), codes: selectedCountryCodes(), hint };
+  // Metro filter on a ZIP friend level: load only the shards (keyed by first
+  // ZIP digit) that the metro's ZIPs fall in, instead of every ZIP nationwide.
+  if (metroZctas && t.friendGeo === "us_zcta") {
+    const keys = new Set([...metroZctas].map((z) => String(z)[0]));
+    return { geo: await getGeometry(t.friendGeo, keys), codes: null, hint };
+  }
   if (!t.friendByCountry) return { geo: await getGeometry(t.friendGeo, null), codes: null, hint };
   let codes = selectedCountryCodes();
   if (codes == null) {
@@ -268,6 +276,22 @@ function activeFriends(friendGeo, t, codes) {
   return { features: feats, ids: dedupe(feats.map((f) => f.properties.id)) };
 }
 
+// The "Show state borders" overlay. For levels finer than a state (gadm2, US
+// county/ZIP/CBSA, NUTS2/3) it's a separate coarser layer (gadm1 or nuts1),
+// mirroring the R tool's admin1_borders. For coarser levels (no admin1Geo) we
+// return null and render.js strokes the friend outlines instead. Returns null
+// when borders are off so the heavy gadm1 geometry isn't fetched needlessly.
+async function loadBorderFeatures(t, codes, metroZctas, activeFeatures) {
+  if (!$("borders").checked || !t.admin1Geo) return null;
+  // Metro maps: the metro's own ZIP outlines act as the overlay (R sets
+  // admin1_borders_data to the filtered ZIP shapes).
+  if (metroZctas) return activeFeatures;
+  const geo = await getGeometry(t.admin1Geo); // gadm1 / nuts1 are not sharded
+  let codeSet = codes;
+  if (!codeSet) codeSet = t.friendByCountry ? null : new Set(["US"]);
+  return codeSet ? geo.features.filter((f) => codeSet.has(f.properties.country)) : geo.features;
+}
+
 function parseBreaks(text) {
   const nums = text.split(",").map((s) => parseFloat(s.trim())).filter((n) => !Number.isNaN(n));
   return nums.length ? nums.sort((a, b) => a - b) : null;
@@ -275,6 +299,14 @@ function parseBreaks(text) {
 
 const labelOf = (sel) => sel.options[sel.selectedIndex]?.textContent || sel.value;
 const sourceLabelText = () => labelOf($("sourceA"));
+
+// Legend labels for the two compared regions: the user's override if given,
+// else the region's own name (mirrors app.R's label_a/label_b fallback).
+const cmpLabelA = () => ($("labelA")?.value.trim()) || labelOf($("sourceA"));
+const cmpLabelB = () => ($("labelB")?.value.trim()) || labelOf($("sourceB"));
+// The comparison legend title, matching make_comparison_map() in the R tool.
+const comparisonLegendTitle = () =>
+  `← More Friendly With ${cmpLabelA()} | More Friendly With ${cmpLabelB()} →`;
 
 function autoTitle() {
   if (compareMode()) {
@@ -342,9 +374,16 @@ async function generate() {
     const namesSrc = await getNames(t.sourceGeo);
     const srcCountry = (namesSrc[$("sourceA").value] || [])[1];
 
+    const metroZctas = metroFilterZctas();
+
     step("loading geometry…");
-    const { geo: friendGeo, codes, hint } = await loadFriendGeo(t, srcCountry);
-    const { features: activeFeatures, ids: active } = activeFriends(friendGeo, t, codes);
+    const { geo: friendGeo, codes, hint } = await loadFriendGeo(t, srcCountry, metroZctas);
+    let { features: activeFeatures, ids: active } = activeFriends(friendGeo, t, codes);
+    if (metroZctas) {
+      activeFeatures = activeFeatures.filter((f) => metroZctas.has(f.properties.id));
+      active = dedupe(activeFeatures.map((f) => f.properties.id));
+      if (active.length === 0) throw new Error("No ZIP codes found for the selected metro area.");
+    }
 
     step("loading data…");
     let colorById, legend;
@@ -357,7 +396,7 @@ async function generate() {
       const cp = palettes.comparison[$("cpalette").value];
       const palette = divergingPalette(cp.color_a, cp.color_mid, cp.color_b, breaks.length + 1);
       colorById = colorsForComparison(logr, active, breaks, palette);
-      legend = { title: "Relative likelihood of friendship", colors: palette,
+      legend = { title: comparisonLegendTitle(), colors: palette,
         labels: breaks.map(labelComparison) };
     } else {
       const sciData = await getSci(type, $("sourceA").value);
@@ -372,13 +411,14 @@ async function generate() {
     }
 
     step("rendering…");
+    const borderFeatures = await loadBorderFeatures(t, codes, metroZctas, activeFeatures);
     const highlightId = !compareMode() && $("highlight").checked && t.sourceGeo === t.friendGeo
       ? $("sourceA").value : null;
     const { w, h } = outputPixels();
     const opts = {
       friendGeo, colorById, activeIds: active,
-      bbox: manualBbox() || computeBbox(friendGeo, active),
-      showBorders: $("borders").checked, highlightId,
+      bbox: (metroZctas ? null : manualBbox()) || computeBbox(friendGeo, active),
+      showBorders: $("borders").checked, borderFeatures, highlightId,
       title: $("title").value || autoTitle(), subtitle: $("subtitle").value,
       caption: CAPTION, legend, width: w, height: h,
     };
@@ -407,6 +447,9 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(a.href);
 }
 
+const canvasBlob = (canvas, type, quality) =>
+  new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+
 const slug = () => (sourceLabelText().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "sci_map");
 
 async function download(fmt) {
@@ -418,17 +461,65 @@ async function download(fmt) {
       lastCanvas.toBlob((b) => downloadBlob(b, `${slug()}.jpg`), "image/jpeg", 0.92);
     } else if (fmt === "svg") {
       downloadSvg(lastRender, `${slug()}.svg`);
-    } else if (fmt === "pdf") {
-      $("status").textContent = "building PDF…";
-      await downloadPdf(lastRender, `${slug()}.pdf`);
-      $("status").textContent = "";
     } else if (fmt === "mp4") {
       if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/JPG.");
       $("status").textContent = "encoding MP4…";
-      const blob = await encodeMp4(lastCanvas, { seconds: 4, fps: 30, portrait: true });
+      const blob = await encodeMp4(lastCanvas, { seconds: 10, fps: 30, portrait: true });
       downloadBlob(blob, `${slug()}.mp4`);
       $("status").textContent = "";
     }
+  } catch (e) {
+    showError(e);
+  }
+}
+
+// ---- share ----------------------------------------------------------------
+// The map image is generated client-side, so the only way to attach the actual
+// PNG is the Web Share API (navigator.share with a File) — used when available
+// (mobile + Safari/Edge), which opens the OS share sheet with the image attached.
+// Otherwise we fall back to downloading the PNG and opening the platform's
+// composer so the user can attach it (web share intents can't carry a local file).
+
+function shareIntentUrl(platform, caption) {
+  const u = encodeURIComponent(SHARE_URL);
+  const t = encodeURIComponent(caption);
+  switch (platform) {
+    case "facebook": return `https://www.facebook.com/sharer/sharer.php?u=${u}`;
+    case "x":        return `https://twitter.com/intent/tweet?text=${t}&url=${u}`;
+    case "linkedin": return `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
+    case "reddit":   return `https://www.reddit.com/submit?url=${u}&title=${t}`;
+    case "instagram": return "https://www.instagram.com/";
+    case "email":
+      return `mailto:?subject=${t}&body=${encodeURIComponent(
+        `${caption}\n\nMade with ${SHARE_URL}\n\n(Attach the downloaded map image.)`)}`;
+    default: return null;
+  }
+}
+
+async function sharePng(platform) {
+  if (!lastCanvas) { showError(new Error("Generate a map first.")); return; }
+  try {
+    const blob = await canvasBlob(lastCanvas, "image/png");
+    const file = new File([blob], `${slug()}.png`, { type: "image/png" });
+    const caption = ($("title").value || "Social Connectedness Index map").replace(/\n/g, " ");
+
+    // Best path: native share sheet with the actual image attached.
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: caption, text: `${caption} — ${SHARE_URL}` });
+        return;
+      } catch (e) {
+        if (e.name === "AbortError") return; // user dismissed the sheet
+        // otherwise fall through to the download + composer fallback
+      }
+    }
+
+    // Fallback: give them the file, then open the platform's composer to attach it.
+    downloadBlob(blob, `${slug()}.png`);
+    const url = shareIntentUrl(platform, caption);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    $("status").textContent =
+      "Map image downloaded — attach it in the share window that just opened.";
   } catch (e) {
     showError(e);
   }
@@ -446,12 +537,15 @@ function buildRCode() {
   const zoom = z ? `\n  xlim = c(${z[0]}, ${z[2]}),\n  ylim = c(${z[1]}, ${z[3]}),` : "";
   const titleArg = $("title").value ? `\n  title = "${$("title").value}",` : "";
   const subArg = $("subtitle").value ? `\n  subtitle = "${$("subtitle").value}",` : "";
+  const cbsa = selectedCbsa();
+  const cbsaArg = cbsa ? `\n  filter_dest_cbsa = "${cbsa.code}",` : "";
 
   if (compareMode()) {
     const cp = palettes.comparison[$("cpalette").value];
+    const labArg = `\n  label_a = "${cmpLabelA()}",\n  label_b = "${cmpLabelB()}",`;
     return `source("src/setup.R")\nmake_comparison_map(\n  type = "${type}",\n` +
       `  region_a_id = "${$("sourceA").value}",\n  region_b_id = "${$("sourceB").value}",\n` +
-      `  sci_path = "${path}",${cc}\n` +
+      `  sci_path = "${path}",${cc}${cbsaArg}${labArg}\n` +
       `  color_a = "${cp.color_a}", color_b = "${cp.color_b}", color_mid = "${cp.color_mid}",` +
       `${titleArg}${subArg}${zoom}\n  output_path = "output/maps/map.png"\n)`;
   }
@@ -461,6 +555,7 @@ function buildRCode() {
     `  sci_path = "${path}"`,
   ];
   if (typeInfo().friendByCountry && codes) lines.push(`  friend_countries = c(${[...codes].map((c) => `"${c}"`).join(", ")})`);
+  if (cbsa) lines.push(`  filter_dest_cbsa = "${cbsa.code}"`);
   const refq = parseFloat($("refq").value) || 0.25;
   if (refq !== 0.25) lines.push(`  reference_quantile = ${refq}`);
   const br = parseBreaks($("breaks").value);
@@ -494,10 +589,14 @@ function reset() {
   $("originType").value = "country";
   fillDestOptions();
   $("destType").value = "country";
+  if ($("destCbsa")) $("destCbsa").value = "";
+  syncCbsaUI();
   $("sourceSearch").value = "";
   $("group").selectedIndex = -1;
   $("customCountries").selectedIndex = -1;
-  for (const id of ["title", "subtitle", "breaks", "xmin", "xmax", "ymin", "ymax"]) $(id).value = "";
+  for (const id of ["title", "subtitle", "breaks", "xmin", "xmax", "ymin", "ymax", "labelA", "labelB"]) {
+    if ($(id)) $(id).value = "";
+  }
   $("refq").value = "0.25";
   $("width").value = "30"; $("height").value = "25"; $("dpi").value = "300";
   $("palette").selectedIndex = 0;
@@ -512,7 +611,61 @@ function reset() {
   refreshSources().catch(showError);
 }
 
+// ---- metro (CBSA) ZIP filter ----------------------------------------------
+// Mirrors the Shiny app's "Metro area (optional)" control: when the destination
+// level is US ZIP, the friend ZIPs can be restricted to a single metro area.
+
+async function ensureCbsaList() {
+  if (cbsaList) return cbsaList;
+  cbsaList = await getJSON("cbsa_zcta.json");
+  if ($("destCbsa")) {
+    $("destCbsa").innerHTML =
+      `<option value="">(All ZIP codes)</option>` +
+      cbsaList.map((c) => `<option value="${c.code}">${c.title}</option>`).join("");
+  }
+  return cbsaList;
+}
+
+// The metro filter only applies when coloring ZIPs (friend level us_zcta).
+const metroApplicable = () => $("destType").value === "us_zcta";
+
+function selectedCbsa() {
+  if (!cbsaList || !metroApplicable() || !$("destCbsa")) return null;
+  const code = $("destCbsa").value;
+  return code ? cbsaList.find((c) => c.code === code) || null : null;
+}
+function metroFilterZctas() {
+  const c = selectedCbsa();
+  return c ? new Set(c.zctas) : null;
+}
+
+function syncCbsaUI() {
+  const show = metroApplicable();
+  if ($("cbsaWrap")) $("cbsaWrap").style.display = show ? "" : "none";
+  if (show) ensureCbsaList().catch(showError);
+  else if ($("destCbsa")) $("destCbsa").value = "";
+}
+
+// A metro selection drives its own zoom (we fit to the metro's ZIPs), so clear
+// the auto-filled US-wide bounds; restoring them when the filter is removed.
+function onCbsaChange() {
+  if ($("destCbsa").value) clearBoundsFields();
+  else autoFillBounds();
+}
+
 // ---- presets --------------------------------------------------------------
+
+// Select an option by id even when the list was truncated for display (gadm2 and
+// us_zcta have far more regions than MAX_OPTIONS). Without this, setting .value
+// to an off-list id silently fails and the preset can't find its source region.
+function ensureSelected(sel, id) {
+  if (!sel || !id) return;
+  if (![...sel.options].some((o) => o.value === id)) {
+    const o = allSourceOpts.find((x) => x.id === id);
+    if (o) sel.insertAdjacentHTML("afterbegin", `<option value="${o.id}">${o.label}</option>`);
+  }
+  sel.value = id;
+}
 
 async function applyPreset(name) {
   const p = presets.find((x) => x.name === name);
@@ -522,6 +675,7 @@ async function applyPreset(name) {
   $("originType").value = p.origin;
   fillDestOptions();
   $("destType").value = p.dest;
+  syncCbsaUI();
   selectGroup(p.group);
   $("customCountries").selectedIndex = -1;
   await refreshSources();
@@ -529,8 +683,10 @@ async function applyPreset(name) {
   renderSourceOptions();
   renderSourceOptionsB();
   if (p.mode === "compare") {
-    $("sourceA").value = p.regionA;
-    if ($("sourceB")) $("sourceB").value = p.regionB;
+    ensureSelected($("sourceA"), p.regionA);
+    ensureSelected($("sourceB"), p.regionB);
+    if ($("labelA")) $("labelA").value = p.labelA || "";
+    if ($("labelB")) $("labelB").value = p.labelB || "";
     if (p.colorMid && $("cpalette")) {
       // pick the comparison palette whose colors match, else leave default
       for (const opt of $("cpalette").options) {
@@ -539,13 +695,21 @@ async function applyPreset(name) {
       }
     }
   } else {
-    $("sourceA").value = p.user_region_id;
+    ensureSelected($("sourceA"), p.user_region_id);
     $("breaks").value = p.breaks ? p.breaks.join(", ") : "";
   }
   $("title").value = p.title || "";
   $("subtitle").value = p.subtitle || "";
-  if (p.xlim && p.ylim) setBoundsFields({ xlim: p.xlim, ylim: p.ylim });
-  else autoFillBounds();
+  // Metro filter (optional) — drives its own zoom, so skip the manual bounds.
+  if (p.destCbsa && metroApplicable()) {
+    await ensureCbsaList();
+    $("destCbsa").value = p.destCbsa;
+    clearBoundsFields();
+  } else if (p.xlim && p.ylim) {
+    setBoundsFields({ xlim: p.xlim, ylim: p.ylim });
+  } else {
+    autoFillBounds();
+  }
   await generate();
 }
 
@@ -554,6 +718,7 @@ function onDestChange() {
   if (origin === "country" && dest !== "country") {
     selectGroup(dest.startsWith("nuts") ? "Europe" : dest.startsWith("us_") ? "United States" : null);
   }
+  syncCbsaUI();
   refreshSources().then(autoFillBounds).catch(showError);
 }
 
@@ -569,6 +734,10 @@ async function init() {
     getJSON("presets.json"),
   ]);
 
+  // Guard against an older groups.json where a single-code group serialized as a
+  // bare string instead of an array (would break groups[g].forEach).
+  for (const k in groups) if (!Array.isArray(groups[k])) groups[k] = [groups[k]];
+
   buildTypeGraph();
   $("originType").innerHTML = ORIGIN_LEVELS.map((l) => `<option value="${l}">${LEVEL_LABEL[l]}</option>`).join("");
   fillDestOptions();
@@ -578,14 +747,20 @@ async function init() {
   if ($("cpalette")) $("cpalette").innerHTML = Object.keys(palettes.comparison).map((p) => `<option>${p}</option>`).join("");
   $("preset").innerHTML =
     `<option value="">(Start from scratch)</option>` +
-    presets.map((p) => `<option value="${p.name}">${p.name.replace(/_/g, " ")}${p.mode === "compare" ? " (vs)" : ""}</option>`).join("");
+    presets
+      .map((p) => ({ p, label: p.label || p.name }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map(({ p, label }) => `<option value="${p.name}">${label}</option>`)
+      .join("");
 
   syncCompareUI();
+  syncCbsaUI();
   await refreshSources();
 
   $("preset").addEventListener("change", (e) => { if (e.target.value) applyPreset(e.target.value).catch(showError); });
   $("originType").addEventListener("change", () => { fillDestOptions(); onDestChange(); });
   $("destType").addEventListener("change", onDestChange);
+  if ($("destCbsa")) $("destCbsa").addEventListener("change", onCbsaChange);
   $("group").addEventListener("change", autoFillBounds);
   $("customCountries").addEventListener("change", autoFillBounds);
   $("sourceSearch").addEventListener("input", () => { renderSourceOptions(); renderSourceOptionsB(); });
@@ -594,8 +769,9 @@ async function init() {
   $("dlPng").addEventListener("click", () => download("png"));
   $("dlJpg").addEventListener("click", () => download("jpg"));
   $("dlSvg").addEventListener("click", () => download("svg"));
-  $("dlPdf").addEventListener("click", () => download("pdf"));
   $("dlMp4").addEventListener("click", () => download("mp4"));
+  document.querySelectorAll(".share-btn").forEach((b) =>
+    b.addEventListener("click", () => sharePng(b.dataset.share)));
   $("reset").addEventListener("click", reset);
   $("showCode").addEventListener("click", () => {
     $("codeBox").value = buildRCode();

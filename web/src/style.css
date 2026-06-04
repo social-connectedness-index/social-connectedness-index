@@ -15,7 +15,7 @@ body { display: flex; height: 100vh; overflow: hidden; }
   border-right: 1px solid #e9ecef;
 }
 #panel h1 { font-size: 18px; margin: 0 0 14px; color: #212529; }
-#panel h1 .muted { color: #6c757d; font-size: 13px; font-weight: normal; }
+#panel h1 .muted { display: block; margin-top: 2px; color: #6c757d; font-size: 13px; font-weight: normal; }
 
 .section-label {
   font-weight: 600; color: #212529; margin-bottom: 4px;
@@ -71,16 +71,38 @@ details > *:not(summary) { margin-top: 4px; }
 }
 .map-container canvas { max-width: 100%; height: auto; display: block; }
 
-.download-row { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 8px; }
-.download-row button {
-  font-size: 13px; padding: 7px 14px; border-radius: 6px; cursor: pointer;
-  border: 1px solid transparent; color: #fff;
+/* ---- download + share actions ---- */
+.actions { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.action-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.action-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+  color: #6c757d; width: 88px; flex: 0 0 88px;
 }
-.btn-success { background: #198754; border-color: #198754; }
-.btn-info { background: #0dcaf0; border-color: #0dcaf0; color: #053; }
-.btn-secondary { background: #6c757d; border-color: #6c757d; }
-.btn-outline { background: #fff; color: #6c757d; border-color: #6c757d; }
-.download-row button:hover { filter: brightness(0.95); }
+.btn-cluster { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.dl-btn {
+  font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px;
+  cursor: pointer; border: 1px solid #ced4da; background: #fff; color: #343a40;
+  transition: background 0.12s, border-color 0.12s;
+}
+.dl-btn:hover { background: #f1f3f5; border-color: #adb5bd; }
+
+.share-btn {
+  width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer;
+  padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; transition: filter 0.12s, transform 0.12s;
+}
+.share-btn svg { width: 19px; height: 19px; fill: currentColor; display: block; }
+.share-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.s-facebook  { background: #1877f2; }
+.s-x         { background: #000000; }
+.s-linkedin  { background: #0a66c2; }
+.s-reddit    { background: #ff4500; }
+.s-email     { background: #5f6b7a; }
+.s-instagram {
+  background: radial-gradient(circle at 30% 107%,
+    #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%);
+}
 
 /* ---- R code modal ---- */
 .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; }
@@ -91,3 +113,13 @@ details > *:not(summary) { margin-top: 4px; }
   font-size: 13px; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px;
 }
 .modal-box button { margin-top: 10px; padding: 8px 16px; }
+
+/* ---- mobile: stack panel on top, map below, let the page scroll ---- */
+@media (max-width: 768px) {
+  body { flex-direction: column; height: auto; min-height: 100vh; overflow: auto; }
+  #panel {
+    width: 100%; flex: none; height: auto; overflow-y: visible;
+    border-right: none; border-bottom: 1px solid #e9ecef;
+  }
+  #mapWrap { flex: none; overflow: visible; padding: 16px; }
+}

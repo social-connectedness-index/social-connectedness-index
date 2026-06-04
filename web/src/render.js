@@ -92,7 +92,8 @@ function svgBackend(W, H) {
 function drawScene(g, opts) {
   const {
     friendGeo, colorById, activeIds, naColor = NA_COLOR, bbox,
-    showBorders = true, borderColor = "#555",
+    showBorders = true, borderColor = "#555", borderFeatures = null,
+    adminBorderColor = "#595959",
     highlightId = null, highlightColor = "#FF0000",
     title = "", subtitle = "", caption = "", legend,
   } = opts;
@@ -107,8 +108,8 @@ function drawScene(g, opts) {
   const margin = Math.round(W * 0.025);
   const titleFs = Math.round(W / 40);
   const subFs = Math.round(W / 58);
-  const capFs = Math.round(W / 95);
-  const legendFs = Math.round(W / 80);
+  const capFs = Math.round(W / 78);   // caption (dataset link + handle) — a bit larger for readability
+  const legendFs = Math.round(W / 68); // legend title + tick labels — a bit larger
   const titleLines = title ? title.split("\n").length : 0;
   const subLines = subtitle ? subtitle.split("\n").length : 0;
   const capLines = caption ? caption.split("\n").length : 0;
@@ -156,18 +157,26 @@ function drawScene(g, opts) {
     return p;
   };
 
-  // Fills
+  // Fills — friend regions are drawn WITHOUT an outline (matches the R tool's
+  // color = NA on the choropleth layer); separation comes from the border layer.
   for (const f of friendGeo.features) {
     const id = f.properties.id;
     if (!active.has(id)) continue;
     g.fill(buildPath(f.geometry), colorById[id] || naColor, true);
   }
-  // Borders
+  // Borders. When borderFeatures is provided it's a coarser admin layer
+  // (e.g. state/province = gadm1, or NUTS1) — the analogue of the Shiny app's
+  // "Show state borders" overlay. When null, the friend regions themselves are
+  // the toggled level (country/gadm1/nuts1), so stroke their outlines instead.
   if (showBorders) {
     const lw = Math.max(0.4, W / 2600);
-    for (const f of friendGeo.features) {
-      if (!active.has(f.properties.id)) continue;
-      g.stroke(buildPath(f.geometry), borderColor, lw);
+    if (borderFeatures) {
+      for (const f of borderFeatures) g.stroke(buildPath(f.geometry), adminBorderColor, lw);
+    } else {
+      for (const f of friendGeo.features) {
+        if (!active.has(f.properties.id)) continue;
+        g.stroke(buildPath(f.geometry), borderColor, lw);
+      }
     }
   }
   // Highlight source region
