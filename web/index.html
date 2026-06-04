@@ -14,12 +14,19 @@
       <select id="preset"></select>
 
       <hr />
+      <label class="check"><input id="compare" type="checkbox" /> Compare two regions</label>
+
       <div class="section-label">Friendships to</div>
       <label>Region type</label>
       <select id="originType"></select>
       <label>Region</label>
       <input id="sourceSearch" type="text" placeholder="Type to filter…" autocomplete="off" />
       <select id="sourceA" size="6"></select>
+      <div id="sourceBWrap" style="display:none">
+        <label>Second region (compared against the first)</label>
+        <select id="sourceB" size="6"></select>
+      </div>
+      <div id="sourceHint" class="help-hint"></div>
 
       <hr />
       <div class="section-label">Shown across</div>
@@ -48,8 +55,14 @@
         <label>Subtitle (optional)</label>
         <input id="subtitle" type="text" />
 
-        <label>Color palette</label>
-        <select id="palette"></select>
+        <div id="paletteWrap">
+          <label>Color palette</label>
+          <select id="palette"></select>
+        </div>
+        <div id="cpaletteWrap" style="display:none">
+          <label>Comparison palette</label>
+          <select id="cpalette"></select>
+        </div>
 
         <label>Reference quantile</label>
         <input id="refq" type="number" min="0" max="1" step="0.05" value="0.25" />
@@ -101,6 +114,8 @@
       <div id="downloadRow" class="download-row" style="display:none">
         <button id="dlPng" class="btn-success">PNG</button>
         <button id="dlJpg" class="btn-info">JPG</button>
+        <button id="dlSvg" class="btn-info">SVG</button>
+        <button id="dlPdf" class="btn-info">PDF</button>
         <button id="dlMp4" class="btn-secondary">MP4</button>
         <button id="showCode" class="btn-outline">Export R Code</button>
       </div>

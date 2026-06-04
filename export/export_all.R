@@ -40,10 +40,15 @@ if (length(args) == 0) {
   export_geometry(OUT_ROOT)
   export_sci(OUT_ROOT)
 } else {
-  # Selective rebuild: any arg that names a geo level / sci type runs just that.
+  # Selective rebuild. A plain name runs BOTH geo + sci for it (when applicable).
+  # Prefix to target one stage only: `geo:gadm2` (geometry only), `sci:gadm2`
+  # (sci only) — useful because gadm2/us_zcta are both a geo level AND an sci type.
   export_meta(OUT_ROOT)
-  geo_sel <- intersect(args, names(geo_levels))
-  sci_sel <- intersect(args, names(sci_types))
+  geo_only <- sub("^geo:", "", grep("^geo:", args, value = TRUE))
+  sci_only <- sub("^sci:", "", grep("^sci:", args, value = TRUE))
+  plain <- args[!grepl("^(geo|sci):", args)]
+  geo_sel <- intersect(c(plain, geo_only), names(geo_levels))
+  sci_sel <- intersect(c(plain, sci_only), names(sci_types))
   if (length(geo_sel) > 0) export_geometry(OUT_ROOT, geo_sel)
   if (length(sci_sel) > 0) export_sci(OUT_ROOT, sci_sel)
   if (length(geo_sel) == 0 && length(sci_sel) == 0) {

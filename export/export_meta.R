@@ -11,22 +11,49 @@
 meta_types <- list(
   country           = list(label = "Country -> Country",            sourceGeo = "country",   friendGeo = "country",   friendByCountry = TRUE),
   gadm1             = list(label = "State/Province -> State",       sourceGeo = "gadm1",     friendGeo = "gadm1",     friendByCountry = TRUE),
+  gadm2             = list(label = "District/County -> District",   sourceGeo = "gadm2",     friendGeo = "gadm2",     friendByCountry = TRUE),
   nuts1             = list(label = "NUTS1 -> NUTS1 (Europe)",       sourceGeo = "nuts1",     friendGeo = "nuts1",     friendByCountry = TRUE),
+  nuts2             = list(label = "NUTS2 -> NUTS2 (Europe)",       sourceGeo = "nuts2",     friendGeo = "nuts2",     friendByCountry = TRUE),
+  nuts3             = list(label = "NUTS3 -> NUTS3 (Europe)",       sourceGeo = "nuts3",     friendGeo = "nuts3",     friendByCountry = TRUE),
   us_county         = list(label = "US County -> US County",        sourceGeo = "us_county", friendGeo = "us_county", friendByCountry = FALSE),
+  us_cbsa           = list(label = "US Metro (CBSA) -> US Metro",   sourceGeo = "us_cbsa",   friendGeo = "us_cbsa",   friendByCountry = FALSE),
+  us_zcta           = list(label = "US ZIP (ZCTA) -> US ZIP",       sourceGeo = "us_zcta",   friendGeo = "us_zcta",   friendByCountry = FALSE),
   gadm1_country     = list(label = "State/Province -> Country",     sourceGeo = "gadm1",     friendGeo = "country",   friendByCountry = TRUE),
+  gadm2_country     = list(label = "District/County -> Country",    sourceGeo = "gadm2",     friendGeo = "country",   friendByCountry = TRUE),
   nuts1_country     = list(label = "NUTS1 -> Country",              sourceGeo = "nuts1",     friendGeo = "country",   friendByCountry = TRUE),
+  nuts2_country     = list(label = "NUTS2 -> Country",              sourceGeo = "nuts2",     friendGeo = "country",   friendByCountry = TRUE),
+  nuts3_country     = list(label = "NUTS3 -> Country",              sourceGeo = "nuts3",     friendGeo = "country",   friendByCountry = TRUE),
   us_county_country = list(label = "US County -> Country",          sourceGeo = "us_county", friendGeo = "country",   friendByCountry = TRUE),
+  us_zcta_country   = list(label = "US ZIP (ZCTA) -> Country",      sourceGeo = "us_zcta",   friendGeo = "country",   friendByCountry = TRUE),
   country_gadm1     = list(label = "Country -> State/Province",     sourceGeo = "country",   friendGeo = "gadm1",     friendByCountry = TRUE),
+  country_gadm2     = list(label = "Country -> District/County",    sourceGeo = "country",   friendGeo = "gadm2",     friendByCountry = TRUE),
   country_nuts1     = list(label = "Country -> NUTS1 (Europe)",     sourceGeo = "country",   friendGeo = "nuts1",     friendByCountry = TRUE),
-  country_us_county = list(label = "Country -> US County",          sourceGeo = "country",   friendGeo = "us_county", friendByCountry = FALSE)
+  country_nuts2     = list(label = "Country -> NUTS2 (Europe)",     sourceGeo = "country",   friendGeo = "nuts2",     friendByCountry = TRUE),
+  country_nuts3     = list(label = "Country -> NUTS3 (Europe)",     sourceGeo = "country",   friendGeo = "nuts3",     friendByCountry = TRUE),
+  country_us_county = list(label = "Country -> US County",          sourceGeo = "country",   friendGeo = "us_county", friendByCountry = FALSE),
+  country_us_cbsa   = list(label = "Country -> US Metro (CBSA)",    sourceGeo = "country",   friendGeo = "us_cbsa",   friendByCountry = FALSE),
+  country_us_zcta   = list(label = "Country -> US ZIP (ZCTA)",      sourceGeo = "country",   friendGeo = "us_zcta",   friendByCountry = FALSE),
+  # US cross-level
+  us_zcta_county    = list(label = "US ZIP (ZCTA) -> US County",       sourceGeo = "us_zcta", friendGeo = "us_county", friendByCountry = FALSE),
+  us_zcta_cbsa      = list(label = "US ZIP (ZCTA) -> US Metro (CBSA)", sourceGeo = "us_zcta", friendGeo = "us_cbsa",   friendByCountry = FALSE),
+  us_cbsa_zcta      = list(label = "US Metro (CBSA) -> US ZIP (ZCTA)", sourceGeo = "us_cbsa", friendGeo = "us_zcta",   friendByCountry = FALSE)
 )
+
+# Geometry levels that are sharded on disk (frontend lazy-loads per shard) and
+# SCI types served via the range-index format (frontend HTTP-Range-fetches).
+sharded_levels <- c("gadm2", "us_zcta")
 
 export_meta <- function(out_root) {
   message("== Exporting metadata ==")
   dir.create(out_root, recursive = TRUE, showWarnings = FALSE)
 
   jsonlite::write_json(
-    list(types = meta_types, defaultType = "country"),
+    list(
+      types = meta_types,
+      defaultType = "country",
+      shardedLevels = sharded_levels,
+      rangeIndexTypes = RANGE_INDEX_TYPES
+    ),
     file.path(out_root, "manifest.json"),
     auto_unbox = TRUE, pretty = TRUE
   )
@@ -150,23 +177,38 @@ export_meta <- function(out_root) {
     if (endsWith(type, "_country")) return(list(origin = sub("_country$", "", type), dest = "country"))
     list(origin = type, dest = type)
   }
+  match_group <- function(friend_countries) {
+    if (is.null(friend_countries)) return("All countries")
+    for (g in names(group_codes)) {
+      if (setequal(group_codes[[g]], friend_countries)) return(g)
+    }
+    "All countries"
+  }
+
   presets <- list()
   for (nm in names(map_specs)) {
     spec <- map_specs[[nm]]
-    if ("region_a_id" %in% names(spec)) next            # comparison maps -> later
     if (!(spec$type %in% supported)) next               # unsupported granularity
     od <- to_od(spec$type)
-    grp <- "All countries"
-    if (!is.null(spec$friend_countries)) {
-      for (g in names(group_codes)) {
-        if (setequal(group_codes[[g]], spec$friend_countries)) { grp <- g; break }
-      }
+    grp <- match_group(spec$friend_countries)
+    is_compare <- "region_a_id" %in% names(spec)
+
+    p <- list(name = nm, origin = od$origin, dest = od$dest, group = grp)
+    if (is_compare) {
+      p$mode <- "compare"
+      p$regionA <- spec$region_a_id
+      p$regionB <- spec$region_b_id
+      if (!is.null(spec$label_a)) p$labelA <- spec$label_a
+      if (!is.null(spec$label_b)) p$labelB <- spec$label_b
+      if (!is.null(spec$color_a)) p$colorA <- spec$color_a
+      if (!is.null(spec$color_b)) p$colorB <- spec$color_b
+      if (!is.null(spec$color_mid)) p$colorMid <- spec$color_mid
+    } else {
+      p$user_region_id <- spec$user_region_id
+      if (!is.null(spec$breaks)) p$breaks <- spec$breaks
     }
-    p <- list(name = nm, origin = od$origin, dest = od$dest,
-              user_region_id = spec$user_region_id, group = grp)
     if (!is.null(spec$title)) p$title <- spec$title
     if (!is.null(spec$subtitle)) p$subtitle <- spec$subtitle
-    if (!is.null(spec$breaks)) p$breaks <- spec$breaks
     if (!is.null(spec$xlim)) p$xlim <- spec$xlim
     if (!is.null(spec$ylim)) p$ylim <- spec$ylim
     presets[[length(presets) + 1]] <- p

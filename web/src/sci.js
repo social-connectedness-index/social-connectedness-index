@@ -140,9 +140,21 @@ export function comparisonBreaks(logRatios) {
 
 // ---- palette & binning ----------------------------------------------------
 
+// Parse a color to [r,g,b]. Handles #rrggbb, #rgb, and the named colors used by
+// the R palettes/presets (white/black and R's grey/gray NN shades, e.g. grey40).
 function hexToRgb(h) {
-  const s = h.replace("#", "");
-  return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
+  const c = String(h).trim().toLowerCase();
+  if (c[0] === "#") {
+    const s = c.slice(1);
+    if (s.length === 3) return [0, 1, 2].map((i) => parseInt(s[i] + s[i], 16));
+    return [parseInt(s.slice(0, 2), 16), parseInt(s.slice(2, 4), 16), parseInt(s.slice(4, 6), 16)];
+  }
+  if (c === "white") return [255, 255, 255];
+  if (c === "black") return [0, 0, 0];
+  const m = c.match(/^gr[ae]y(\d{1,3})$/); // R grey0..grey100
+  if (m) { const v = Math.round((Math.min(+m[1], 100) / 100) * 255); return [v, v, v]; }
+  if (c === "grey" || c === "gray") return [190, 190, 190]; // R default "grey"
+  return [0, 0, 0];
 }
 function rgbToHex([r, g, b]) {
   const c = (v) => Math.round(v).toString(16).padStart(2, "0");
@@ -185,6 +197,25 @@ export function colorsFor(valuesById, ids, allBreaks, palette, naColor = "#BFBFB
   const out = {};
   for (const id of ids) {
     const bi = binIndex(valuesById[id], allBreaks);
+    out[id] = bi < 0 ? naColor : palette[Math.min(bi, palette.length - 1)];
+  }
+  return out;
+}
+
+// Diverging palette of n colors across color_a -> color_mid -> color_b
+// (matches make_comparison_map's two-sided ramp; mid sits at the center).
+export function divergingPalette(colorA, colorMid, colorB, n) {
+  if (n <= 1) return [colorMid];
+  return interpolatePalette([colorA, colorMid, colorB], n);
+}
+
+// Comparison colors: bin each region's log2 ratio against the symmetric breaks
+// (which include 0 at the center) and map to the diverging palette.
+export function colorsForComparison(logById, ids, breaks, palette, naColor = "#BFBFBF") {
+  const allBreaks = [-Infinity, ...breaks, Infinity];
+  const out = {};
+  for (const id of ids) {
+    const bi = binIndex(logById[id], allBreaks);
     out[id] = bi < 0 ? naColor : palette[Math.min(bi, palette.length - 1)];
   }
   return out;
