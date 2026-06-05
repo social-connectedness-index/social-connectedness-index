@@ -14,21 +14,22 @@
       <select id="preset"></select>
 
       <hr />
-      <label class="check"><input id="compare" type="checkbox" /> Compare two regions</label>
+      <div class="section-label">Map configuration</div>
+      <div class="mode-toggle">
+        <label><input type="radio" name="mapMode" value="single" checked /> Single region</label>
+        <label><input type="radio" name="mapMode" value="compare" /> Compare two regions</label>
+      </div>
 
+      <hr />
       <div class="section-label">Friendships to</div>
       <label>Region type</label>
       <select id="originType"></select>
-      <label>Region</label>
+      <label id="regionLabel">Region</label>
       <input id="sourceSearch" type="text" placeholder="Type to filter…" autocomplete="off" />
       <select id="sourceA" size="6"></select>
       <div id="sourceBWrap" style="display:none">
-        <label>Second region (compared against the first)</label>
+        <label>Region B</label>
         <select id="sourceB" size="6"></select>
-        <label>Legend label for Region A (optional)</label>
-        <input id="labelA" type="text" placeholder="defaults to region A's name" />
-        <label>Legend label for Region B (optional)</label>
-        <input id="labelB" type="text" placeholder="defaults to region B's name" />
       </div>
       <div id="sourceHint" class="help-hint"></div>
 
@@ -69,24 +70,40 @@
           <select id="palette"></select>
         </div>
         <div id="cpaletteWrap" style="display:none">
-          <label>Comparison palette</label>
+          <label>Color palette</label>
           <select id="cpalette"></select>
+          <label>Legend label for Region A (optional)</label>
+          <input id="labelA" type="text" />
+          <label>Legend label for Region B (optional)</label>
+          <input id="labelB" type="text" />
+          <div class="help-hint">Short names used in the legend. Leave empty to use the default region name.</div>
         </div>
 
-        <label>Reference quantile</label>
-        <input id="refq" type="number" min="0" max="1" step="0.05" value="0.25" />
-        <div class="help-hint">
-          Each region's SCI is divided by this quantile's value to produce a multiplier
-          (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile.
+        <div id="singleBreaksWrap">
+          <label>Reference quantile</label>
+          <input id="refq" type="number" min="0" max="1" step="0.05" value="0.25" />
+          <div class="help-hint">
+            Each region's SCI is divided by this quantile's value to produce a multiplier
+            (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile.
+          </div>
+
+          <label>Custom breaks (comma-separated)</label>
+          <input id="breaks" type="text" />
+          <div class="help-hint">
+            Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10'
+            bins regions into ≤1x, 1–5x, 5–10x, and &gt;10x). When left empty, the first bin
+            captures regions below the reference quantile and the remaining bins are equal-sized
+            quantile buckets.
+          </div>
         </div>
 
-        <label>Custom breaks (comma-separated)</label>
-        <input id="breaks" type="text" />
-        <div class="help-hint">
-          Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10'
-          bins regions into ≤1x, 1–5x, 5–10x, and &gt;10x). When left empty, the first bin
-          captures regions below the reference quantile and the remaining bins are equal-sized
-          quantile buckets.
+        <div id="compareBreaksWrap" style="display:none">
+          <label>Comparison breaks (comma-separated multipliers)</label>
+          <input id="cbreaks" type="text" />
+          <div class="help-hint">
+            Symmetric multiplier thresholds on each side of 'Equal' (e.g., '1.5, 2, 3' creates
+            bins at 1.5x, 2x, 3x in both directions). Leave empty to auto-compute from the data.
+          </div>
         </div>
 
         <label class="check"><input id="highlight" type="checkbox" /> Label selected region</label>

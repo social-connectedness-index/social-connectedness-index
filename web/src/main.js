@@ -34,7 +34,7 @@ const LEVEL_LABEL = {
   nuts3: "NUTS3 region (Europe)",
   us_county: "US County",
   us_cbsa: "US Metro Area (CBSA)",
-  us_zcta: "US ZIP (ZCTA)",
+  us_zcta: "US ZIP Code",
 };
 const LEVEL_ORDER = [
   "country", "gadm1", "gadm2", "nuts1", "nuts2", "nuts3",
@@ -181,7 +181,11 @@ async function getSci(type, id) {
 const dedupe = (a) => Array.from(new Set(a));
 const currentType = () => resolveType($("originType").value, $("destType").value);
 const typeInfo = () => manifest.types[currentType()];
-const compareMode = () => $("compare") && $("compare").checked;
+const compareMode = () => document.querySelector('input[name="mapMode"]:checked')?.value === "compare";
+function setMode(mode) {
+  const el = document.querySelector(`input[name="mapMode"][value="${mode}"]`);
+  if (el) el.checked = true;
+}
 
 // ---- populate controls ----------------------------------------------------
 
@@ -297,6 +301,18 @@ function parseBreaks(text) {
   return nums.length ? nums.sort((a, b) => a - b) : null;
 }
 
+// Custom comparison breaks: the user types multipliers (e.g. "1.5, 2, 3") and we
+// expand them into symmetric log2 thresholds around 0 (Equal), matching the R
+// tool's sort(c(-log2(m), 0, log2(m))). Returns null when nothing valid is given.
+function parseCompareBreaks(text) {
+  const mults = (text || "").split(",")
+    .map((s) => parseFloat(s.trim()))
+    .filter((n) => !Number.isNaN(n) && n > 0);
+  if (!mults.length) return null;
+  const logs = mults.map((m) => Math.log2(m));
+  return [...logs.map((v) => -v), 0, ...logs].sort((a, b) => a - b);
+}
+
 const labelOf = (sel) => sel.options[sel.selectedIndex]?.textContent || sel.value;
 const sourceLabelText = () => labelOf($("sourceA"));
 
@@ -377,12 +393,15 @@ async function generate() {
     const metroZctas = metroFilterZctas();
 
     step("loading geometry…");
-    const { geo: friendGeo, codes, hint } = await loadFriendGeo(t, srcCountry, metroZctas);
+    let { geo: friendGeo, codes, hint } = await loadFriendGeo(t, srcCountry, metroZctas);
     let { features: activeFeatures, ids: active } = activeFriends(friendGeo, t, codes);
     if (metroZctas) {
       activeFeatures = activeFeatures.filter((f) => metroZctas.has(f.properties.id));
       active = dedupe(activeFeatures.map((f) => f.properties.id));
       if (active.length === 0) throw new Error("No ZIP codes found for the selected metro area.");
+      // Keep ONLY the metro's ZIP shapes — surrounding ZIP codes (loaded in the
+      // same first-digit shard) shouldn't appear at all, not even as grey fills.
+      friendGeo = { type: "FeatureCollection", features: activeFeatures };
     }
 
     step("loading data…");
@@ -392,7 +411,7 @@ async function generate() {
       const logr = comparisonLogRatios(sciA, sciB, active);
       const lr = active.map((id) => logr[id]).filter((v) => v != null);
       if (lr.length === 0) throw new Error("No overlapping SCI data for these two regions.");
-      const breaks = comparisonBreaks(lr);
+      const breaks = parseCompareBreaks($("cbreaks").value) || comparisonBreaks(lr);
       const cp = palettes.comparison[$("cpalette").value];
       const palette = divergingPalette(cp.color_a, cp.color_mid, cp.color_b, breaks.length + 1);
       colorById = colorsForComparison(logr, active, breaks, palette);
@@ -543,9 +562,13 @@ function buildRCode() {
   if (compareMode()) {
     const cp = palettes.comparison[$("cpalette").value];
     const labArg = `\n  label_a = "${cmpLabelA()}",\n  label_b = "${cmpLabelB()}",`;
+    const cbText = $("cbreaks").value.trim();
+    const cbArg = cbText
+      ? `\n  breaks = sort(c(-log2(c(${cbText})), 0, log2(c(${cbText})))),`
+      : "";
     return `source("src/setup.R")\nmake_comparison_map(\n  type = "${type}",\n` +
       `  region_a_id = "${$("sourceA").value}",\n  region_b_id = "${$("sourceB").value}",\n` +
-      `  sci_path = "${path}",${cc}${cbsaArg}${labArg}\n` +
+      `  sci_path = "${path}",${cc}${cbsaArg}${labArg}${cbArg}\n` +
       `  color_a = "${cp.color_a}", color_b = "${cp.color_b}", color_mid = "${cp.color_mid}",` +
       `${titleArg}${subArg}${zoom}\n  output_path = "output/maps/map.png"\n)`;
   }
@@ -577,6 +600,9 @@ function syncCompareUI() {
   if ($("sourceBWrap")) $("sourceBWrap").style.display = on ? "" : "none";
   if ($("cpaletteWrap")) $("cpaletteWrap").style.display = on ? "" : "none";
   if ($("paletteWrap")) $("paletteWrap").style.display = on ? "none" : "";
+  if ($("singleBreaksWrap")) $("singleBreaksWrap").style.display = on ? "none" : "";
+  if ($("compareBreaksWrap")) $("compareBreaksWrap").style.display = on ? "" : "none";
+  if ($("regionLabel")) $("regionLabel").textContent = on ? "Region A" : "Region";
   if (on) renderSourceOptionsB();
 }
 
@@ -584,7 +610,7 @@ function syncCompareUI() {
 
 function reset() {
   $("preset").value = "";
-  if ($("compare")) $("compare").checked = false;
+  setMode("single");
   syncCompareUI();
   $("originType").value = "country";
   fillDestOptions();
@@ -594,7 +620,7 @@ function reset() {
   $("sourceSearch").value = "";
   $("group").selectedIndex = -1;
   $("customCountries").selectedIndex = -1;
-  for (const id of ["title", "subtitle", "breaks", "xmin", "xmax", "ymin", "ymax", "labelA", "labelB"]) {
+  for (const id of ["title", "subtitle", "breaks", "cbreaks", "xmin", "xmax", "ymin", "ymax", "labelA", "labelB"]) {
     if ($(id)) $(id).value = "";
   }
   $("refq").value = "0.25";
@@ -620,7 +646,7 @@ async function ensureCbsaList() {
   cbsaList = await getJSON("cbsa_zcta.json");
   if ($("destCbsa")) {
     $("destCbsa").innerHTML =
-      `<option value="">(All ZIP codes)</option>` +
+      `<option value="">(All ZIP Codes)</option>` +
       cbsaList.map((c) => `<option value="${c.code}">${c.title}</option>`).join("");
   }
   return cbsaList;
@@ -670,7 +696,8 @@ function ensureSelected(sel, id) {
 async function applyPreset(name) {
   const p = presets.find((x) => x.name === name);
   if (!p) return;
-  if ($("compare")) $("compare").checked = p.mode === "compare";
+  setMode(p.mode === "compare" ? "compare" : "single");
+  if ($("cbreaks")) $("cbreaks").value = "";
   syncCompareUI();
   $("originType").value = p.origin;
   fillDestOptions();
@@ -764,7 +791,8 @@ async function init() {
   $("group").addEventListener("change", autoFillBounds);
   $("customCountries").addEventListener("change", autoFillBounds);
   $("sourceSearch").addEventListener("input", () => { renderSourceOptions(); renderSourceOptionsB(); });
-  if ($("compare")) $("compare").addEventListener("change", syncCompareUI);
+  document.querySelectorAll('input[name="mapMode"]').forEach(
+    (r) => r.addEventListener("change", syncCompareUI));
   $("generate").addEventListener("click", generate);
   $("dlPng").addEventListener("click", () => download("png"));
   $("dlJpg").addEventListener("click", () => download("jpg"));

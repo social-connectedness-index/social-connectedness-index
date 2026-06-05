@@ -79,8 +79,18 @@ clean_us_county_shapefile <- function() {
   great_lakes <- get_great_lakes_polygon()
 
   us_county_shapes %>%
-    mutate(region_id = GEOID) %>%
-    select(region_id) %>%
+    mutate(
+      region_id = GEOID,
+      state_abbr = unname(state_fips_to_abbr[STATEFP]),
+      # Human label, e.g. "Kings County, NY". Falls back to the bare county
+      # name if the state FIPS is unmapped.
+      name = ifelse(
+        is.na(state_abbr),
+        NAMELSAD,
+        paste0(NAMELSAD, ", ", state_abbr)
+      )
+    ) %>%
+    select(region_id, name) %>%
     st_transform(crs = 4326) %>%
     st_make_valid() %>%
     ms_simplify(keep = 0.10, sys = TRUE, keep_shapes = TRUE) %>%

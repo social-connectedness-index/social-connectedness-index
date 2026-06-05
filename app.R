@@ -334,7 +334,11 @@ region_id_config <- list(
     country_col = "CNTR_CODE",
     country_origin = "iso2c"
   ),
-  us_county = list(path = us_county_shapefile_path, key = "region_id"),
+  us_county = list(
+    path = us_county_shapefile_path,
+    key = "region_id",
+    name = "name"
+  ),
   us_zcta = list(path = us_zcta_shapefile_path, key = "region_id"),
   us_cbsa = list(
     path = us_cbsa_shapefile_path,
@@ -859,7 +863,11 @@ ui <- fluidPage(
         selectizeInput(
           "dest_cbsa",
           "Metro area (optional)",
-          choices = c("(All ZCTAs)" = "", cbsa_choices)
+          choices = c("(All ZIP Codes)" = "", cbsa_choices)
+        ),
+        div(
+          class = "help-hint",
+          "Limit the ZIP codes shown to a single US metro area."
         )
       ),
 

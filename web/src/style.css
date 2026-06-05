@@ -24,6 +24,21 @@ body { display: flex; height: 100vh; overflow: hidden; }
 #panel label {
   display: block; font-size: 13px; margin: 10px 0 3px; color: #495057;
 }
+
+/* segmented Single region / Compare two regions toggle (mirrors the Shiny app) */
+.mode-toggle {
+  display: flex; background: #e9ecef; border-radius: 8px; padding: 3px; margin: 4px 0 0;
+}
+#panel .mode-toggle label {
+  flex: 1; margin: 0; padding: 7px 10px; text-align: center;
+  border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
+  color: #495057; transition: all 0.15s ease;
+}
+#panel .mode-toggle label:hover { color: #212529; }
+.mode-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+#panel .mode-toggle label:has(input:checked) {
+  background: #fff; color: #212529; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
 #panel label.check { display: flex; align-items: center; gap: 7px; margin: 10px 0; }
 #panel select, #panel input[type="text"], #panel input[type="number"] {
   width: 100%; padding: 7px 8px; border: 1px solid #ced4da; border-radius: 6px;

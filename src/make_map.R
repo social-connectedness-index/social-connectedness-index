@@ -219,7 +219,11 @@ make_map <- function(
       filter(.data[[config$friend_region_key]] %in% dest_zctas)
   }
 
-  background_sf <- if (config$friend_country_key == "region_id") {
+  background_sf <- if (!is.null(filter_dest_cbsa)) {
+    # Metro filter on: the grey background layer is just the metro's own ZIP
+    # codes, so surrounding ZIP codes don't appear at all (not even in grey).
+    shapes
+  } else if (config$friend_country_key == "region_id") {
     friend_sf
   } else {
     shapes
@@ -549,7 +553,11 @@ make_comparison_map <- function(
       filter(.data[[config$friend_region_key]] %in% dest_zctas)
   }
 
-  background_sf <- if (config$friend_country_key == "region_id") {
+  background_sf <- if (!is.null(filter_dest_cbsa)) {
+    # Metro filter on: the grey background layer is just the metro's own ZIP
+    # codes, so surrounding ZIP codes don't appear at all (not even in grey).
+    shapes
+  } else if (config$friend_country_key == "region_id") {
     friend_sf
   } else {
     shapes

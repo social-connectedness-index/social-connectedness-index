@@ -44,12 +44,12 @@ geo_levels <- list(
   ),
   us_county = list(
     path = us_county_shapefile_path,
-    key = "region_id", name_col = NULL, country_col = NULL,
+    key = "region_id", name_col = "name", country_col = NULL,
     iso2 = FALSE, keep = 0.04
   ),
   us_cbsa = list(
     path = us_cbsa_shapefile_path,
-    key = "region_id", name_col = NULL, country_col = NULL,
+    key = "region_id", name_col = "name", country_col = NULL,
     iso2 = FALSE, keep = 0.04
   ),
   us_zcta = list(
