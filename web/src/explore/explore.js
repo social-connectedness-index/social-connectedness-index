@@ -12,7 +12,7 @@
 // Each geo feature has a uniform schema: { id, country, name }.
 //
 // On click we fetch ONE source's friend->SCI map, compute percentile-based
-// thresholds client-side (20th-percentile reference, multiplier bins) and
+// thresholds client-side (25th-percentile reference, multiplier bins) and
 // repaint. This is the same maths the standalone tool used for its non-GADM2
 // levels — now applied uniformly, which removes the R2 dependency and the
 // separate pre-binning ETL entirely.
@@ -74,25 +74,64 @@ map.addControl(new mapboxgl.AttributionControl({ compact: true }));
 let hoveredStateId = null;
 
 // ---------------------------------------------------------------------------
-// Colours + bin labels (shared by all three levels).
+// Colours + bins (shared by all three levels).
 // ---------------------------------------------------------------------------
-const colorSequence = [
-  "#F7FCFD", // < 1x (below the source's 20th percentile)
-  "#E0F3DB", // 1x - 2x
-  "#CCEBC5", // 2x - 3x
-  "#A8DDB5", // 3x - 5x
-  "#7BCCC4", // 5x - 10x
-  "#43A2CA", // 10x - 25x
-  "#0868AC", // 25x - 100x
-  "#084081", // >= 100x
-  "rgba(0, 0, 0, 0)", // No data (legend "NA" row)
+// Reference quantile of a source's friend distribution = "1x" (matches the
+// static Map Generator's default of 0.25).
+const REFERENCE_QUANTILE = 0.25;
+
+// Multiplier break points (in units of the reference value). Finer than before
+// for a smoother gradient: 11 fill bins = "< 1x" + one per break.
+const BREAK_MULTIPLIERS = [1, 2, 3, 5, 7, 10, 15, 25, 50, 100];
+
+// Green -> teal -> blue identity ramp (ColorBrewer GnBu control stops),
+// interpolated to exactly one colour per bin so the gradient stays smooth as
+// the bin count changes.
+const RAMP_STOPS = [
+  "#f7fcf0", "#e0f3db", "#ccebc5", "#a8ddb5", "#7bccc4",
+  "#4eb3d3", "#2b8cbe", "#0868ac", "#084081",
 ];
-const LEGEND_LABELS = ["< 1x", "1x - 2x", "2x - 3x", "3x - 5x", "5x - 10x", "10x - 25x", "25x - 100x", "> 100x", "NA"];
+
+function hexToRgb(h) {
+  h = h.replace("#", "");
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+function rgbToHex(r, g, b) {
+  const c = (n) => Math.round(n).toString(16).padStart(2, "0");
+  return "#" + c(r) + c(g) + c(b);
+}
+// Sample `n` evenly-spaced colours across the control stops (piecewise-linear).
+function rampColors(stops, n) {
+  if (n <= 1) return [stops[0]];
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / (n - 1)) * (stops.length - 1);
+    const lo = Math.floor(t), hi = Math.min(lo + 1, stops.length - 1), f = t - lo;
+    const a = hexToRgb(stops[lo]), b = hexToRgb(stops[hi]);
+    out.push(rgbToHex(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f));
+  }
+  return out;
+}
+
+// One colour per fill bin (11).
+const BIN_COLORS = rampColors(RAMP_STOPS, BREAK_MULTIPLIERS.length + 1);
+
+// Legend labels generated from the breaks so they always match the bins.
+function fmtMult(m) { return (m >= 10 ? Math.round(m) : m) + "x"; }
+function binLabels() {
+  const labels = ["< 1x"];
+  for (let i = 0; i < BREAK_MULTIPLIERS.length - 1; i++) {
+    labels.push(fmtMult(BREAK_MULTIPLIERS[i]) + " - " + fmtMult(BREAK_MULTIPLIERS[i + 1]));
+  }
+  labels.push("> " + fmtMult(BREAK_MULTIPLIERS[BREAK_MULTIPLIERS.length - 1]));
+  return labels;
+}
 
 // Default fill for an in-sample feature before any click; distinct grey for
 // out-of-sample (exists in the boundary file but has no SCI data).
-const DEFAULT_FILL = "#F7F7F7";
-const NO_DATA_FILL = "#dedede";
+const DEFAULT_FILL = "#f4f6f7";
+const NO_DATA_FILL = "#e6e8ea";
+const BORDER_COLOR = "#b9c2c9";
 
 // ---------------------------------------------------------------------------
 // Level configuration. Three levels only: Country, GADM1, GADM2.
@@ -107,6 +146,7 @@ const LEVELS = {
     unit: "country",
     title: "Top 10 Connected Countries",
     col: "Country",
+    canFocus: false, // focusing on one country is meaningless at country level
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
     flatProjection: "naturalEarth",
   },
@@ -119,6 +159,7 @@ const LEVELS = {
     unit: "state or province",
     title: "Top 10 Connected Regions",
     col: "Region",
+    canFocus: true,
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
     flatProjection: "naturalEarth",
   },
@@ -130,6 +171,7 @@ const LEVELS = {
     unit: "district",
     title: "Top 10 Connected Districts",
     col: "District",
+    canFocus: true,
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
     flatProjection: "naturalEarth",
   },
@@ -137,6 +179,14 @@ const LEVELS = {
 
 let gSel = "level0";
 let projMode = "globe";
+
+// "Focus country" mode: when on, the choropleth + Top-10 are restricted to
+// regions within the selected source's own country, recoloured on the within-
+// country distribution (so within-country variation is visible) and zoomed to
+// that country. Off = the global view. `lastSelection` lets the toggle
+// re-render without re-fetching.
+let focusCountry = false;
+let lastSelection = null; // { levelKey, cfg, clickedId, clickedName, clickedCountry, sci }
 
 // ---------------------------------------------------------------------------
 // Fetch helpers.
@@ -245,6 +295,72 @@ function getPercentile(values, percentile) {
   return sorted[Math.min(index, sorted.length - 1)];
 }
 
+// Bounding-box centre of a feature's geometry (one representative point per
+// region — far more stable than a single vertex). Handles Polygon/MultiPolygon.
+function featureCentroid(geom) {
+  if (!geom || !geom.coordinates) return null;
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity, any = false;
+  const scan = function (c) {
+    if (typeof c[0] === "number") {
+      const x = c[0], y = c[1];
+      if (isFinite(x) && isFinite(y)) {
+        any = true;
+        if (x < minx) minx = x; if (x > maxx) maxx = x;
+        if (y < miny) miny = y; if (y > maxy) maxy = y;
+      }
+    } else {
+      for (let i = 0; i < c.length; i++) scan(c[i]);
+    }
+  };
+  scan(geom.coordinates);
+  return any ? [(minx + maxx) / 2, (miny + maxy) / 2] : null;
+}
+
+const sortNum = (a, b) => a - b;
+const quantileAt = (sorted, p) =>
+  sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(p * (sorted.length - 1))))];
+
+// Robust bounding box of a country's regions for the focus zoom. Uses one
+// centroid per region, unwraps longitudes around the median so antimeridian-
+// spanning countries (Russia, Fiji, NZ, US Pacific territories) don't blow the
+// box out to the whole globe, and trims far-flung outliers via the 5th–95th
+// percentile. Returns [[west, south], [east, north]] or null if unreliable.
+function robustCountryBounds(features, country) {
+  const cents = [];
+  for (const f of features) {
+    if (f.properties.country !== country) continue;
+    const c = featureCentroid(f.geometry);
+    if (c) cents.push(c);
+  }
+  if (!cents.length) return null;
+
+  const lats = cents.map((c) => c[1]).sort(sortNum);
+  const medLon = cents.map((c) => c[0]).sort(sortNum)[Math.floor(cents.length / 2)];
+  // Unwrap each longitude to within ±180° of the median (antimeridian-safe).
+  const lons = cents
+    .map((c) => {
+      let x = c[0];
+      while (x - medLon > 180) x -= 360;
+      while (x - medLon < -180) x += 360;
+      return x;
+    })
+    .sort(sortNum);
+
+  let west = quantileAt(lons, 0.05), east = quantileAt(lons, 0.95);
+  let south = quantileAt(lats, 0.05), north = quantileAt(lats, 0.95);
+
+  // Pad generously; keep a sensible minimum span so small countries don't
+  // over-zoom and a single-region country still gets a reasonable frame.
+  const padX = Math.max((east - west) * 0.15, 1.5);
+  const padY = Math.max((north - south) * 0.15, 1.5);
+  west -= padX; east += padX; south -= padY; north += padY;
+  south = Math.max(south, -84); north = Math.min(north, 84);
+
+  // If the trimmed box is still implausibly large, treat it as unreliable.
+  if (east - west > 270 || north - south > 150) return null;
+  return [[west, south], [east, north]];
+}
+
 map.on("load", async function () {
   // --- generic level setup (lazy: built on first activation) ---
   const setupDone = {};
@@ -289,7 +405,8 @@ map.on("load", async function () {
             ["==", ["get", "has_data"], false], NO_DATA_FILL,
             DEFAULT_FILL,
           ],
-          "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.8, 0.9],
+          // Hovered region pops slightly more opaque than its neighbours.
+          "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.92],
         },
       },
       beforeId
@@ -300,7 +417,12 @@ map.on("load", async function () {
         type: "line",
         source: levelKey,
         layout: { visibility: "none", "line-join": "round" },
-        paint: { "line-color": "#CCCCCC", "line-width": 0.3, "line-opacity": 1 },
+        paint: {
+          "line-color": BORDER_COLOR,
+          // Thin and faint when zoomed out, firmer as you zoom in.
+          "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.15, 4, 0.4, 7, 0.85],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.35, 4, 0.6],
+        },
       },
       beforeId
     );
@@ -313,7 +435,6 @@ map.on("load", async function () {
     map.on("click", levelKey, async function (e) {
       const feat = e.features[0];
       const clickedId = feat.properties.id;
-      const clickedName = feat.properties.name;
 
       // Out-of-sample: no SCI row to anchor the choropleth — do nothing
       // (keeps any previous highlight on screen).
@@ -324,61 +445,16 @@ map.on("load", async function () {
       hideSpinner();
       if (!sci) return;
 
-      const geojson = cfg.geojson;
-      document.getElementById("console").style.display = "block";
-      document.getElementById("legend").style.display = "block";
-      document.getElementById("title").innerText = clickedName || clickedId;
-
-      // Stamp each feature with this source's SCI to it; build the ranked list.
-      let clickedSci = null;
-      const list = [];
-      geojson.features.forEach(function (f) {
-        const id = f.properties.id;
-        const v = sci[id];
-        f.properties.sci = v === undefined ? null : v;
-        if (v !== undefined) {
-          let label = f.properties.name || id;
-          if (cfg.appendCountry && f.properties.country) label += ", " + f.properties.country;
-          list.push({ admin: label, sci: v });
-          if (id === clickedId) clickedSci = v;
-        }
-      });
-
-      const sorted = list.sort((a, b) => b.sci - a.sci);
-
-      // Thresholds from the friend distribution, excluding the source's own value.
-      const sciValues = sorted.map((c) => c.sci).filter((v) => v !== null && !isNaN(v) && v !== clickedSci);
-      let refSci = getPercentile(sciValues, 0.2); // 20th-percentile reference (1x)
-      let thresholds = [refSci, 2 * refSci, 3 * refSci, 5 * refSci, 10 * refSci, 25 * refSci, 100 * refSci];
-
-      if (refSci === null || refSci === 0) {
-        refSci = Math.min.apply(null, sciValues);
-        thresholds = [refSci, 2 * refSci, 3 * refSci, 5 * refSci, 10 * refSci, 25 * refSci, 100 * refSci];
-      }
-
-      map.getSource(levelKey).setData(geojson);
-
-      map.setPaintProperty(levelKey, "fill-color", [
-        "case",
-        ["==", ["get", "has_data"], false], NO_DATA_FILL,
-        ["has", "sci"],
-        [
-          "step", ["coalesce", ["get", "sci"], 0],
-          colorSequence[0],
-          0.1, colorSequence[0],
-          thresholds[0], colorSequence[1],
-          thresholds[1], colorSequence[2],
-          thresholds[2], colorSequence[3],
-          thresholds[3], colorSequence[4],
-          thresholds[4], colorSequence[5],
-          thresholds[5], colorSequence[6],
-          thresholds[6], colorSequence[7],
-        ],
-        DEFAULT_FILL,
-      ]);
-
-      updateLegend();
-      updateTop10Table(sorted, refSci, cfg);
+      lastSelection = {
+        levelKey: levelKey,
+        cfg: cfg,
+        clickedId: clickedId,
+        clickedName: feat.properties.name,
+        clickedCountry: feat.properties.country,
+        sci: sci,
+      };
+      // A fresh click zooms to the country only if we're already in focus mode.
+      renderSelection(focusCountry ? "country" : "none");
     });
 
     map.on("mousemove", levelKey, function (e) {
@@ -403,16 +479,97 @@ map.on("load", async function () {
     });
   }
 
+  // Paint + legend + top-10 for the current selection. `zoom` is one of
+  // "none" (keep camera), "country" (frame the focused country), or "world"
+  // (return to the level's default view). Honours the global `focusCountry`
+  // flag, which restricts everything to the source's own country.
+  function renderSelection(zoom) {
+    const sel = lastSelection;
+    if (!sel) return;
+    const { levelKey, cfg, clickedId, clickedName, clickedCountry, sci } = sel;
+    const geojson = cfg.geojson;
+    const focus = focusCountry && cfg.canFocus && !!clickedCountry;
+
+    document.getElementById("console").style.display = "block";
+    document.getElementById("legend").style.display = "block";
+    document.getElementById("title").innerText = clickedName || clickedId;
+
+    // Stamp the fill value on EVERY feature (so multi-feature regions all
+    // colour), but add each id to the ranked list only ONCE, and — in focus
+    // mode — only for regions within the source's own country.
+    let clickedSci = null;
+    const list = [];
+    const seenIds = new Set();
+    geojson.features.forEach(function (f) {
+      const id = f.properties.id;
+      const v = sci[id];
+      f.properties.sci = v === undefined ? null : v;
+      if (v === undefined) return;
+      if (id === clickedId) clickedSci = v;
+      if (focus && f.properties.country !== clickedCountry) return;
+      if (seenIds.has(id)) return;
+      seenIds.add(id);
+      let label = f.properties.name || id;
+      if (cfg.appendCountry && f.properties.country) label += ", " + f.properties.country;
+      list.push({ admin: label, sci: v });
+    });
+
+    const sorted = list.sort((a, b) => b.sci - a.sci);
+
+    // Reference value over the (optionally country-restricted) friend
+    // distribution, excluding the source's own self-link. Guaranteed positive.
+    const sciValues = sorted.map((c) => c.sci).filter((v) => v !== null && !isNaN(v) && v !== clickedSci);
+    let refSci = getPercentile(sciValues, REFERENCE_QUANTILE);
+    if (!refSci || refSci <= 0) {
+      const pos = sciValues.filter((v) => v > 0);
+      refSci = pos.length ? Math.min.apply(null, pos) : 1;
+    }
+    const thresholds = BREAK_MULTIPLIERS.map((m) => m * refSci);
+
+    map.getSource(levelKey).setData(geojson);
+
+    const step = ["step", ["coalesce", ["get", "sci"], 0], BIN_COLORS[0]];
+    for (let i = 0; i < thresholds.length; i++) step.push(thresholds[i], BIN_COLORS[i + 1]);
+
+    const fillColor = ["case", ["==", ["get", "has_data"], false], NO_DATA_FILL];
+    if (focus) {
+      // De-emphasise everything outside the focused country.
+      fillColor.push(["!=", ["get", "country"], clickedCountry], DEFAULT_FILL);
+    }
+    fillColor.push(["has", "sci"], step, DEFAULT_FILL);
+    map.setPaintProperty(levelKey, "fill-color", fillColor);
+
+    updateLegend();
+    updateTop10Table(sorted, refSci, cfg);
+    updateFocusButton();
+
+    if (zoom === "country" && focus) {
+      const b = robustCountryBounds(geojson.features, clickedCountry);
+      if (b) {
+        map.fitBounds(b, { padding: 50, duration: 1000, maxZoom: 6, linear: false });
+      } else {
+        // Bounds couldn't be estimated reliably — keep the current camera
+        // rather than risk a bad jump.
+        console.warn("[SCI] focus zoom skipped: unreliable bounds for", clickedCountry);
+      }
+    } else if (zoom === "world") {
+      const view = cfg.view;
+      if (view) map.flyTo({ ...view, essential: true, duration: 1000 });
+    }
+  }
+
   // ----- legend + top-10 (shared) -----
   function updateLegend() {
     const legendScale = document.getElementById("legend-scale");
     legendScale.innerHTML = "";
-    LEGEND_LABELS.forEach(function (label, i) {
+    const addItem = function (color, label) {
       const div = document.createElement("div");
       div.className = "legend-item";
-      div.innerHTML = '<span class="legend-color" style="background-color: ' + colorSequence[i] + ';"></span> ' + label;
+      div.innerHTML = '<span class="legend-color" style="background-color: ' + color + ';"></span> ' + label;
       legendScale.appendChild(div);
-    });
+    };
+    binLabels().forEach(function (label, i) { addItem(BIN_COLORS[i], label); });
+    addItem(NO_DATA_FILL, "No data");
   }
 
   function updateTop10Table(sorted, refSci, cfg) {
@@ -440,6 +597,15 @@ map.on("load", async function () {
         "<td>" + roundedMultiplier(item.sci) + "x</td>";
       tableBody.appendChild(row);
     });
+  }
+
+  // ----- focus-country toggle -----
+  function updateFocusButton() {
+    const btn = document.getElementById("focus-country-btn");
+    if (!btn) return;
+    const canShow = lastSelection && lastSelection.cfg.canFocus && !!lastSelection.clickedCountry;
+    btn.style.display = canShow ? "block" : "none";
+    btn.textContent = focusCountry ? "Show whole world" : "Focus on this country";
   }
 
   // ----- level switcher -----
@@ -501,6 +667,11 @@ map.on("load", async function () {
       document.querySelectorAll(".button-container button").forEach((b) => b.classList.remove("active"));
       this.classList.add("active");
 
+      // Switching level clears any selection and exits focus mode.
+      focusCountry = false;
+      lastSelection = null;
+      updateFocusButton();
+
       gSel = this.id;
       await setActiveLayer(this.id);
       setLayerSubtitle(this.id);
@@ -510,6 +681,19 @@ map.on("load", async function () {
       if (view) map.flyTo({ ...view, essential: true, duration: 1200 });
     });
   });
+
+  // "Focus on this country" toggle — restricts the choropleth + Top-10 to the
+  // selected source's country (recoloured on the within-country distribution)
+  // and zooms to it; toggling back returns to the global view.
+  (function setupFocusButton() {
+    const btn = document.getElementById("focus-country-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      if (!lastSelection) return;
+      focusCountry = !focusCountry;
+      renderSelection(focusCountry ? "country" : "world");
+    });
+  })();
 
   // "About this map" expandable panel.
   (function setupExplanationToggle() {

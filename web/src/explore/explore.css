@@ -293,6 +293,24 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   line-height: 1.25;
 }
 
+/* "Focus on this country" toggle (shown in the side panel for State/District). */
+#focus-country-btn {
+  display: block;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 8px 10px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #2b8cbe;
+  border: 1px solid #2b8cbe;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+#focus-country-btn:hover { background: #0868ac; border-color: #0868ac; }
+
 /* In-panel legend. */
 #console .console-legend {
   position: static;
