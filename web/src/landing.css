@@ -1,0 +1,131 @@
+/* Landing / tool-chooser page for social-connectedness.org.
+   Two cards: Interactive Explorer and Map Generator. Palette matches the
+   SCI blue map gradient (#d1dfe5 -> #10617b). */
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1f2a30;
+  background: radial-gradient(1200px 600px at 50% -10%, #e8f0f4 0%, #f6f8f9 55%, #f6f8f9 100%);
+}
+
+.landing {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 64px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.landing-head { text-align: center; margin-bottom: 44px; }
+.landing-head h1 {
+  font-size: 38px;
+  line-height: 1.1;
+  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+  color: #10617b;
+}
+.landing-head .lede {
+  max-width: 640px;
+  margin: 0 auto;
+  font-size: 17px;
+  line-height: 1.55;
+  color: #475760;
+}
+
+/* ---- tool cards ---- */
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: auto;
+}
+
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #e1e8ec;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(16, 97, 123, 0.06);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.tool-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 34px rgba(16, 97, 123, 0.16);
+  border-color: #b9d0da;
+}
+
+.tool-card-art {
+  position: relative;
+  height: 132px;
+  overflow: hidden;
+}
+.art-explore { background: linear-gradient(135deg, #10617b 0%, #2f93b3 100%); }
+.art-generator { background: linear-gradient(135deg, #173a4a 0%, #43a2ca 100%); }
+
+/* little decorative "connection" dots for the explorer card */
+.art-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.16);
+}
+.art-dot.d1 { width: 14px; height: 14px; top: 34px; left: 60px; }
+.art-dot.d2 { width: 10px; height: 10px; top: 78px; left: 150px; }
+.art-dot.d3 { width: 9px;  height: 9px;  top: 44px; left: 240px; }
+.art-dot.d4 { width: 7px;  height: 7px;  top: 92px; left: 320px; }
+
+/* decorative "chart bars" for the generator card */
+.art-bar {
+  position: absolute;
+  bottom: 0;
+  width: 30px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px 4px 0 0;
+}
+.art-bar.b1 { left: 70px;  height: 48px; }
+.art-bar.b2 { left: 116px; height: 86px; }
+.art-bar.b3 { left: 162px; height: 64px; }
+.art-bar.b4 { left: 208px; height: 100px; }
+
+.tool-card-body { padding: 22px 24px 26px; }
+.tool-card-body h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  color: #10617b;
+}
+.tool-card-body p {
+  margin: 0 0 18px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #4a5862;
+}
+.tool-cta {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1879d5;
+}
+.tool-card:hover .tool-cta { color: #10617b; }
+
+/* ---- footer ---- */
+.landing-foot {
+  margin-top: 48px;
+  text-align: center;
+  font-size: 13px;
+  color: #6a7882;
+}
+.landing-foot a { color: #1879d5; text-decoration: none; }
+.landing-foot a:hover { text-decoration: underline; }
+
+@media (max-width: 720px) {
+  .landing { padding: 40px 18px 32px; }
+  .landing-head h1 { font-size: 30px; }
+  .tool-grid { grid-template-columns: 1fr; }
+}

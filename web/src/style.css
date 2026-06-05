@@ -14,6 +14,15 @@ body { display: flex; height: 100vh; overflow: hidden; }
   background: #f8f9fa;
   border-right: 1px solid #e9ecef;
 }
+/* cross-tool nav at the top of the sidebar (← All tools / Interactive Explorer →) */
+.tool-nav {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 0 0 12px; font-size: 12.5px;
+}
+.tool-nav a { text-decoration: none; color: #1879d5; font-weight: 500; }
+.tool-nav a:hover { text-decoration: underline; }
+.tool-nav .tool-nav-home { color: #6c757d; }
+
 #panel h1 { font-size: 18px; margin: 0 0 14px; color: #212529; }
 #panel h1 .muted { display: block; margin-top: 2px; color: #6c757d; font-size: 13px; font-weight: normal; }
 

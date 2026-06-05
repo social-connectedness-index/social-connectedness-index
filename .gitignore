@@ -15,6 +15,11 @@ private_keys.json
 web/node_modules
 web/dist
 web/.wrangler
+# Local env files (hold the Mapbox token for the Interactive Explorer — kept out
+# of git; the deployed token is embedded at `vite build` time from .env.local)
+web/.env
+web/.env.local
+web/.env.*.local
 # Note: web/public/data/ (R-exported map assets) is already covered by the "data"
 # rule above. It is deployed via `wrangler pages deploy` from web/dist, not git.
 

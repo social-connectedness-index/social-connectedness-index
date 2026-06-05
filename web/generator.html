@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Social Connectedness Index — Map Generator</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <aside id="panel">
+      <div class="tool-nav">
+        <a href="./index.html" class="tool-nav-home">← All tools</a>
+        <a href="./explore.html" class="tool-nav-alt">Interactive Explorer →</a>
+      </div>
+      <h1>Social Connectedness Index <span class="muted">Map Generator</span></h1>
+
+      <div class="section-label">Sample Maps</div>
+      <select id="preset"></select>
+
+      <hr />
+      <div class="section-label">Map configuration</div>
+      <div class="mode-toggle">
+        <label><input type="radio" name="mapMode" value="single" checked /> Single region</label>
+        <label><input type="radio" name="mapMode" value="compare" /> Compare two regions</label>
+      </div>
+
+      <hr />
+      <div class="section-label">Friendships to</div>
+      <label>Region type</label>
+      <select id="originType"></select>
+      <label id="regionLabel">Region</label>
+      <input id="searchA" type="text" placeholder="Type to filter…" autocomplete="off" />
+      <select id="sourceA" size="6"></select>
+      <div id="sourceBWrap" style="display:none">
+        <label>Region B</label>
+        <input id="searchB" type="text" placeholder="Type to filter…" autocomplete="off" />
+        <select id="sourceB" size="6"></select>
+      </div>
+      <div id="sourceHint" class="help-hint"></div>
+
+      <hr />
+      <div class="section-label">Shown across</div>
+      <label>Region type</label>
+      <select id="destType"></select>
+      <div id="cbsaWrap" style="display:none">
+        <label>Metro area (optional)</label>
+        <select id="destCbsa"></select>
+        <div class="help-hint">Limit the ZIP codes shown to a single US metro area.</div>
+      </div>
+      <div id="countryWrap">
+        <label>Regions to show</label>
+        <div id="group" class="checklist"></div>
+        <input id="countrySearch" type="text" placeholder="Type to add individual countries…" autocomplete="off" />
+        <div id="customCountries" class="checklist"></div>
+        <div class="help-hint">Additional countries are combined with the region groups above.</div>
+      </div>
+
+      <hr />
+      <label>Title (optional)</label>
+      <input id="title" type="text" />
+
+      <div class="btn-row">
+        <button id="generate" class="btn-generate">Generate Map</button>
+        <button id="reset" class="btn-reset">Reset</button>
+      </div>
+
+      <hr />
+      <details>
+        <summary>Advanced options</summary>
+
+        <label>Subtitle (optional)</label>
+        <input id="subtitle" type="text" />
+
+        <div id="paletteWrap">
+          <label>Color palette</label>
+          <select id="palette"></select>
+        </div>
+        <div id="cpaletteWrap" style="display:none">
+          <label>Color palette</label>
+          <select id="cpalette"></select>
+          <label>Legend label for Region A (optional)</label>
+          <input id="labelA" type="text" />
+          <label>Legend label for Region B (optional)</label>
+          <input id="labelB" type="text" />
+          <div class="help-hint">Short names used in the legend. Leave empty to use the default region name.</div>
+        </div>
+
+        <div id="singleBreaksWrap">
+          <label>Reference quantile</label>
+          <input id="refq" type="number" min="0" max="1" step="0.05" value="0.25" />
+          <div class="help-hint">
+            Each region's SCI is divided by this quantile's value to produce a multiplier
+            (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile.
+          </div>
+
+          <label>Custom breaks (comma-separated)</label>
+          <input id="breaks" type="text" />
+          <div class="help-hint">
+            Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10'
+            bins regions into ≤1x, 1–5x, 5–10x, and &gt;10x). When left empty, the first bin
+            captures regions below the reference quantile and the remaining bins are equal-sized
+            quantile buckets.
+          </div>
+        </div>
+
+        <div id="compareBreaksWrap" style="display:none">
+          <label>Comparison breaks (comma-separated multipliers)</label>
+          <input id="cbreaks" type="text" />
+          <div class="help-hint">
+            Symmetric multiplier thresholds on each side of 'Equal' (e.g., '1.5, 2, 3' creates
+            bins at 1.5x, 2x, 3x in both directions). Leave empty to auto-compute from the data.
+          </div>
+        </div>
+
+        <label class="check"><input id="highlight" type="checkbox" /> Label selected region</label>
+        <label class="check"><input id="borders" type="checkbox" checked /> Show state borders</label>
+
+        <div class="grid2">
+          <div><label>Min Longitude</label><input id="xmin" type="number" /></div>
+          <div><label>Max Longitude</label><input id="xmax" type="number" /></div>
+        </div>
+        <div class="grid2">
+          <div><label>Min Latitude</label><input id="ymin" type="number" /></div>
+          <div><label>Max Latitude</label><input id="ymax" type="number" /></div>
+        </div>
+        <div class="grid3">
+          <div><label>Width (in)</label><input id="width" type="number" min="5" value="30" /></div>
+          <div><label>Height (in)</label><input id="height" type="number" min="5" value="25" /></div>
+          <div><label>DPI</label><input id="dpi" type="number" min="72" value="300" /></div>
+        </div>
+      </details>
+
+      <div id="status"></div>
+      <p class="foot">
+        Data: Social Connectedness Index ·
+        <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">HDX</a>
+      </p>
+    </aside>
+
+    <main id="mapWrap">
+      <div id="placeholder" class="placeholder">
+        <h4>No map generated yet</h4>
+        <p>Select a preset to get started, or fill in the parameters and click Generate Map.</p>
+      </div>
+      <div id="mapContainer" class="map-container" style="display:none"></div>
+      <div id="downloadRow" class="actions" style="display:none">
+        <div class="action-group">
+          <span class="action-label">Download</span>
+          <div class="btn-cluster">
+            <button id="dlPng" class="dl-btn">PNG</button>
+            <button id="dlJpg" class="dl-btn">JPG</button>
+            <button id="dlSvg" class="dl-btn">SVG</button>
+            <button id="dlMp4" class="dl-btn">MP4</button>
+            <button id="showCode" class="dl-btn">R code</button>
+          </div>
+        </div>
+        <div class="action-group">
+          <span class="action-label">Share image</span>
+          <div class="btn-cluster">
+            <button class="share-btn s-facebook" data-share="facebook" title="Share to Facebook" aria-label="Share to Facebook">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z"/></svg>
+            </button>
+            <button class="share-btn s-instagram" data-share="instagram" title="Share to Instagram" aria-label="Share to Instagram">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
+            </button>
+            <button class="share-btn s-x" data-share="x" title="Share to X" aria-label="Share to X">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            </button>
+            <button class="share-btn s-linkedin" data-share="linkedin" title="Share to LinkedIn" aria-label="Share to LinkedIn">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+            </button>
+            <button class="share-btn s-reddit" data-share="reddit" title="Share to Reddit" aria-label="Share to Reddit">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.067 3.48.694 4.674 1.69.293-.265.68-.43 1.107-.43.916 0 1.659.743 1.659 1.66 0 .671-.39 1.244-.953 1.51a3.45 3.45 0 0 1 .035.485c0 2.642-3.076 4.787-6.875 4.787-3.798 0-6.874-2.145-6.874-4.787 0-.16.012-.317.035-.473-.576-.265-.973-.845-.973-1.518 0-.916.743-1.66 1.66-1.66.426 0 .812.166 1.105.43 1.183-.99 2.83-1.618 4.633-1.69l.89-4.18a.355.355 0 0 1 .419-.276h.001l2.965.627a1.25 1.25 0 0 1 1.246-1.123zM9.25 12c-.69 0-1.25.56-1.25 1.25s.56 1.25 1.25 1.25 1.25-.56 1.25-1.25-.56-1.25-1.25-1.25zm5.5 0c-.69 0-1.25.56-1.25 1.25s.56 1.25 1.25 1.25 1.25-.56 1.25-1.25-.56-1.25-1.25-1.25zm-5.466 3.99a.327.327 0 0 0-.231.094.33.33 0 0 0 0 .463c.842.842 2.484.913 2.961.913.477 0 2.105-.056 2.961-.913a.361.361 0 0 0 .029-.463.33.33 0 0 0-.464 0c-.547.533-1.684.73-2.512.73-.828 0-1.979-.198-2.512-.73a.326.326 0 0 0-.232-.095z"/></svg>
+            </button>
+            <button class="share-btn s-email" data-share="email" title="Share by email" aria-label="Share by email">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div id="codeModal" class="modal">
+      <div class="modal-box">
+        <h3>Reproduce this map in R</h3>
+        <textarea id="codeBox" readonly></textarea>
+        <button id="closeCode">Close</button>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

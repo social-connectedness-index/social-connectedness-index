@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interactive map of Facebook's Social Connectedness Index." />
+  <title>Interactive Social Connectedness Index</title>
+
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+
+  <link rel="stylesheet" href="./src/explore/explore.css" />
+</head>
+
+<body>
+  <div id="map"></div>
+  <div id="notFound" style="display: none; opacity: 0;">Data not available</div>
+  <div id="loading-icon"></div>
+
+  <!-- Top-left stack: home link, title + subtitle, the level switcher, then "About this map". -->
+  <div id="top-controls">
+    <div class="explore-nav">
+      <a href="./index.html" class="nav-home">← All tools</a>
+      <a href="./generator.html">Map Generator →</a>
+    </div>
+
+    <div id="image-text-container">
+      <p id="soc">Social Connectedness Index</p>
+      <p id="soc-sub">Click any country</p>
+    </div>
+
+    <div class="button-container">
+      <button type="button" id="level0" class="active">Countries</button>
+      <button type="button" id="level1">States &amp; Provinces</button>
+      <button type="button" id="level2">Districts</button>
+    </div>
+
+    <div class="projection-container">
+      <button type="button" id="proj-globe" class="active">Globe</button>
+      <button type="button" id="proj-flat">Flat</button>
+    </div>
+
+    <button type="button" id="data-explanation-btn" aria-expanded="false" aria-controls="data-explanation">
+      <span class="info-icon" aria-hidden="true">i</span> About this map
+    </button>
+  </div>
+
+  <!-- Expandable explanation, anchored top-left and floats above the map when open. -->
+  <div id="data-explanation" hidden>
+    <button type="button" class="close-btn" aria-label="Close">×</button>
+    <h3>About the Social Connectedness Index</h3>
+    <p>The map shows the relative probability that a Facebook user in the selected location has a friendship link to a Facebook user in every other location at the same level.</p>
+    <p>The Social Connectedness Index is the number of Facebook friendship links between two locations divided by the product of their Facebook user populations, scaled so only relative values matter (e.g. if the SCI between location A and location B is twice as large as the SCI between location A and location C, then a randomly chosen Facebook user in location A is twice as likely to be friends with a randomly chosen Facebook user in location B than with a user in location C).</p>
+    <p>More details, including the full data download, are available at the <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
+  </div>
+
+  <!-- Right-side panel: bold-centered title, then legend, then top-10 table. -->
+  <div id="console" style="display: none;">
+    <h1 id="title">Selected country</h1>
+
+    <div id="legend" class="console-legend">
+      <div class="legend-title">Likelihood of Friendship</div>
+      <div class="legend-scale" id="legend-scale"></div>
+    </div>
+
+    <div id="top-10-container" class="table-container">
+      <div class="table-title" id="table-title">Top 10 Connected Countries</div>
+      <table id="top-10-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th id="tab-lab">Country</th>
+            <th>SCI</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="credits">
+    Data: <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Facebook Social Connectedness Index</a>
+    &nbsp;|&nbsp;
+    Map design adapted from <a href="https://www.deepmoire.com/" target="_blank" rel="noopener">Deepmoire.com</a>
+  </div>
+
+  <!-- config.js (Mapbox token + options) must load before explore.js. -->
+  <script type="module" src="./src/explore/config.js"></script>
+  <script type="module" src="./src/explore/explore.js"></script>
+</body>
+</html>
