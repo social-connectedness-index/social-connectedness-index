@@ -217,8 +217,8 @@ async function refreshSources() {
   renderSourceOptionsB();
 }
 
-function optionsHtml(list, prevValue) {
-  const q = $("sourceSearch").value.trim().toLowerCase();
+function optionsHtml(list, prevValue, query) {
+  const q = (query || "").trim().toLowerCase();
   let opts = q ? list.filter((o) => o.label.toLowerCase().includes(q)) : list;
   const truncated = opts.length > MAX_OPTIONS;
   if (truncated) opts = opts.slice(0, MAX_OPTIONS);
@@ -226,9 +226,11 @@ function optionsHtml(list, prevValue) {
   return { html, truncated, hasPrev: opts.some((o) => o.id === prevValue) };
 }
 
+// Region A and Region B each have their OWN search box, so filtering one list
+// never re-renders (and thus never clears the selection of) the other.
 function renderSourceOptions() {
   const prev = $("sourceA").value;
-  const { html, truncated, hasPrev } = optionsHtml(allSourceOpts, prev);
+  const { html, truncated, hasPrev } = optionsHtml(allSourceOpts, prev, $("searchA").value);
   $("sourceA").innerHTML = html;
   if (hasPrev) $("sourceA").value = prev;
   if ($("sourceHint")) $("sourceHint").textContent = truncated
@@ -237,14 +239,19 @@ function renderSourceOptions() {
 function renderSourceOptionsB() {
   if (!$("sourceB")) return;
   const prev = $("sourceB").value;
-  const { html, hasPrev } = optionsHtml(allSourceOpts, prev);
+  const { html, hasPrev } = optionsHtml(allSourceOpts, prev, $("searchB") ? $("searchB").value : "");
   $("sourceB").innerHTML = html;
   if (hasPrev) $("sourceB").value = prev;
 }
 
+// "Regions to show" is two click-to-toggle checkbox lists (region groups +
+// individual countries) instead of cmd-click <select multiple> boxes.
+const selectedGroups = () => [...$("group").querySelectorAll("input:checked")].map((i) => i.value);
+const selectedCustom = () => [...$("customCountries").querySelectorAll("input:checked")].map((i) => i.value);
+
 function selectedCountryCodes() {
-  const gsel = Array.from($("group").selectedOptions).map((o) => o.value);
-  const csel = Array.from($("customCountries").selectedOptions).map((o) => o.value);
+  const gsel = selectedGroups();
+  const csel = selectedCustom();
   if (gsel.includes("All countries")) return null;
   const codes = new Set();
   for (const g of gsel) (groups[g] || []).forEach((c) => codes.add(c));
@@ -361,8 +368,8 @@ function autoFillBounds() {
   if (dest.startsWith("us_") && (origin === dest || origin.startsWith("us_"))) {
     setBoundsFields(bounds.groups["United States"]); return;
   }
-  const gsel = Array.from($("group").selectedOptions).map((o) => o.value);
-  const csel = Array.from($("customCountries").selectedOptions).map((o) => o.value);
+  const gsel = selectedGroups();
+  const csel = selectedCustom();
   const boxes = [];
   for (const g of gsel) if (bounds.groups[g]) boxes.push(bounds.groups[g]);
   for (const c of csel) if (bounds.countries[c]) boxes.push(bounds.countries[c]);
@@ -374,7 +381,22 @@ function autoFillBounds() {
 }
 
 function selectGroup(name) {
-  for (const o of $("group").options) o.selected = name != null && o.value === name;
+  for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) {
+    cb.checked = name != null && cb.value === name;
+  }
+}
+
+function clearCustomCountries() {
+  for (const cb of $("customCountries").querySelectorAll('input[type="checkbox"]')) cb.checked = false;
+}
+
+// Show only the country rows matching the search box (checked-but-hidden rows
+// stay checked, so the selection survives across searches).
+function filterCountryList() {
+  const q = $("countrySearch").value.trim().toLowerCase();
+  for (const row of $("customCountries").children) {
+    row.style.display = !q || (row.dataset.name || "").includes(q) ? "" : "none";
+  }
 }
 
 // ---- generate -------------------------------------------------------------
@@ -617,9 +639,11 @@ function reset() {
   $("destType").value = "country";
   if ($("destCbsa")) $("destCbsa").value = "";
   syncCbsaUI();
-  $("sourceSearch").value = "";
-  $("group").selectedIndex = -1;
-  $("customCountries").selectedIndex = -1;
+  $("searchA").value = "";
+  if ($("searchB")) $("searchB").value = "";
+  selectGroup(null);
+  clearCustomCountries();
+  if ($("countrySearch")) { $("countrySearch").value = ""; filterCountryList(); }
   for (const id of ["title", "subtitle", "breaks", "cbreaks", "xmin", "xmax", "ymin", "ymax", "labelA", "labelB"]) {
     if ($(id)) $(id).value = "";
   }
@@ -704,9 +728,11 @@ async function applyPreset(name) {
   $("destType").value = p.dest;
   syncCbsaUI();
   selectGroup(p.group);
-  $("customCountries").selectedIndex = -1;
+  clearCustomCountries();
+  if ($("countrySearch")) { $("countrySearch").value = ""; filterCountryList(); }
   await refreshSources();
-  $("sourceSearch").value = "";
+  $("searchA").value = "";
+  if ($("searchB")) $("searchB").value = "";
   renderSourceOptions();
   renderSourceOptionsB();
   if (p.mode === "compare") {
@@ -768,8 +794,11 @@ async function init() {
   buildTypeGraph();
   $("originType").innerHTML = ORIGIN_LEVELS.map((l) => `<option value="${l}">${LEVEL_LABEL[l]}</option>`).join("");
   fillDestOptions();
-  $("group").innerHTML = Object.keys(groups).map((g) => `<option value="${g}">${g}</option>`).join("");
-  $("customCountries").innerHTML = countries.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  $("group").innerHTML = Object.keys(groups)
+    .map((g) => `<label class="chk"><input type="checkbox" value="${g}" /> ${g}</label>`).join("");
+  $("customCountries").innerHTML = countries
+    .map((c) => `<label class="chk" data-name="${c.name.toLowerCase()}"><input type="checkbox" value="${c.id}" /> ${c.name}</label>`)
+    .join("");
   $("palette").innerHTML = Object.keys(palettes.single).map((p) => `<option>${p}</option>`).join("");
   if ($("cpalette")) $("cpalette").innerHTML = Object.keys(palettes.comparison).map((p) => `<option>${p}</option>`).join("");
   $("preset").innerHTML =
@@ -790,7 +819,9 @@ async function init() {
   if ($("destCbsa")) $("destCbsa").addEventListener("change", onCbsaChange);
   $("group").addEventListener("change", autoFillBounds);
   $("customCountries").addEventListener("change", autoFillBounds);
-  $("sourceSearch").addEventListener("input", () => { renderSourceOptions(); renderSourceOptionsB(); });
+  $("countrySearch").addEventListener("input", filterCountryList);
+  $("searchA").addEventListener("input", renderSourceOptions);
+  if ($("searchB")) $("searchB").addEventListener("input", renderSourceOptionsB);
   document.querySelectorAll('input[name="mapMode"]').forEach(
     (r) => r.addEventListener("change", syncCompareUI));
   $("generate").addEventListener("click", generate);

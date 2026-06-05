@@ -48,7 +48,21 @@ body { display: flex; height: 100vh; overflow: hidden; }
 hr { border: none; border-top: 1px solid #e9ecef; margin: 14px 0; }
 
 .help-hint { color: #6c757d; font-size: 12px; margin-top: 3px; line-height: 1.35; }
-#sourceSearch { margin-bottom: 5px; }
+#searchA, #searchB { margin-bottom: 5px; }
+#countrySearch { margin-top: 8px; margin-bottom: 5px; }
+
+/* click-to-toggle checkbox lists (region groups + individual countries) */
+.checklist {
+  border: 1px solid #ced4da; border-radius: 6px; background: #fff;
+  max-height: 168px; overflow-y: auto; padding: 3px;
+}
+#panel .checklist label.chk {
+  display: flex; align-items: center; gap: 8px; margin: 0;
+  padding: 4px 7px; font-size: 13px; color: #212529;
+  cursor: pointer; border-radius: 4px;
+}
+#panel .checklist label.chk:hover { background: #f1f3f5; }
+.checklist input[type="checkbox"] { width: auto; margin: 0; flex: 0 0 auto; }
 
 .grid2, .grid3 { display: grid; gap: 8px; }
 .grid2 { grid-template-columns: 1fr 1fr; }

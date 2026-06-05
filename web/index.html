@@ -25,10 +25,11 @@
       <label>Region type</label>
       <select id="originType"></select>
       <label id="regionLabel">Region</label>
-      <input id="sourceSearch" type="text" placeholder="Type to filter…" autocomplete="off" />
+      <input id="searchA" type="text" placeholder="Type to filter…" autocomplete="off" />
       <select id="sourceA" size="6"></select>
       <div id="sourceBWrap" style="display:none">
         <label>Region B</label>
+        <input id="searchB" type="text" placeholder="Type to filter…" autocomplete="off" />
         <select id="sourceB" size="6"></select>
       </div>
       <div id="sourceHint" class="help-hint"></div>
@@ -44,8 +45,9 @@
       </div>
       <div id="countryWrap">
         <label>Regions to show</label>
-        <select id="group" multiple size="4"></select>
-        <select id="customCountries" multiple size="4"></select>
+        <div id="group" class="checklist"></div>
+        <input id="countrySearch" type="text" placeholder="Type to add individual countries…" autocomplete="off" />
+        <div id="customCountries" class="checklist"></div>
         <div class="help-hint">Additional countries are combined with the region groups above.</div>
       </div>
 
