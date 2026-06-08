@@ -12,18 +12,18 @@ We also include **Relevant Literature.bib**, which contains references to papers
 
 This tool lets you create high-quality maps of the **Social Connectedness Index (SCI)** with *very little code editing*. You do **not** need to understand spatial data or GIS concepts to use it successfully.
 
-There are **four ways** to use this tool, from easiest to most flexible:
+There are **three ways** to use this tool, from easiest to most flexible:
 
 0. **Web app (no install)** — Make maps right in your browser at
    **[social-connectedness.org](https://social-connectedness.org/)** — no R, no
-   server, nothing to download. It produces the same static maps as the tool below,
-   supports almost all of the map types listed in [Map Types](#map-types) (country,
-   GADM1/2, NUTS1/2/3, US county/ZCTA/metro, and their region↔country directions),
-   and can render both single-region and comparison maps with PNG/JPG/SVG/PDF/MP4
-   downloads. Source and deploy instructions are in [`web/README.md`](web/README.md).
-1. **Interactive app** — Launch a point-and-click Shiny app: `shiny::runApp()` (see [Interactive App](#interactive-app))
-2. **Batch mode** — Edit `src/map_structs.R` and run `src/main.R` to generate multiple maps at once (see [Quick Start](#quick-start))
-3. **Scripting** — Call `make_map()` directly in R for full control (see [Using make_map() Directly](#using-make_map-directly))
+   server, nothing to download. This is the recommended way to make maps
+   interactively. It produces the same static maps as the tool below, supports
+   most of the map types listed in [Map Types](#map-types) (country, GADM1/2,
+   US county/ZIP/metro, and their region↔country directions), and can render both
+   single-region and comparison maps with PNG/JPG/SVG/PDF/MP4 downloads. Source
+   and deploy instructions are in [`web/README.md`](web/README.md).
+1. **Batch mode** — Edit `src/map_structs.R` and run `src/main.R` to generate multiple maps at once (see [Quick Start](#quick-start))
+2. **Scripting** — Call `make_map()` directly in R for full control (see [Using make_map() Directly](#using-make_map-directly))
 
 ---
 
@@ -45,26 +45,6 @@ If you just want to get maps as fast as possible:
 6. Your maps will appear in `output/maps/`
 
 On the first run, the script will automatically install any missing R packages and clean the shapefiles. On subsequent runs, the cleaning step is skipped automatically, so re-runs are fast.
-
----
-
-## Interactive App
-
-After completing the one-time setup (steps 1–3 of the Quick Start above), you can launch an interactive Shiny app to create maps without editing any code:
-
-```r
-install.packages("shiny")  # only needed once
-shiny::runApp()
-```
-
-The app lets you:
-
-* **Select map type** — dropdown with all available map types
-* **Pick SCI data** — auto-filtered to match the selected type
-* **Choose countries** — preset groups (Europe, Africa, etc.) or all
-* **Set custom breaks, colors, zoom** — via an expandable "Advanced options" panel
-* **Preview** the map in your browser
-* **Download** as PNG, PDF, SVG, or MP4
 
 ---
 
@@ -104,7 +84,6 @@ Other key files:
 | ------------------------------- | -------------------------------------------------- |
 | `setup.sh`                      | Installs prerequisites and downloads data (`./setup.sh`) |
 | `download_data.sh`              | Downloads SCI data and shapefiles only (`./download_data.sh`) |
-| `app.R`                         | Interactive Shiny app (run with `shiny::runApp()`) |
 | `src/setup.R`                   | Shared setup: packages, sources, shapefile cleaning|
 | `src/make_map.R`                | The `make_map()` function (public API)             |
 | `src/constants.R`               | File paths and country code lists                  |

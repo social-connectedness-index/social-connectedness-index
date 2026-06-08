@@ -1,4 +1,4 @@
-// video.js — Encode a static map image into a short MP4 (like the Shiny app's
+// video.js — Encode a static map image into a short MP4 (like the R tool's
 // mp4 export: the image padded onto a portrait 1080x1920 frame). Uses the browser
 // WebCodecs API + mp4-muxer. Falls back with a clear message where unsupported.
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";

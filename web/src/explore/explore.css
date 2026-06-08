@@ -397,6 +397,10 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   /* Results become a dismissable bottom sheet — smaller, so the map stays
      visible — and the sheet itself scrolls. */
   #console {
+    /* content-box is the default, so width:100% + horizontal padding rendered
+       32px wider than the viewport — pushing the SCI column and the X button off
+       the right edge. border-box makes the padding fit inside the 100% width. */
+    box-sizing: border-box;
     width: 100%;
     left: 0;
     right: 0;

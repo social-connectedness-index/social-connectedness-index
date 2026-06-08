@@ -1,5 +1,5 @@
 // render.js — Draw a STATIC choropleth (title, subtitle, map, horizontal legend,
-// caption) laid out like the ggplot output of the Shiny app. The drawing logic
+// caption) laid out like the ggplot output of the R tool. The drawing logic
 // (drawScene) is backend-agnostic so the exact same layout renders to either a
 // raster <canvas> (PNG/JPG/MP4) or a vector <svg> string (SVG/PDF).
 
@@ -96,6 +96,49 @@ function svgBackend(W, H) {
   };
 }
 
+// ---- text wrapping --------------------------------------------------------
+
+// Shared offscreen canvas context purely for measuring text width (so the SVG
+// backend wraps identically to the canvas one). Font must match the draw font.
+let _measureCtx = null;
+function measureWidth(s, size, bold) {
+  if (!_measureCtx) _measureCtx = document.createElement("canvas").getContext("2d");
+  _measureCtx.font = `${bold ? "bold " : ""}${size}px Helvetica, Arial, sans-serif`;
+  return _measureCtx.measureText(s).width;
+}
+
+// Greedy word-wrap to fit maxWidth. Honors any explicit "\n" the caller already
+// put in (each becomes a hard break), then wraps each paragraph by words so a
+// title can't run off the frame. A single word wider than maxWidth keeps its own
+// line rather than being split mid-word (rare for titles/place names).
+function wrapText(text, maxWidth, size, bold) {
+  const lines = [];
+  for (const para of String(text).split("\n")) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    let line = words[0];
+    for (let i = 1; i < words.length; i++) {
+      if (measureWidth(line + " " + words[i], size, bold) <= maxWidth) line += " " + words[i];
+      else { lines.push(line); line = words[i]; }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+// Wrap text to fit maxWidth, shrinking the font (down to minSize) to keep it
+// within maxLines when possible — so a long title stays compact instead of
+// eating the map. Returns the final { lines, size }.
+function fitText(text, maxWidth, startSize, bold, maxLines, minSize) {
+  let size = startSize;
+  let lines = wrapText(text, maxWidth, size, bold);
+  while (lines.length > maxLines && size > minSize) {
+    size -= 1;
+    lines = wrapText(text, maxWidth, size, bold);
+  }
+  return { lines, size };
+}
+
 // ---- shared scene ---------------------------------------------------------
 
 function drawScene(g, opts) {
@@ -119,21 +162,31 @@ function drawScene(g, opts) {
   const subFs = Math.round(W / 52);
   const capFs = Math.round(W / 78);   // caption (dataset link + handle) — a bit larger for readability
   const legendFs = Math.round(W / 68); // legend title + tick labels — a bit larger
-  const titleLines = title ? title.split("\n").length : 0;
-  const subLines = subtitle ? subtitle.split("\n").length : 0;
-  const capLines = caption ? caption.split("\n").length : 0;
+
+  // Auto-wrap title/subtitle/caption to the frame width so nothing runs off the
+  // edge and no manual "\n" is needed. The title also auto-shrinks to stay ≤2
+  // lines when it can, so a long title doesn't crowd out the map.
+  const textMaxW = W - margin * 2;
+  const titleFit = title ? fitText(title, textMaxW, titleFs, true, 2, Math.round(titleFs * 0.62)) : { lines: [], size: titleFs };
+  const titleArr = titleFit.lines;
+  const titleDrawFs = titleFit.size;
+  const subArr = subtitle ? wrapText(subtitle, textMaxW, subFs, false) : [];
+  const capArr = caption ? wrapText(caption, textMaxW, capFs, false) : [];
+  const titleLines = titleArr.length;
+  const subLines = subArr.length;
+  const capLines = capArr.length;
   const captionSpace = capLines ? capLines * capFs * 1.4 + margin * 0.3 : 0;
   const legendSpace = Math.round(legendFs * 4.8);
 
   g.background("#ffffff");
 
-  let y = margin + (titleLines ? titleFs : 0);
-  if (title) {
-    title.split("\n").forEach((ln, i) => g.text(ln, W / 2, y + i * titleFs * 1.25, titleFs, "#111", true, "center"));
-    y += titleLines * titleFs * 1.25;
+  let y = margin + (titleLines ? titleDrawFs : 0);
+  if (titleLines) {
+    titleArr.forEach((ln, i) => g.text(ln, W / 2, y + i * titleDrawFs * 1.25, titleDrawFs, "#111", true, "center"));
+    y += titleLines * titleDrawFs * 1.25;
   }
-  if (subtitle) {
-    subtitle.split("\n").forEach((ln, i) => g.text(ln, W / 2, y + subFs + i * subFs * 1.4, subFs, "#333", false, "center"));
+  if (subLines) {
+    subArr.forEach((ln, i) => g.text(ln, W / 2, y + subFs + i * subFs * 1.4, subFs, "#333", false, "center"));
     y += subLines * subFs * 1.4 + subFs;
   }
 
@@ -181,9 +234,9 @@ function drawScene(g, opts) {
     g.fill(buildPath(f.geometry), colorById[id] || naColor, true);
   }
   // Borders. When borderFeatures is provided it's a coarser admin layer
-  // (e.g. state/province = gadm1, or NUTS1) — the analogue of the Shiny app's
+  // (e.g. state/province = gadm1) — the analogue of the R tool's
   // "Show state borders" overlay. When null, the friend regions themselves are
-  // the toggled level (country/gadm1/nuts1), so stroke their outlines instead.
+  // the toggled level (country/gadm1), so stroke their outlines instead.
   if (showBorders) {
     const lw = Math.max(0.4, W / 2600);
     if (borderFeatures) {
@@ -206,9 +259,9 @@ function drawScene(g, opts) {
   g.popClip();
 
   drawLegend(g, legend, W, mapBottom + legendFs * 1.2, legendFs);
-  if (caption) {
+  if (capLines) {
     const cy = H - captionSpace + capFs;
-    caption.split("\n").forEach((ln, i) => g.text(ln, W / 2, cy + i * capFs * 1.4, capFs, "#555", false, "center"));
+    capArr.forEach((ln, i) => g.text(ln, W / 2, cy + i * capFs * 1.4, capFs, "#555", false, "center"));
   }
 }
 

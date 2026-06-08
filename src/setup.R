@@ -8,7 +8,6 @@ required_packages <- c(
   "rnaturalearth",
   "rnaturalearthdata",
   "sf",
-  "shiny",
   "tidyverse"
 )
 

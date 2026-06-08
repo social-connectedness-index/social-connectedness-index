@@ -10,30 +10,23 @@
 # selection filters/zooms the friend regions (false for US-only friend levels).
 # `admin1Geo` = the geometry whose borders the "Show state borders" toggle draws
 # (mirrors map_type_configs$admin1_borders in the R tool): gadm1 for US levels +
-# gadm2, nuts1 for NUTS2/3. When NULL the friend regions ARE the toggled level,
-# so the frontend strokes the friend outlines instead (country/gadm1/nuts1).
+# gadm2. When NULL the friend regions ARE the toggled level, so the frontend
+# strokes the friend outlines instead (country/gadm1).
+# NUTS levels are intentionally NOT exported to the web app (dropped 2026-06-08 —
+# GADM covers the same regions; the standalone R tool still supports NUTS).
 meta_types <- list(
   country           = list(label = "Country -> Country",            sourceGeo = "country",   friendGeo = "country",   friendByCountry = TRUE),
   gadm1             = list(label = "State/Province -> State",       sourceGeo = "gadm1",     friendGeo = "gadm1",     friendByCountry = TRUE),
   gadm2             = list(label = "District/County -> District",   sourceGeo = "gadm2",     friendGeo = "gadm2",     friendByCountry = TRUE,  admin1Geo = "gadm1"),
-  nuts1             = list(label = "NUTS1 -> NUTS1 (Europe)",       sourceGeo = "nuts1",     friendGeo = "nuts1",     friendByCountry = TRUE),
-  nuts2             = list(label = "NUTS2 -> NUTS2 (Europe)",       sourceGeo = "nuts2",     friendGeo = "nuts2",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
-  nuts3             = list(label = "NUTS3 -> NUTS3 (Europe)",       sourceGeo = "nuts3",     friendGeo = "nuts3",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
   us_county         = list(label = "US County -> US County",        sourceGeo = "us_county", friendGeo = "us_county", friendByCountry = FALSE, admin1Geo = "gadm1"),
   us_cbsa           = list(label = "US Metro (CBSA) -> US Metro",   sourceGeo = "us_cbsa",   friendGeo = "us_cbsa",   friendByCountry = FALSE, admin1Geo = "gadm1"),
   us_zcta           = list(label = "US ZIP (ZCTA) -> US ZIP",       sourceGeo = "us_zcta",   friendGeo = "us_zcta",   friendByCountry = FALSE, admin1Geo = "gadm1"),
   gadm1_country     = list(label = "State/Province -> Country",     sourceGeo = "gadm1",     friendGeo = "country",   friendByCountry = TRUE),
   gadm2_country     = list(label = "District/County -> Country",    sourceGeo = "gadm2",     friendGeo = "country",   friendByCountry = TRUE),
-  nuts1_country     = list(label = "NUTS1 -> Country",              sourceGeo = "nuts1",     friendGeo = "country",   friendByCountry = TRUE),
-  nuts2_country     = list(label = "NUTS2 -> Country",              sourceGeo = "nuts2",     friendGeo = "country",   friendByCountry = TRUE),
-  nuts3_country     = list(label = "NUTS3 -> Country",              sourceGeo = "nuts3",     friendGeo = "country",   friendByCountry = TRUE),
   us_county_country = list(label = "US County -> Country",          sourceGeo = "us_county", friendGeo = "country",   friendByCountry = TRUE),
   us_zcta_country   = list(label = "US ZIP (ZCTA) -> Country",      sourceGeo = "us_zcta",   friendGeo = "country",   friendByCountry = TRUE),
   country_gadm1     = list(label = "Country -> State/Province",     sourceGeo = "country",   friendGeo = "gadm1",     friendByCountry = TRUE),
   country_gadm2     = list(label = "Country -> District/County",    sourceGeo = "country",   friendGeo = "gadm2",     friendByCountry = TRUE,  admin1Geo = "gadm1"),
-  country_nuts1     = list(label = "Country -> NUTS1 (Europe)",     sourceGeo = "country",   friendGeo = "nuts1",     friendByCountry = TRUE),
-  country_nuts2     = list(label = "Country -> NUTS2 (Europe)",     sourceGeo = "country",   friendGeo = "nuts2",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
-  country_nuts3     = list(label = "Country -> NUTS3 (Europe)",     sourceGeo = "country",   friendGeo = "nuts3",     friendByCountry = TRUE,  admin1Geo = "nuts1"),
   country_us_county = list(label = "Country -> US County",          sourceGeo = "country",   friendGeo = "us_county", friendByCountry = FALSE, admin1Geo = "gadm1"),
   country_us_cbsa   = list(label = "Country -> US Metro (CBSA)",    sourceGeo = "country",   friendGeo = "us_cbsa",   friendByCountry = FALSE, admin1Geo = "gadm1"),
   country_us_zcta   = list(label = "Country -> US ZIP (ZCTA)",      sourceGeo = "country",   friendGeo = "us_zcta",   friendByCountry = FALSE, admin1Geo = "gadm1"),
@@ -127,12 +120,12 @@ export_meta <- function(out_root) {
     auto_unbox = TRUE, pretty = TRUE
   )
 
-  # Auto-zoom bounding boxes (ported verbatim from app.R) -------------------
+  # Auto-zoom bounding boxes ------------------------------------------------
   # Hardcoded per-group bounds + per-country bboxes from GADM0. The frontend
-  # combines these exactly like app.R's compute_combined_bounds()/update_bounds().
+  # combines these (compute_combined_bounds/update_bounds logic, now in main.js).
   group_bounds <- list(
     "Europe"           = list(xlim = c(-10, 36),   ylim = c(36, 70)),
-    "Africa"           = list(xlim = c(-26, 58),   ylim = c(-35, 35)),
+    "Africa"           = list(xlim = c(-26, 58),   ylim = c(-35, 38)),
     "South Asia"       = list(xlim = c(60, 98),    ylim = c(5, 37)),
     "West Asia"        = list(xlim = c(25, 61),    ylim = c(12, 43)),
     "East Asia"        = list(xlim = c(120, 146),  ylim = c(20, 46)),
@@ -243,8 +236,8 @@ export_meta <- function(out_root) {
     auto_unbox = TRUE, pretty = TRUE
   )
 
-  # Metro (CBSA) -> ZCTA crosswalk. Powers the web app's "Metro area" ZIP filter,
-  # mirroring the Shiny app's filter_dest_cbsa feature. One entry per metro:
+  # Metro (CBSA) -> ZCTA crosswalk. Powers the web app's "Metro area" ZIP filter
+  # (the make_map() filter_dest_cbsa feature). One entry per metro:
   # { code, title, zctas: [...] }, sorted by title. The frontend lazy-loads this
   # only when the destination level is US ZIP. cbsa_code values match what
   # make_map(filter_dest_cbsa=) expects (the crosswalk is its source of truth).

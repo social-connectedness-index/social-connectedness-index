@@ -16,7 +16,7 @@
 
 # Which types use the range-index format (heavy by file-count or per-file size).
 RANGE_INDEX_TYPES <- c(
-  "gadm2", "gadm2_country", "us_zcta", "us_zcta_country", "nuts3", "nuts3_country",
+  "gadm2", "gadm2_country", "us_zcta", "us_zcta_country",
   "us_zcta_county", "us_zcta_cbsa"
 )
 
@@ -29,13 +29,10 @@ gadm2_shard_codes <- c("BO", "BR", "DO", "HN", "JO", "MW", "PG", "PY",
 sci_types <- list(
   country           = list(path = "data/sci_2026/country.csv"),
   gadm1             = list(path = "data/sci_2026/gadm1.csv"),
-  nuts1             = list(path = "data/sci_2026/nuts1_2024.csv"),
   us_county         = list(path = "data/sci_2026/us_counties.csv"),
   gadm1_country     = list(path = "data/sci_2026/gadm1_to_country.csv"),
-  nuts1_country     = list(path = "data/sci_2026/nuts1_2024_to_country.csv"),
   us_county_country = list(path = "data/sci_2026/us_counties_to_country.csv"),
   country_gadm1     = list(path = "data/sci_2026/gadm1_to_country.csv"),
-  country_nuts1     = list(path = "data/sci_2026/nuts1_2024_to_country.csv"),
   country_us_county = list(path = "data/sci_2026/us_counties_to_country.csv"),
 
   # ---- Phase 2 ----
@@ -43,12 +40,6 @@ sci_types <- list(
     "data/sci_2026", paste0("gadm2_shard_", gadm2_shard_codes, ".csv"))),
   gadm2_country     = list(path = "data/sci_2026/gadm2_to_country.csv"),
   country_gadm2     = list(path = "data/sci_2026/gadm2_to_country.csv"),
-  nuts2             = list(path = "data/sci_2026/nuts2_2024.csv"),
-  nuts2_country     = list(path = "data/sci_2026/nuts2_2024_to_country.csv"),
-  country_nuts2     = list(path = "data/sci_2026/nuts2_2024_to_country.csv"),
-  nuts3             = list(path = "data/sci_2026/nuts3_2024.csv"),
-  nuts3_country     = list(path = "data/sci_2026/nuts3_2024_to_country.csv"),
-  country_nuts3     = list(path = "data/sci_2026/nuts3_2024_to_country.csv"),
   us_zcta           = list(shards = file.path(
     "data/sci_2026", paste0("us_zcta_shard_", 0:9, ".csv"))),
   us_zcta_country   = list(path = "data/sci_2026/us_zcta_to_country.csv"),

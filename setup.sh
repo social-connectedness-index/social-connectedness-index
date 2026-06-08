@@ -149,10 +149,10 @@ if [[ "$OS" == "Darwin" && ! -d "/Applications/RStudio.app" ]] || \
    [[ "$OS" == "Linux" && ! $(command -v rstudio 2>/dev/null) ]]; then
     printf "  1. Install RStudio: https://posit.co/download/rstudio-desktop/\n"
     printf "  2. Open social-connectedness-index.Rproj in RStudio\n"
-    printf "  3. Run shiny::runApp() for the interactive app, or\n"
-    printf "     edit src/map_structs.R and run src/main.R for batch maps\n"
+    printf "  3. Edit src/map_structs.R and run src/main.R to generate maps\n"
+    printf "     (or make maps interactively at https://social-connectedness.org/)\n"
 else
     printf "  1. Open social-connectedness-index.Rproj in RStudio\n"
-    printf "  2. Run shiny::runApp() for the interactive app, or\n"
-    printf "     edit src/map_structs.R and run src/main.R for batch maps\n"
+    printf "  2. Edit src/map_structs.R and run src/main.R to generate maps\n"
+    printf "     (or make maps interactively at https://social-connectedness.org/)\n"
 fi

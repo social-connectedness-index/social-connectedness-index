@@ -27,23 +27,27 @@ Cloudflare Pages serves these at `/`, `/generator`, and `/explore`.
 
 ## Map Generator — what it produces (static images, not an interactive map)
 
-The web app is a faithful replica of the desktop Shiny app (`app.R`): it produces
-the same **static, ggplot-style map images** — not a zoomable slippy map. The
-choropleth, title/subtitle, legend, and caption are drawn on an HTML5 **canvas**
-(`src/render.js`) using an equirectangular projection fit to the chosen bounds. The
-coloring math (reference-quantile normalization, automatic and custom breaks,
-palette interpolation, legend labels, and diverging comparison palettes) is a
+The web app produces the same **static, ggplot-style map images** as the R tool
+(`src/make_map.R`) — not a zoomable slippy map. The choropleth, title/subtitle,
+legend, and caption are drawn on an HTML5 **canvas** (`src/render.js`) using an
+equirectangular projection fit to the chosen bounds. The coloring math
+(reference-quantile normalization, automatic and custom breaks, palette
+interpolation, legend labels, and diverging comparison palettes) is a
 parity-verified port of `src/make_map.R` / `src/mapping_tools.R`, in `src/sci.js`.
+(The web app replaced the old interactive R/Shiny app, which has been removed; the
+R tool now lives on only as the batch/scripting backend and the data export below.)
 
-It supports the same controls as the Shiny app: origin/destination type selection,
+It supports these controls: origin/destination type selection,
 source-region search, country-group and custom-country filtering, palette,
 reference quantile, custom breaks, borders, source highlighting, and titles.
 Both **single-region** and
 **comparison** (two-region, diverging) maps are supported.
 
-**Map types:** all 27 of the tool's map types are available except the six
-geoBoundaries types (`adm1`, `adm2`, and their `_country` / `country_` directions),
-which are duplicates of the GADM equivalents.
+**Map types:** 18 of the standalone R tool's map types are available. Excluded
+from the web app: the six geoBoundaries types (`adm1`, `adm2`, and their
+`_country` / `country_` directions — duplicates of the GADM equivalents) and the
+nine NUTS types (`nuts1/2/3` and their `_country` / `country_` directions — GADM
+covers the same European regions).
 
 **Downloads:** PNG, JPG (canvas), SVG and PDF (`src/export_vector.js`), and MP4
 (`src/video.js`, via WebCodecs + `mp4-muxer`).

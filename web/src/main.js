@@ -1,7 +1,7 @@
 // main.js — UI wiring, data loading, and orchestration for the SCI map maker.
-// Produces a STATIC map image (like the Shiny/ggplot output) with PNG/JPG/MP4/
-// SVG/PDF download. UI mirrors the Shiny app: Origin type -> Source region ->
-// Destination type, with country filtering, plus an optional two-region compare.
+// Produces a STATIC map image (like the R tool's ggplot output) with PNG/JPG/MP4/
+// SVG/PDF download. UI flow: Origin type -> Source region -> Destination type,
+// with country filtering, plus an optional two-region compare.
 //
 // The type system, sharded-geometry list, and range-indexed SCI list all come
 // from data/manifest.json so the frontend stays in sync with the R export.
@@ -29,15 +29,12 @@ const LEVEL_LABEL = {
   country: "Country",
   gadm1: "State / Province (GADM1)",
   gadm2: "District / County (GADM2)",
-  nuts1: "NUTS1 region (Europe)",
-  nuts2: "NUTS2 region (Europe)",
-  nuts3: "NUTS3 region (Europe)",
   us_county: "US County",
   us_cbsa: "US Metro Area (CBSA)",
   us_zcta: "US ZIP Code",
 };
 const LEVEL_ORDER = [
-  "country", "gadm1", "gadm2", "nuts1", "nuts2", "nuts3",
+  "country", "gadm1", "gadm2",
   "us_county", "us_cbsa", "us_zcta",
 ];
 
@@ -64,15 +61,10 @@ function sciPathFor(type, sourceId, country) {
   const P = "data/sci_2026/";
   const direct = {
     country: "country.csv", gadm1: "gadm1.csv",
-    nuts1: "nuts1_2024.csv", nuts2: "nuts2_2024.csv", nuts3: "nuts3_2024.csv",
     us_county: "us_counties.csv",
     gadm1_country: "gadm1_to_country.csv", gadm2_country: "gadm2_to_country.csv",
-    nuts1_country: "nuts1_2024_to_country.csv", nuts2_country: "nuts2_2024_to_country.csv",
-    nuts3_country: "nuts3_2024_to_country.csv",
     us_county_country: "us_counties_to_country.csv", us_zcta_country: "us_zcta_to_country.csv",
     country_gadm1: "gadm1_to_country.csv", country_gadm2: "gadm2_to_country.csv",
-    country_nuts1: "nuts1_2024_to_country.csv", country_nuts2: "nuts2_2024_to_country.csv",
-    country_nuts3: "nuts3_2024_to_country.csv",
     country_us_county: "us_counties_to_country.csv", country_us_zcta: "us_zcta_to_country.csv",
   };
   if (direct[type]) return P + direct[type];
@@ -96,6 +88,10 @@ let manifest, groups, palettes, countries, bounds, csub;
 const OPT_ALL = "All countries";
 const OPT_SAME_COUNTRY = "__same_country__";
 const OPT_SAME_SUBCONT = "__same_subcontinent__";
+// The three scope options are mutually exclusive — they're overlapping ways to
+// pick a base extent (world ⊃ subcontinent ⊃ country), so checking one clears the
+// others. Continent groups + individual countries stay additive on top.
+const SCOPE_OPTS = [OPT_ALL, OPT_SAME_COUNTRY, OPT_SAME_SUBCONT];
 let cbsaList = null;       // [{ code, title, zctas:[...] }] — lazy-loaded
 const geoCache = {};      // level (or "level/shard") -> FeatureCollection
 const partsCache = {};    // sharded level -> [shardKey,...]
@@ -227,8 +223,39 @@ function optionsHtml(list, prevValue, query) {
   let opts = q ? list.filter((o) => o.label.toLowerCase().includes(q)) : list;
   const truncated = opts.length > MAX_OPTIONS;
   if (truncated) opts = opts.slice(0, MAX_OPTIONS);
-  let html = opts.map((o) => `<option value="${o.id}">${o.label}</option>`).join("");
+  let html = opts.map((o) => `<div class="opt" role="option" data-v="${o.id}">${o.label}</div>`).join("");
   return { html, truncated, hasPrev: opts.some((o) => o.id === prevValue) };
+}
+
+// The source-region lists are custom <div> listboxes (see initListbox). value of
+// the first visible row — used to keep a selection highlighted the way a native
+// <select> defaults to its first option after its list is re-rendered.
+const firstOptValue = (el) => el.querySelector(".opt")?.dataset.v || "";
+
+// Turn a <div class="listbox"> into a select-like control: a `.value`
+// getter/setter (stored on data-value, with the matching row highlighted) plus a
+// "change" event emitted on row click. This lets the rest of the code keep using
+// $("sourceA").value / addEventListener("change") unchanged, while the picker
+// renders as an inline scrollable list that filters live on mobile (a native
+// <select size> would instead open a tap-to-select picker).
+function initListbox(id) {
+  const el = $(id);
+  if (!el || el._lbInit) return;
+  el._lbInit = true;
+  Object.defineProperty(el, "value", {
+    configurable: true,
+    get() { return this.dataset.value || ""; },
+    set(v) {
+      this.dataset.value = v == null ? "" : String(v);
+      for (const o of this.querySelectorAll(".opt")) o.classList.toggle("sel", o.dataset.v === this.dataset.value);
+    },
+  });
+  el.addEventListener("click", (e) => {
+    const opt = e.target.closest(".opt");
+    if (!opt || !el.contains(opt)) return;
+    el.value = opt.dataset.v;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
 }
 
 // Region A and Region B each have their OWN search box, so filtering one list
@@ -237,7 +264,9 @@ function renderSourceOptions() {
   const prev = $("sourceA").value;
   const { html, truncated, hasPrev } = optionsHtml(allSourceOpts, prev, $("searchA").value);
   $("sourceA").innerHTML = html;
-  if (hasPrev) $("sourceA").value = prev;
+  // Keep the prior pick selected if it's still in the filtered list, else fall
+  // back to the first row (mirrors a native <select> resetting to option 0).
+  $("sourceA").value = hasPrev ? prev : firstOptValue($("sourceA"));
   if ($("sourceHint")) $("sourceHint").textContent = truncated
     ? `Showing first ${MAX_OPTIONS} — type to narrow.` : "";
 }
@@ -246,7 +275,7 @@ function renderSourceOptionsB() {
   const prev = $("sourceB").value;
   const { html, hasPrev } = optionsHtml(allSourceOpts, prev, $("searchB") ? $("searchB").value : "");
   $("sourceB").innerHTML = html;
-  if (hasPrev) $("sourceB").value = prev;
+  $("sourceB").value = hasPrev ? prev : firstOptValue($("sourceB"));
 }
 
 // "Regions to show" is two click-to-toggle checkbox lists (region groups +
@@ -317,16 +346,16 @@ function activeFriends(friendGeo, t, codes) {
 }
 
 // The "Show state borders" overlay. For levels finer than a state (gadm2, US
-// county/ZIP/CBSA, NUTS2/3) it's a separate coarser layer (gadm1 or nuts1),
-// mirroring the R tool's admin1_borders. For coarser levels (no admin1Geo) we
-// return null and render.js strokes the friend outlines instead. Returns null
-// when borders are off so the heavy gadm1 geometry isn't fetched needlessly.
+// county/ZIP/CBSA) it's a separate coarser layer (gadm1), mirroring the R tool's
+// admin1_borders. For coarser levels (no admin1Geo) we return null and render.js
+// strokes the friend outlines instead. Returns null when borders are off so the
+// heavy gadm1 geometry isn't fetched needlessly.
 async function loadBorderFeatures(t, codes, metroZctas, activeFeatures) {
   if (!$("borders").checked || !t.admin1Geo) return null;
   // Metro maps: the metro's own ZIP outlines act as the overlay (R sets
   // admin1_borders_data to the filtered ZIP shapes).
   if (metroZctas) return activeFeatures;
-  const geo = await getGeometry(t.admin1Geo); // gadm1 / nuts1 are not sharded
+  const geo = await getGeometry(t.admin1Geo); // gadm1 is not sharded
   let codeSet = codes;
   if (!codeSet) codeSet = t.friendByCountry ? null : new Set(["US"]);
   return codeSet ? geo.features.filter((f) => codeSet.has(f.properties.country)) : geo.features;
@@ -349,11 +378,11 @@ function parseCompareBreaks(text) {
   return [...logs.map((v) => -v), 0, ...logs].sort((a, b) => a - b);
 }
 
-const labelOf = (sel) => sel.options[sel.selectedIndex]?.textContent || sel.value;
+const labelOf = (el) => el.querySelector(".opt.sel")?.textContent || el.value;
 const sourceLabelText = () => labelOf($("sourceA"));
 
 // Legend labels for the two compared regions: the user's override if given,
-// else the region's own name (mirrors app.R's label_a/label_b fallback).
+// else the region's own name (mirrors make_comparison_map's label_a/label_b fallback).
 const cmpLabelA = () => ($("labelA")?.value.trim()) || labelOf($("sourceA"));
 const cmpLabelB = () => ($("labelB")?.value.trim()) || labelOf($("sourceB"));
 // The comparison legend title, matching make_comparison_map() in the R tool.
@@ -361,10 +390,12 @@ const comparisonLegendTitle = () =>
   `← More Friendly With ${cmpLabelA()} | More Friendly With ${cmpLabelB()} →`;
 
 function autoTitle() {
+  // No manual line breaks — render.js wraps the title to the frame width, so it
+  // stays on one line when it fits and wraps only when it must.
   if (compareMode()) {
-    return `Where do people have more friends:\n${labelOf($("sourceA"))} or ${labelOf($("sourceB"))}?`;
+    return `Where do people have more friends: ${labelOf($("sourceA"))} or ${labelOf($("sourceB"))}?`;
   }
-  return `Where do people in ${sourceLabelText()}\nhave the most friends?`;
+  return `Where do people in ${sourceLabelText()} have the most friends?`;
 }
 
 function manualBbox() {
@@ -382,7 +413,7 @@ function outputPixels() {
   return { w: Math.round(w), h: Math.round(h) };
 }
 
-// ---- auto-fill lon/lat (ported from app.R update_bounds) -------------------
+// ---- auto-fill lon/lat (curated group/country zoom boxes) ------------------
 
 const r2 = (n) => Math.round(n * 100) / 100;
 function setBoundsFields(b) {
@@ -717,8 +748,8 @@ function reset() {
 }
 
 // ---- metro (CBSA) ZIP filter ----------------------------------------------
-// Mirrors the Shiny app's "Metro area (optional)" control: when the destination
-// level is US ZIP, the friend ZIPs can be restricted to a single metro area.
+// The "Metro area (optional)" control (make_map's filter_dest_cbsa): when the
+// destination level is US ZIP, the friend ZIPs can be restricted to a single metro.
 
 async function ensureCbsaList() {
   if (cbsaList) return cbsaList;
@@ -762,7 +793,6 @@ function onDestChange() {
   const dest = $("destType").value;
   // Sensible default "Regions to show" for the chosen destination level.
   if (dest.startsWith("us_")) selectGroup(null);          // US-only friend level
-  else if (dest.startsWith("nuts")) selectGroup("Europe");
   else if (dest === "country") selectGroup(OPT_ALL);       // world map of countries
   else selectGroup(OPT_SAME_COUNTRY);                       // gadm1 / gadm2 region levels
   syncCbsaUI();
@@ -807,6 +837,8 @@ async function init() {
   $("palette").innerHTML = Object.keys(palettes.single).map((p) => `<option>${p}</option>`).join("");
   if ($("cpalette")) $("cpalette").innerHTML = Object.keys(palettes.comparison).map((p) => `<option>${p}</option>`).join("");
 
+  initListbox("sourceA");
+  initListbox("sourceB");
   syncCompareUI();
   syncCbsaUI();
   await refreshSources();
@@ -814,7 +846,15 @@ async function init() {
   $("originType").addEventListener("change", () => { fillDestOptions(); onDestChange(); });
   $("destType").addEventListener("change", onDestChange);
   if ($("destCbsa")) $("destCbsa").addEventListener("change", onCbsaChange);
-  $("group").addEventListener("change", autoFillBounds);
+  $("group").addEventListener("change", (e) => {
+    // Enforce at-most-one among the scope options; leave continent groups alone.
+    if (e.target.checked && SCOPE_OPTS.includes(e.target.value)) {
+      for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) {
+        if (cb !== e.target && SCOPE_OPTS.includes(cb.value)) cb.checked = false;
+      }
+    }
+    autoFillBounds();
+  });
   $("customCountries").addEventListener("change", autoFillBounds);
   $("countrySearch").addEventListener("input", filterCountryList);
   $("searchA").addEventListener("input", renderSourceOptions);

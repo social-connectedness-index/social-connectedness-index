@@ -27,21 +27,6 @@ geo_levels <- list(
     key = "key", name_col = "name", country_col = "sov_country",
     iso2 = TRUE, keep = 0.008, shard_by = "country"
   ),
-  nuts1 = list(
-    path = nuts1_shapefile_path,
-    key = "NUTS_ID", name_col = "NAME_LATN", country_col = "CNTR_CODE",
-    iso2 = FALSE, keep = 0.06
-  ),
-  nuts2 = list(
-    path = nuts2_shapefile_path,
-    key = "NUTS_ID", name_col = "NAME_LATN", country_col = "CNTR_CODE",
-    iso2 = FALSE, keep = 0.05
-  ),
-  nuts3 = list(
-    path = nuts3_shapefile_path,
-    key = "NUTS_ID", name_col = "NAME_LATN", country_col = "CNTR_CODE",
-    iso2 = FALSE, keep = 0.04
-  ),
   us_county = list(
     path = us_county_shapefile_path,
     key = "region_id", name_col = "name", country_col = NULL,
