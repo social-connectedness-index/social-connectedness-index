@@ -59,7 +59,6 @@ shiny::runApp()
 
 The app lets you:
 
-* **Load presets** — start from a working example and modify it
 * **Select map type** — dropdown with all available map types
 * **Pick SCI data** — auto-filtered to match the selected type
 * **Choose countries** — preset groups (Europe, Africa, etc.) or all

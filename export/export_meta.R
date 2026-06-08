@@ -203,7 +203,11 @@ export_meta <- function(out_root) {
   sub_reg   <- countrycode::countrycode(countries_in_data, "iso2c", "un.regionsub.name", warn = FALSE)
   csub <- unname(sub_translate[ifelse(!is.na(sub_inter), sub_inter, sub_reg)])
   names(csub) <- countries_in_data
-  manual_sub <- c(TW = "East Asia", HK = "East Asia", MO = "East Asia", XK = "Europe")
+  # RU: countrycode classifies it as "Eastern Europe" -> Europe, which drags the
+  # whole of Russia into every European "Same (sub)continent" map. Split it into
+  # its own "North Asia" group so European origins exclude it (and a Russian
+  # origin still maps just Russia).
+  manual_sub <- c(TW = "East Asia", HK = "East Asia", MO = "East Asia", XK = "Europe", RU = "North Asia")
   for (cc in names(manual_sub)) if (cc %in% names(csub)) csub[[cc]] <- manual_sub[[cc]]
   csub <- csub[!is.na(csub)]
   jsonlite::write_json(as.list(csub), file.path(out_root, "country_subcontinent.json"), auto_unbox = TRUE)
@@ -227,72 +231,6 @@ export_meta <- function(out_root) {
   jsonlite::write_json(
     list(groups = group_bounds, countries = country_bbox, subcontinents = subcontinent_bounds),
     file.path(out_root, "bounds.json"),
-    auto_unbox = TRUE, pretty = TRUE
-  )
-
-  # Presets (ported from map_structs.R, filtered to supported single-region types)
-  supported <- names(meta_types)
-  group_codes <- list(
-    "All countries"    = countries_in_data,
-    "Europe"           = europe_iso2_codes,
-    "Africa"           = africa_iso2_codes,
-    "North America"    = north_america_iso2_codes,
-    "Central America"  = central_america_iso2_codes,
-    "South America"    = south_america_iso2_codes,
-    "South Asia"       = south_asia_iso2_codes,
-    "West Asia"        = west_asia_iso2_codes,
-    "East Asia"        = east_asia_iso2_codes,
-    "Central Asia"     = central_asia_iso2_codes,
-    "Southeast Asia"   = southeast_asia_iso2_codes,
-    "Maritime SE Asia" = maritime_southeast_asia_iso2_codes,
-    "United States"    = c("US")
-  )
-  to_od <- function(type) {
-    if (startsWith(type, "country_")) return(list(origin = "country", dest = sub("^country_", "", type)))
-    if (endsWith(type, "_country")) return(list(origin = sub("_country$", "", type), dest = "country"))
-    list(origin = type, dest = type)
-  }
-  match_group <- function(friend_countries) {
-    if (is.null(friend_countries)) return("All countries")
-    for (g in names(group_codes)) {
-      if (setequal(group_codes[[g]], friend_countries)) return(g)
-    }
-    "All countries"
-  }
-
-  presets <- list()
-  for (nm in names(map_specs)) {
-    spec <- map_specs[[nm]]
-    if (!(spec$type %in% supported)) next               # unsupported granularity
-    od <- to_od(spec$type)
-    grp <- match_group(spec$friend_countries)
-    is_compare <- "region_a_id" %in% names(spec)
-
-    p <- list(name = nm, origin = od$origin, dest = od$dest, group = grp)
-    p$label <- if (!is.null(spec$label)) spec$label else nm
-    if (!is.null(spec$filter_dest_cbsa)) p$destCbsa <- spec$filter_dest_cbsa
-    if (is_compare) {
-      p$mode <- "compare"
-      p$regionA <- spec$region_a_id
-      p$regionB <- spec$region_b_id
-      if (!is.null(spec$label_a)) p$labelA <- spec$label_a
-      if (!is.null(spec$label_b)) p$labelB <- spec$label_b
-      if (!is.null(spec$color_a)) p$colorA <- spec$color_a
-      if (!is.null(spec$color_b)) p$colorB <- spec$color_b
-      if (!is.null(spec$color_mid)) p$colorMid <- spec$color_mid
-    } else {
-      p$user_region_id <- spec$user_region_id
-      if (!is.null(spec$breaks)) p$breaks <- spec$breaks
-    }
-    if (!is.null(spec$title)) p$title <- spec$title
-    if (!is.null(spec$subtitle)) p$subtitle <- spec$subtitle
-    if (!is.null(spec$xlim)) p$xlim <- spec$xlim
-    if (!is.null(spec$ylim)) p$ylim <- spec$ylim
-    presets[[length(presets) + 1]] <- p
-  }
-  jsonlite::write_json(
-    presets,
-    file.path(out_root, "presets.json"),
     auto_unbox = TRUE, pretty = TRUE
   )
 
@@ -329,6 +267,6 @@ export_meta <- function(out_root) {
     message("  [meta] skipped cbsa_zcta.json (crosswalk not found)")
   }
 
-  message("  [meta] wrote manifest.json, groups.json, palettes.json, countries.json, bounds.json, presets.json")
+  message("  [meta] wrote manifest.json, groups.json, palettes.json, countries.json, bounds.json")
   invisible(NULL)
 }

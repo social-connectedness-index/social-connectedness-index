@@ -37,8 +37,8 @@ parity-verified port of `src/make_map.R` / `src/mapping_tools.R`, in `src/sci.js
 
 It supports the same controls as the Shiny app: origin/destination type selection,
 source-region search, country-group and custom-country filtering, palette,
-reference quantile, custom breaks, borders, source highlighting, titles, and
-**presets** loaded from `src/map_structs.R`. Both **single-region** and
+reference quantile, custom breaks, borders, source highlighting, and titles.
+Both **single-region** and
 **comparison** (two-region, diverging) maps are supported.
 
 **Map types:** all 27 of the tool's map types are available except the six

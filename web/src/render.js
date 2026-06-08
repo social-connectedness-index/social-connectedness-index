@@ -50,6 +50,8 @@ function canvasBackend(W, H) {
     close(p) { p.closePath(); },
     fill(p, c, evenodd) { ctx.fillStyle = c; ctx.fill(p, evenodd ? "evenodd" : "nonzero"); },
     stroke(p, c, w) { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.stroke(p); },
+    pushClipRect(x, y, w, h) { ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip(); },
+    popClip() { ctx.restore(); },
     rect(x, y, w, h, fill, sc, sw) {
       if (fill) { ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); }
       if (sc) { ctx.strokeStyle = sc; ctx.lineWidth = sw || 1; ctx.strokeRect(x, y, w, h); }
@@ -68,6 +70,7 @@ function svgBackend(W, H) {
   const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`];
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const anchor = (a) => (a === "right" ? "end" : a === "left" ? "start" : "middle");
+  let clipId = 0;
   return {
     W, H,
     background(c) { out.push(`<rect width="${W}" height="${H}" fill="${c}"/>`); },
@@ -77,6 +80,12 @@ function svgBackend(W, H) {
     close(p) { p.d += "Z"; },
     fill(p, c, evenodd) { if (p.d) out.push(`<path d="${p.d}" fill="${c}"${evenodd ? ' fill-rule="evenodd"' : ""}/>`); },
     stroke(p, c, w) { if (p.d) out.push(`<path d="${p.d}" fill="none" stroke="${c}" stroke-width="${rnd(w)}"/>`); },
+    pushClipRect(x, y, w, h) {
+      const id = `mapclip${++clipId}`;
+      out.push(`<clipPath id="${id}"><rect x="${rnd(x)}" y="${rnd(y)}" width="${rnd(w)}" height="${rnd(h)}"/></clipPath>`);
+      out.push(`<g clip-path="url(#${id})">`);
+    },
+    popClip() { out.push(`</g>`); },
     rect(x, y, w, h, fill, sc, sw) {
       out.push(`<rect x="${rnd(x)}" y="${rnd(y)}" width="${rnd(w)}" height="${rnd(h)}" fill="${fill || "none"}"${sc ? ` stroke="${sc}" stroke-width="${sw || 1}"` : ""}/>`);
     },
@@ -157,6 +166,13 @@ function drawScene(g, opts) {
     return p;
   };
 
+  // Clip all map drawing to the frame. Friend geometry can extend far beyond the
+  // selected bounds — e.g. Denmark carries Greenland, France carries French
+  // Guiana (territories merged into their sovereign). The curated selection box
+  // already frames the map correctly, but without this clip those far-flung
+  // shapes still paint outside the frame, smearing into the title/legend margins.
+  g.pushClipRect(offX, offY, drawW, drawH);
+
   // Fills — friend regions are drawn WITHOUT an outline (matches the R tool's
   // color = NA on the choropleth layer); separation comes from the border layer.
   for (const f of friendGeo.features) {
@@ -186,6 +202,8 @@ function drawScene(g, opts) {
       g.fill(buildPath(f.geometry), highlightColor, true);
     }
   }
+
+  g.popClip();
 
   drawLegend(g, legend, W, mapBottom + legendFs * 1.2, legendFs);
   if (caption) {

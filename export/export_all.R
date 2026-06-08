@@ -25,7 +25,6 @@ sf_use_s2(FALSE)
 source("src/constants.R")
 source("src/mapping_tools.R")
 source("src/make_map.R")
-source("src/map_structs.R") # map_specs, for the preset export
 source("export/export_geometry.R")
 source("export/export_sci.R")
 source("export/export_meta.R")

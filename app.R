@@ -4,7 +4,6 @@ if (!requireNamespace("shiny", quietly = TRUE)) {
 library(shiny)
 
 source("src/setup.R")
-source("src/map_structs.R")
 
 message("Warming shapefile cache...")
 load_shapefile_cached(gadm0_shapefile_path)
@@ -268,19 +267,6 @@ cbsa_choices <- tryCatch(
   },
   error = function(e) character(0)
 )
-
-# Sample-map dropdown choices: display the human-readable `label` (falling back
-# to the internal key) while keeping the map_specs key as the selected value.
-preset_choices <- local({
-  keys <- names(map_specs)
-  labels <- vapply(
-    map_specs,
-    function(s) if (!is.null(s$label)) s$label else "",
-    character(1)
-  )
-  names(keys) <- ifelse(nzchar(labels), labels, keys)
-  keys[order(names(keys))]
-})
 
 region_id_config <- list(
   gadm1 = list(
@@ -791,14 +777,6 @@ ui <- fluidPage(
     sidebarPanel(
       width = 4,
 
-      div(class = "section-label", "Sample Maps"),
-      selectInput(
-        "preset",
-        NULL,
-        choices = c("(Start from scratch)" = "", preset_choices)
-      ),
-
-      hr(),
       div(class = "section-label", "Map configuration"),
 
       div(
@@ -1050,8 +1028,7 @@ ui <- fluidPage(
           class = "placeholder",
           h4("No map generated yet"),
           p(
-            "Select a preset to get started, or fill in the parameters",
-            "and click",
+            "Fill in the parameters and click",
             "Generate Map."
           )
         )
@@ -1286,210 +1263,7 @@ server <- function(input, output, session) {
     ignoreInit = TRUE
   )
 
-  # Load preset into form fields
-  observeEvent(
-    input$preset,
-    {
-      req(input$preset != "")
-      spec <- map_specs[[input$preset]]
-      if (is.null(spec)) {
-        showNotification("Unknown preset.", type = "warning")
-        return()
-      }
-
-      tryCatch(
-        {
-          is_compare <- "region_a_id" %in% names(spec)
-          updateRadioButtons(
-            session,
-            "map_mode",
-            selected = if (is_compare) "compare" else "single"
-          )
-
-          od <- type_to_origin_dest(spec$type)
-          # Only suppress the origin_type observer's region refresh when the
-          # origin actually changes — otherwise the observer never fires and the
-          # skip flag would stay TRUE, breaking the next manual origin change.
-          if (input$origin_type != od$origin) {
-            rv$skip_type_region_update <- TRUE
-          }
-          updateSelectInput(session, "origin_type", selected = od$origin)
-          # Presets never target a single metro; clear any prior metro filter so
-          # a leftover selection doesn't silently restrict the new map's ZIPs.
-          updateSelectizeInput(session, "dest_cbsa", selected = "")
-          dest_keys <- dest_choices_for_origin[[od$origin]]
-          dest_opts <- setNames(dest_keys, region_type_labels[dest_keys])
-          updateSelectInput(
-            session,
-            "dest_type",
-            choices = dest_opts,
-            selected = od$dest
-          )
-
-          choices <- get_region_choices(od$origin)
-          is_large <- od$origin %in% c("gadm2", "adm2", "us_zcta")
-
-          if (is_compare) {
-            if (is.null(choices)) {
-              updateSelectizeInput(
-                session,
-                "region_a_id",
-                choices = character(0),
-                selected = spec$region_a_id
-              )
-              updateSelectizeInput(
-                session,
-                "region_b_id",
-                choices = character(0),
-                selected = spec$region_b_id
-              )
-            } else {
-              updateSelectizeInput(
-                session,
-                "region_a_id",
-                choices = choices,
-                selected = spec$region_a_id,
-                server = is_large
-              )
-              updateSelectizeInput(
-                session,
-                "region_b_id",
-                choices = choices,
-                selected = spec$region_b_id,
-                server = is_large
-              )
-            }
-            updateTextInput(
-              session,
-              "label_a",
-              value = spec$label_a %||% ""
-            )
-            updateTextInput(
-              session,
-              "label_b",
-              value = spec$label_b %||% ""
-            )
-
-            matched_color <- names(comparison_color_presets)[1]
-            if (!is.null(spec$color_a) && !is.null(spec$color_b)) {
-              for (name in names(comparison_color_presets)) {
-                pair <- comparison_color_presets[[name]]
-                if (
-                  pair$color_a == spec$color_a &&
-                    pair$color_b == spec$color_b
-                ) {
-                  matched_color <- name
-                  break
-                }
-              }
-            }
-            updateSelectInput(
-              session,
-              "comparison_color_preset",
-              selected = matched_color
-            )
-          } else {
-            if (is.null(choices)) {
-              updateSelectizeInput(
-                session,
-                "user_region_id",
-                choices = character(0),
-                selected = spec$user_region_id
-              )
-            } else {
-              updateSelectizeInput(
-                session,
-                "user_region_id",
-                choices = choices,
-                selected = spec$user_region_id,
-                server = is_large
-              )
-            }
-          }
-
-          updateTextInput(
-            session,
-            "title",
-            value = spec$title %||% ""
-          )
-          updateTextInput(
-            session,
-            "subtitle",
-            value = spec$subtitle %||% ""
-          )
-
-          matched_group <- "All countries"
-          if (!is.null(spec$friend_countries)) {
-            for (grp in names(country_groups)) {
-              if (setequal(country_groups[[grp]], spec$friend_countries)) {
-                matched_group <- grp
-                break
-              }
-            }
-          }
-          updateSelectizeInput(
-            session,
-            "country_group",
-            selected = matched_group
-          )
-          updateSelectizeInput(
-            session,
-            "custom_countries",
-            selected = character(0)
-          )
-
-          if (!is.null(spec$breaks)) {
-            updateTextInput(
-              session,
-              "breaks",
-              value = paste(spec$breaks, collapse = ", ")
-            )
-          } else {
-            updateTextInput(session, "breaks", value = default_breaks)
-          }
-
-          updateNumericInput(
-            session,
-            "xlim_min",
-            value = if (!is.null(spec$xlim)) spec$xlim[1] else NA
-          )
-          updateNumericInput(
-            session,
-            "xlim_max",
-            value = if (!is.null(spec$xlim)) spec$xlim[2] else NA
-          )
-          updateNumericInput(
-            session,
-            "ylim_min",
-            value = if (!is.null(spec$ylim)) spec$ylim[1] else NA
-          )
-          updateNumericInput(
-            session,
-            "ylim_max",
-            value = if (!is.null(spec$ylim)) spec$ylim[2] else NA
-          )
-
-          updateSelectInput(
-            session,
-            "color_preset",
-            selected = "Blue (default)"
-          )
-          updateNumericInput(session, "reference_quantile", value = 0.25)
-          updateCheckboxInput(session, "show_admin1_borders", value = TRUE)
-        },
-        error = function(e) {
-          showNotification(
-            paste("Could not load preset:", e$message),
-            type = "error"
-          )
-        }
-      )
-    },
-    ignoreInit = TRUE
-  )
-
   observeEvent(input$reset, {
-    updateSelectInput(session, "preset", selected = "")
     updateRadioButtons(session, "map_mode", selected = "single")
     updateSelectInput(
       session,

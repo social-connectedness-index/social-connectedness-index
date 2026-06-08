@@ -90,7 +90,7 @@ function sciPathFor(type, sourceId, country) {
 
 // ---- state & data loading -------------------------------------------------
 
-let manifest, groups, palettes, countries, bounds, presets, csub;
+let manifest, groups, palettes, countries, bounds, csub;
 
 // Special "Regions to show" options resolved relative to the selected origin.
 const OPT_ALL = "All countries";
@@ -687,7 +687,6 @@ function syncCompareUI() {
 // ---- reset ----------------------------------------------------------------
 
 function reset() {
-  $("preset").value = "";
   setMode("single");
   syncCompareUI();
   $("originType").value = "country";
@@ -759,69 +758,6 @@ function onCbsaChange() {
   else autoFillBounds();
 }
 
-// ---- presets --------------------------------------------------------------
-
-// Select an option by id even when the list was truncated for display (gadm2 and
-// us_zcta have far more regions than MAX_OPTIONS). Without this, setting .value
-// to an off-list id silently fails and the preset can't find its source region.
-function ensureSelected(sel, id) {
-  if (!sel || !id) return;
-  if (![...sel.options].some((o) => o.value === id)) {
-    const o = allSourceOpts.find((x) => x.id === id);
-    if (o) sel.insertAdjacentHTML("afterbegin", `<option value="${o.id}">${o.label}</option>`);
-  }
-  sel.value = id;
-}
-
-async function applyPreset(name) {
-  const p = presets.find((x) => x.name === name);
-  if (!p) return;
-  setMode(p.mode === "compare" ? "compare" : "single");
-  if ($("cbreaks")) $("cbreaks").value = "";
-  syncCompareUI();
-  $("originType").value = p.origin;
-  fillDestOptions();
-  $("destType").value = p.dest;
-  syncCbsaUI();
-  selectGroup(p.group);
-  clearCustomCountries();
-  if ($("countrySearch")) { $("countrySearch").value = ""; filterCountryList(); }
-  await refreshSources();
-  $("searchA").value = "";
-  if ($("searchB")) $("searchB").value = "";
-  renderSourceOptions();
-  renderSourceOptionsB();
-  if (p.mode === "compare") {
-    ensureSelected($("sourceA"), p.regionA);
-    ensureSelected($("sourceB"), p.regionB);
-    if ($("labelA")) $("labelA").value = p.labelA || "";
-    if ($("labelB")) $("labelB").value = p.labelB || "";
-    if (p.colorMid && $("cpalette")) {
-      // pick the comparison palette whose colors match, else leave default
-      for (const opt of $("cpalette").options) {
-        const cp = palettes.comparison[opt.value];
-        if (cp && cp.color_a === p.colorA && cp.color_b === p.colorB) { $("cpalette").value = opt.value; break; }
-      }
-    }
-  } else {
-    ensureSelected($("sourceA"), p.user_region_id);
-    $("breaks").value = p.breaks ? p.breaks.join(", ") : "";
-  }
-  $("title").value = p.title || "";
-  $("subtitle").value = p.subtitle || "";
-  // Metro filter (optional) — drives its own zoom, so skip the manual bounds.
-  if (p.destCbsa && metroApplicable()) {
-    await ensureCbsaList();
-    $("destCbsa").value = p.destCbsa;
-    clearBoundsFields();
-  } else if (p.xlim && p.ylim) {
-    setBoundsFields({ xlim: p.xlim, ylim: p.ylim });
-  } else {
-    autoFillBounds();
-  }
-  await generate();
-}
-
 function onDestChange() {
   const dest = $("destType").value;
   // Sensible default "Regions to show" for the chosen destination level.
@@ -836,13 +772,12 @@ function onDestChange() {
 // ---- init -----------------------------------------------------------------
 
 async function init() {
-  [manifest, groups, palettes, countries, bounds, presets, csub] = await Promise.all([
+  [manifest, groups, palettes, countries, bounds, csub] = await Promise.all([
     getJSON("manifest.json"),
     getJSON("groups.json"),
     getJSON("palettes.json"),
     getJSON("countries.json"),
     getJSON("bounds.json"),
-    getJSON("presets.json"),
     getJSON("country_subcontinent.json"),
   ]);
 
@@ -871,19 +806,11 @@ async function init() {
     .join("");
   $("palette").innerHTML = Object.keys(palettes.single).map((p) => `<option>${p}</option>`).join("");
   if ($("cpalette")) $("cpalette").innerHTML = Object.keys(palettes.comparison).map((p) => `<option>${p}</option>`).join("");
-  $("preset").innerHTML =
-    `<option value="">(Start from scratch)</option>` +
-    presets
-      .map((p) => ({ p, label: p.label || p.name }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .map(({ p, label }) => `<option value="${p.name}">${label}</option>`)
-      .join("");
 
   syncCompareUI();
   syncCbsaUI();
   await refreshSources();
 
-  $("preset").addEventListener("change", (e) => { if (e.target.value) applyPreset(e.target.value).catch(showError); });
   $("originType").addEventListener("change", () => { fillDestOptions(); onDestChange(); });
   $("destType").addEventListener("change", onDestChange);
   if ($("destCbsa")) $("destCbsa").addEventListener("change", onCbsaChange);
