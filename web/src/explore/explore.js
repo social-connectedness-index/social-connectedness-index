@@ -73,6 +73,48 @@ map.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
 let hoveredStateId = null;
 
+// Hover tooltip: region name (always) + its SCI to the selected source (once a
+// region has been clicked). pointer-events:none (CSS) so it never blocks hover.
+const hoverPopup = new mapboxgl.Popup({
+  closeButton: false,
+  closeOnClick: false,
+  className: "sci-tooltip",
+  offset: 10,
+  maxWidth: "240px",
+});
+
+// Friendliness multiplier (sci / reference), formatted for a tooltip.
+function fmtSciMultiplier(sci, refSci) {
+  if (sci == null || isNaN(sci) || !refSci || refSci <= 0) return null;
+  const m = sci / refSci;
+  if (m < 1) return "<1x";
+  if (m < 100) return Math.round(m) + "x";
+  const f = m > 99999 ? 5000 : m > 9999 ? 500 : 50;
+  return (Math.round(m / f) * f).toLocaleString() + "x";
+}
+
+// Tooltip HTML for a hovered feature on the given level.
+function hoverTooltipHtml(feat, levelKey) {
+  const cfg = LEVELS[levelKey];
+  let name = feat.properties.name || feat.properties.id;
+  if (cfg.appendCountry && feat.properties.country && name !== feat.properties.country) {
+    name += ", " + feat.properties.country;
+  }
+  let html = '<div class="tt-name">' + name + "</div>";
+  // Only show an SCI value once a source on THIS level has been selected.
+  const sel = lastSelection;
+  if (sel && sel.levelKey === levelKey && sel.refSci) {
+    let line;
+    if (feat.properties.id === sel.clickedId) line = "Selected region";
+    else {
+      const m = fmtSciMultiplier(feat.properties.sci, sel.refSci);
+      line = m == null ? "No data" : m + " friendship likelihood";
+    }
+    html += '<div class="tt-sci">' + line + "</div>";
+  }
+  return html;
+}
+
 // ---------------------------------------------------------------------------
 // Colours + bins (shared by all three levels).
 // ---------------------------------------------------------------------------
@@ -148,7 +190,6 @@ const LEVELS = {
     col: "Country",
     canFocus: false, // focusing on one country is meaningless at country level
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
-    flatProjection: "naturalEarth",
   },
   level1: {
     sciType: "gadm1",
@@ -161,7 +202,6 @@ const LEVELS = {
     col: "Region",
     canFocus: true,
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
-    flatProjection: "naturalEarth",
   },
   level2: {
     sciType: "gadm2",
@@ -173,12 +213,10 @@ const LEVELS = {
     col: "District",
     canFocus: true,
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
-    flatProjection: "naturalEarth",
   },
 };
 
 let gSel = "level0";
-let projMode = "globe";
 
 // "Focus country" mode: when on, the choropleth + Top-10 are restricted to
 // regions within the selected source's own country, recoloured on the within-
@@ -186,7 +224,11 @@ let projMode = "globe";
 // that country. Off = the global view. `lastSelection` lets the toggle
 // re-render without re-fetching.
 let focusCountry = false;
-let lastSelection = null; // { levelKey, cfg, clickedId, clickedName, clickedCountry, sci }
+let lastSelection = null; // { levelKey, cfg, clickedId, clickedName, clickedCountry, sci, globalRefSci, refSci }
+
+// Dynamic colour scale: when on, the reference is recomputed from the regions
+// currently on screen (recalculated on moveend), so coloring adapts to the view.
+let dynamicScale = false;
 
 // ---------------------------------------------------------------------------
 // Fetch helpers.
@@ -296,11 +338,12 @@ function getPercentile(values, percentile) {
 }
 
 // Bounding-box centre of a feature's geometry (one representative point per
-// region — far more stable than a single vertex). Handles Polygon/MultiPolygon.
+// region). Handles Polygon / MultiPolygon AND GeometryCollection (which stores
+// `geometries`, not `coordinates` — e.g. ~13% of countries and many GADM1).
 function featureCentroid(geom) {
-  if (!geom || !geom.coordinates) return null;
+  if (!geom) return null;
   let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity, any = false;
-  const scan = function (c) {
+  const scanCoords = function (c) {
     if (typeof c[0] === "number") {
       const x = c[0], y = c[1];
       if (isFinite(x) && isFinite(y)) {
@@ -309,55 +352,107 @@ function featureCentroid(geom) {
         if (y < miny) miny = y; if (y > maxy) maxy = y;
       }
     } else {
-      for (let i = 0; i < c.length; i++) scan(c[i]);
+      for (let i = 0; i < c.length; i++) scanCoords(c[i]);
     }
   };
-  scan(geom.coordinates);
+  const scanGeom = function (g) {
+    if (!g) return;
+    if (g.type === "GeometryCollection") {
+      (g.geometries || []).forEach(scanGeom);
+    } else if (g.coordinates) {
+      scanCoords(g.coordinates);
+    }
+  };
+  scanGeom(geom);
   return any ? [(minx + maxx) / 2, (miny + maxy) / 2] : null;
 }
 
-const sortNum = (a, b) => a - b;
-const quantileAt = (sorted, p) =>
-  sorted[Math.min(sorted.length - 1, Math.max(0, Math.round(p * (sorted.length - 1))))];
+const unwrapLon = (x, ref) => {
+  while (x - ref > 180) x -= 360;
+  while (x - ref < -180) x += 360;
+  return x;
+};
 
-// Robust bounding box of a country's regions for the focus zoom. Uses one
-// centroid per region, unwraps longitudes around the median so antimeridian-
-// spanning countries (Russia, Fiji, NZ, US Pacific territories) don't blow the
-// box out to the whole globe, and trims far-flung outliers via the 5th–95th
-// percentile. Returns [[west, south], [east, north]] or null if unreliable.
-function robustCountryBounds(features, country) {
-  const cents = [];
+// Bounding box of the contiguous landmass containing the clicked region, for
+// the focus zoom. The `country` field is *sovereign*, so it lumps far-flung
+// territories (Puerto Rico, Guam, etc. under "US") and even whole island groups
+// together; a plain bbox would zoom out to the entire globe. We instead build a
+// Euclidean minimum spanning tree over the country's region centroids, drop the
+// long "ocean-crossing" edges, and keep the connected component containing the
+// clicked region. So clicking a mainland US state frames the contiguous US,
+// clicking Guam frames Guam, etc. Returns [[west, south], [east, north]] or null.
+function focusBounds(features, country, anchorId) {
+  const pts = [];
+  let ai = -1;
   for (const f of features) {
     if (f.properties.country !== country) continue;
     const c = featureCentroid(f.geometry);
-    if (c) cents.push(c);
+    if (!c) continue;
+    if (f.properties.id === anchorId && ai < 0) ai = pts.length;
+    pts.push(c);
   }
-  if (!cents.length) return null;
+  if (!pts.length) return null;
+  if (ai < 0) ai = 0;
 
-  const lats = cents.map((c) => c[1]).sort(sortNum);
-  const medLon = cents.map((c) => c[0]).sort(sortNum)[Math.floor(cents.length / 2)];
-  // Unwrap each longitude to within ±180° of the median (antimeridian-safe).
-  const lons = cents
-    .map((c) => {
-      let x = c[0];
-      while (x - medLon > 180) x -= 360;
-      while (x - medLon < -180) x += 360;
-      return x;
-    })
-    .sort(sortNum);
+  // Unwrap longitudes around the anchor so antimeridian-spanning countries
+  // (Russia, Fiji, NZ) cluster correctly.
+  const ref = pts[ai][0];
+  for (let i = 0; i < pts.length; i++) pts[i][0] = unwrapLon(pts[i][0], ref);
+  const n = pts.length;
 
-  let west = quantileAt(lons, 0.05), east = quantileAt(lons, 0.95);
-  let south = quantileAt(lats, 0.05), north = quantileAt(lats, 0.95);
+  let west, east, south, north;
+  if (n === 1) {
+    west = east = pts[0][0]; south = north = pts[0][1];
+  } else {
+    // Prim's MST (dense, O(n^2) — fine for one country's region count).
+    const inMST = new Uint8Array(n);
+    const best = new Float64Array(n).fill(Infinity);
+    const parent = new Int32Array(n).fill(-1);
+    best[0] = 0;
+    const edges = [];
+    for (let it = 0; it < n; it++) {
+      let u = -1, bd = Infinity;
+      for (let i = 0; i < n; i++) if (!inMST[i] && best[i] < bd) { bd = best[i]; u = i; }
+      if (u < 0) break;
+      inMST[u] = 1;
+      if (parent[u] >= 0) edges.push([u, parent[u], Math.sqrt(bd)]);
+      for (let v = 0; v < n; v++) {
+        if (inMST[v]) continue;
+        const dx = pts[u][0] - pts[v][0], dy = pts[u][1] - pts[v][1];
+        const dd = dx * dx + dy * dy;
+        if (dd < best[v]) { best[v] = dd; parent[v] = u; }
+      }
+    }
+    // Cut edges longer than a mostly-absolute threshold. A purely adaptive
+    // (percentile) cut is corrupted by dense enclaves (e.g. Puerto Rico's 78
+    // municipios), so we clamp: contiguous-land gaps stay under ~8°, while
+    // ocean gaps (PR↔mainland ≈18°, Hawaii ≈37°) exceed it; sparse countries
+    // (Russia, Canada) get a larger threshold from their own median spacing.
+    const lens = edges.map((e) => e[2]).sort((a, b) => a - b);
+    const median = lens[Math.floor(lens.length / 2)] || 1;
+    const T = Math.min(Math.max(2.5 * median, 8), 20);
 
-  // Pad generously; keep a sensible minimum span so small countries don't
-  // over-zoom and a single-region country still gets a reasonable frame.
-  const padX = Math.max((east - west) * 0.15, 1.5);
-  const padY = Math.max((north - south) * 0.15, 1.5);
+    const adj = Array.from({ length: n }, () => []);
+    for (const [u, v, w] of edges) if (w <= T) { adj[u].push(v); adj[v].push(u); }
+
+    // Flood the component containing the anchor.
+    const vis = new Uint8Array(n);
+    const stack = [ai];
+    vis[ai] = 1;
+    west = Infinity; east = -Infinity; south = Infinity; north = -Infinity;
+    while (stack.length) {
+      const i = stack.pop();
+      const x = pts[i][0], y = pts[i][1];
+      if (x < west) west = x; if (x > east) east = x;
+      if (y < south) south = y; if (y > north) north = y;
+      for (const j of adj[i]) if (!vis[j]) { vis[j] = 1; stack.push(j); }
+    }
+  }
+
+  const padX = Math.max((east - west) * 0.12, 1.2);
+  const padY = Math.max((north - south) * 0.12, 1.2);
   west -= padX; east += padX; south -= padY; north += padY;
   south = Math.max(south, -84); north = Math.min(north, 84);
-
-  // If the trimmed box is still implausibly large, treat it as unreliable.
-  if (east - west > 270 || north - south > 150) return null;
   return [[west, south], [east, north]];
 }
 
@@ -470,12 +565,16 @@ map.on("load", async function () {
         map.setFeatureState({ source: levelKey, id: hoveredStateId }, { hover: false });
         hoveredStateId = null;
       }
+      // Tooltip follows the cursor; shown for every region (name always, SCI
+      // once a source is selected).
+      hoverPopup.setLngLat(e.lngLat).setHTML(hoverTooltipHtml(hovered, levelKey)).addTo(map);
     });
 
     map.on("mouseleave", levelKey, function () {
       map.getCanvas().style.cursor = "";
       if (hoveredStateId) map.setFeatureState({ source: levelKey, id: hoveredStateId }, { hover: false });
       hoveredStateId = null;
+      hoverPopup.remove();
     });
   }
 
@@ -524,27 +623,19 @@ map.on("load", async function () {
       const pos = sciValues.filter((v) => v > 0);
       refSci = pos.length ? Math.min.apply(null, pos) : 1;
     }
-    const thresholds = BREAK_MULTIPLIERS.map((m) => m * refSci);
+    sel.globalRefSci = refSci; // fixed-scale reference (whole friend distribution)
 
     map.getSource(levelKey).setData(geojson);
-
-    const step = ["step", ["coalesce", ["get", "sci"], 0], BIN_COLORS[0]];
-    for (let i = 0; i < thresholds.length; i++) step.push(thresholds[i], BIN_COLORS[i + 1]);
-
-    const fillColor = ["case", ["==", ["get", "has_data"], false], NO_DATA_FILL];
-    if (focus) {
-      // De-emphasise everything outside the focused country.
-      fillColor.push(["!=", ["get", "country"], clickedCountry], DEFAULT_FILL);
-    }
-    fillColor.push(["has", "sci"], step, DEFAULT_FILL);
-    map.setPaintProperty(levelKey, "fill-color", fillColor);
+    applyCurrentScale(levelKey); // paints with the fixed or visible-area reference
+    // In dynamic mode, refine once the freshly-set data has actually rendered.
+    if (dynamicScale) map.once("idle", () => applyCurrentScale(levelKey));
 
     updateLegend();
     updateTop10Table(sorted, refSci, cfg);
     updateFocusButton();
 
     if (zoom === "country" && focus) {
-      const b = robustCountryBounds(geojson.features, clickedCountry);
+      const b = focusBounds(geojson.features, clickedCountry, clickedId);
       if (b) {
         map.fitBounds(b, { padding: 50, duration: 1000, maxZoom: 6, linear: false });
       } else {
@@ -557,6 +648,64 @@ map.on("load", async function () {
       if (view) map.flyTo({ ...view, essential: true, duration: 1000 });
     }
   }
+
+  // Paint the active level's choropleth with a given reference value (1x). Used
+  // by both the fixed and dynamic scales; also stamps refSci for the tooltip.
+  function paintWithRef(levelKey, refSci) {
+    const sel = lastSelection;
+    if (!sel || sel.levelKey !== levelKey || !map.getLayer(levelKey)) return;
+    const cfg = sel.cfg;
+    const focus = focusCountry && cfg.canFocus && !!sel.clickedCountry;
+    const thresholds = BREAK_MULTIPLIERS.map((m) => m * refSci);
+    const step = ["step", ["coalesce", ["get", "sci"], 0], BIN_COLORS[0]];
+    for (let i = 0; i < thresholds.length; i++) step.push(thresholds[i], BIN_COLORS[i + 1]);
+    const fillColor = ["case", ["==", ["get", "has_data"], false], NO_DATA_FILL];
+    if (focus) fillColor.push(["!=", ["get", "country"], sel.clickedCountry], DEFAULT_FILL);
+    fillColor.push(["has", "sci"], step, DEFAULT_FILL);
+    map.setPaintProperty(levelKey, "fill-color", fillColor);
+    sel.refSci = refSci;
+  }
+
+  // Reference value from only the regions currently on screen (excludes the
+  // source's self-link; in focus mode, only its own country). null if none.
+  function visibleRef(levelKey) {
+    const sel = lastSelection;
+    if (!sel) return null;
+    let feats;
+    try { feats = map.queryRenderedFeatures({ layers: [levelKey] }); }
+    catch (e) { return null; }
+    if (!feats || !feats.length) return null;
+    const focus = focusCountry && sel.cfg.canFocus && !!sel.clickedCountry;
+    const seen = new Set();
+    const vals = [];
+    for (const f of feats) {
+      const id = f.properties.id;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      if (id === sel.clickedId) continue;
+      if (focus && f.properties.country !== sel.clickedCountry) continue;
+      const v = f.properties.sci;
+      if (v != null && !isNaN(v) && v > 0) vals.push(v);
+    }
+    if (!vals.length) return null;
+    let r = getPercentile(vals, REFERENCE_QUANTILE);
+    if (!r || r <= 0) r = Math.min.apply(null, vals);
+    return r;
+  }
+
+  // Repaint the active selection with the current scale mode's reference.
+  function applyCurrentScale(levelKey) {
+    const sel = lastSelection;
+    if (!sel || sel.levelKey !== levelKey) return;
+    let ref = sel.globalRefSci;
+    if (dynamicScale) { const v = visibleRef(levelKey); if (v) ref = v; }
+    if (ref) paintWithRef(levelKey, ref);
+  }
+
+  // Recompute the dynamic scale whenever the map settles in a new position.
+  map.on("moveend", function () {
+    if (dynamicScale && lastSelection) applyCurrentScale(lastSelection.levelKey);
+  });
 
   // ----- legend + top-10 (shared) -----
   function updateLegend() {
@@ -633,29 +782,13 @@ map.on("load", async function () {
     }
   }
 
-  // ----- projection -----
-  function applyProjection() {
-    try {
-      map.setProjection(projMode === "globe" ? "globe" : (LEVELS[gSel].flatProjection || "mercator"));
-    } catch (e) {
-      console.warn("[SCI] setProjection failed:", e);
-    }
-  }
+  // Globe projection only (the Flat toggle was removed).
+  try { map.setProjection("globe"); } catch (e) { console.warn("[SCI] setProjection failed:", e); }
 
   // Initial level (countries), then wire the controls.
   await ensureLevel("level0");
   setActiveLayer("level0");
   setLayerSubtitle("level0");
-  applyProjection();
-
-  document.querySelectorAll(".projection-container button").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      document.querySelectorAll(".projection-container button").forEach((b) => b.classList.remove("active"));
-      this.classList.add("active");
-      projMode = this.id === "proj-globe" ? "globe" : "flat";
-      applyProjection();
-    });
-  });
 
   document.querySelectorAll(".button-container button").forEach(function (button) {
     button.addEventListener("click", async function () {
@@ -675,10 +808,8 @@ map.on("load", async function () {
       gSel = this.id;
       await setActiveLayer(this.id);
       setLayerSubtitle(this.id);
-      applyProjection();
-
-      const view = LEVELS[this.id].view;
-      if (view) map.flyTo({ ...view, essential: true, duration: 1200 });
+      // Keep the current camera — switching granularity should NOT zoom out or
+      // recentre; the user stays wherever they were looking.
     });
   });
 
@@ -692,6 +823,27 @@ map.on("load", async function () {
       if (!lastSelection) return;
       focusCountry = !focusCountry;
       renderSelection(focusCountry ? "country" : "world");
+    });
+  })();
+
+  // "Scale colors to the area in view" toggle — switches between the fixed
+  // (whole-distribution) reference and the dynamic (on-screen) one.
+  (function setupDynamicScale() {
+    const cb = document.getElementById("dynamic-scale");
+    if (!cb) return;
+    cb.addEventListener("change", function () {
+      dynamicScale = cb.checked;
+      if (lastSelection) applyCurrentScale(lastSelection.levelKey);
+    });
+  })();
+
+  // Close the results panel (mainly for mobile, where it's a bottom sheet).
+  (function setupConsoleClose() {
+    const btn = document.getElementById("console-close");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      const el = document.getElementById("console");
+      if (el) el.style.display = "none";
     });
   })();
 

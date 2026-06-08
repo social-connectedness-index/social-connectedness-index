@@ -107,7 +107,7 @@ function drawScene(g, opts) {
 
   const margin = Math.round(W * 0.025);
   const titleFs = Math.round(W / 40);
-  const subFs = Math.round(W / 58);
+  const subFs = Math.round(W / 52);
   const capFs = Math.round(W / 78);   // caption (dataset link + handle) — a bit larger for readability
   const legendFs = Math.round(W / 68); // legend title + tick labels — a bit larger
   const titleLines = title ? title.split("\n").length : 0;

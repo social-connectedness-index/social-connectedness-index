@@ -35,11 +35,6 @@
       <button type="button" id="level2">Districts</button>
     </div>
 
-    <div class="projection-container">
-      <button type="button" id="proj-globe" class="active">Globe</button>
-      <button type="button" id="proj-flat">Flat</button>
-    </div>
-
     <button type="button" id="data-explanation-btn" aria-expanded="false" aria-controls="data-explanation">
       <span class="info-icon" aria-hidden="true">i</span> About this map
     </button>
@@ -54,11 +49,18 @@
     <p>More details, including the full data download, are available at the <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
   </div>
 
-  <!-- Right-side panel: bold-centered title, then legend, then top-10 table. -->
+  <!-- Right-side panel: bold-centered title, then legend, then top-10 table.
+       On mobile this becomes a dismissable bottom sheet (close button below). -->
   <div id="console" style="display: none;">
+    <button type="button" id="console-close" aria-label="Close">×</button>
     <h1 id="title">Selected country</h1>
 
     <button type="button" id="focus-country-btn" style="display: none;">Focus on this country</button>
+
+    <label class="scale-toggle" id="dynamic-scale-row">
+      <input type="checkbox" id="dynamic-scale" />
+      <span>Scale colors to the area in view</span>
+    </label>
 
     <div id="legend" class="console-legend">
       <div class="legend-title">Likelihood of Friendship</div>

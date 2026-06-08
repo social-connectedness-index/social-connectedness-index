@@ -90,7 +90,12 @@ function sciPathFor(type, sourceId, country) {
 
 // ---- state & data loading -------------------------------------------------
 
-let manifest, groups, palettes, countries, bounds, presets;
+let manifest, groups, palettes, countries, bounds, presets, csub;
+
+// Special "Regions to show" options resolved relative to the selected origin.
+const OPT_ALL = "All countries";
+const OPT_SAME_COUNTRY = "__same_country__";
+const OPT_SAME_SUBCONT = "__same_subcontinent__";
 let cbsaList = null;       // [{ code, title, zctas:[...] }] — lazy-loaded
 const geoCache = {};      // level (or "level/shard") -> FeatureCollection
 const partsCache = {};    // sharded level -> [shardKey,...]
@@ -249,19 +254,41 @@ function renderSourceOptionsB() {
 const selectedGroups = () => [...$("group").querySelectorAll("input:checked")].map((i) => i.value);
 const selectedCustom = () => [...$("customCountries").querySelectorAll("input:checked")].map((i) => i.value);
 
+// ISO2 country of the currently selected source region (the country-level id
+// itself, or the `country` field from the source level's names lookup).
+function originCountry() {
+  const t = manifest.types[currentType()];
+  const id = $("sourceA").value;
+  if (!t || !id) return null;
+  const nm = namesCache[t.sourceGeo];
+  if (nm && nm[id]) return nm[id][1];
+  return t.sourceGeo === "country" ? id : null;
+}
+// All data countries in the same subcontinent as `cc`.
+function subcontinentMembers(cc) {
+  const sub = cc && csub ? csub[cc] : null;
+  if (!sub) return [];
+  return Object.keys(csub).filter((c) => csub[c] === sub);
+}
+
 function selectedCountryCodes() {
   const gsel = selectedGroups();
   const csel = selectedCustom();
-  if (gsel.includes("All countries")) return null;
+  if (gsel.includes(OPT_ALL)) return null;
   const codes = new Set();
-  for (const g of gsel) (groups[g] || []).forEach((c) => codes.add(c));
+  const oc = originCountry();
+  for (const g of gsel) {
+    if (g === OPT_SAME_COUNTRY) { if (oc) codes.add(oc); }
+    else if (g === OPT_SAME_SUBCONT) { subcontinentMembers(oc).forEach((c) => codes.add(c)); }
+    else (groups[g] || []).forEach((c) => codes.add(c));
+  }
   for (const c of csel) codes.add(c);
   return codes.size ? codes : null;
 }
 
 // Resolve the friend geometry, loading only the shards we need for sharded
 // levels. Returns { geo, codes, hint }.
-async function loadFriendGeo(t, sourceCountry, metroZctas = null) {
+async function loadFriendGeo(t, metroZctas = null) {
   let hint = "";
   if (!isSharded(t.friendGeo)) return { geo: await getGeometry(t.friendGeo), codes: selectedCountryCodes(), hint };
   // Metro filter on a ZIP friend level: load only the shards (keyed by first
@@ -271,12 +298,14 @@ async function loadFriendGeo(t, sourceCountry, metroZctas = null) {
     return { geo: await getGeometry(t.friendGeo, keys), codes: null, hint };
   }
   if (!t.friendByCountry) return { geo: await getGeometry(t.friendGeo, null), codes: null, hint };
-  let codes = selectedCountryCodes();
+  const codes = selectedCountryCodes();
   if (codes == null) {
-    // "All countries" on a sharded friend level is enormous — default to the
-    // source's own country and tell the user how to broaden.
-    codes = new Set([sourceCountry]);
-    hint = `Showing ${sourceCountry} only — pick country groups under "Regions to show" to add more.`;
+    // "All countries": load every shard for a true worldwide map. The gadm2
+    // SCI is complete (each source connects to regions in ~all countries), so
+    // this paints the whole world. It's heavy — ~30 MB of geometry and ~47k
+    // polygons (same scale as the interactive explorer) — hence the heads-up.
+    hint = "Showing all countries — loading the full worldwide geometry, this can take a moment.";
+    return { geo: await getGeometry(t.friendGeo, null), codes: null, hint };
   }
   return { geo: await getGeometry(t.friendGeo, codes), codes, hint };
 }
@@ -363,21 +392,45 @@ function setBoundsFields(b) {
 function clearBoundsFields() {
   for (const id of ["xmin", "xmax", "ymin", "ymax"]) $(id).value = "";
 }
-function autoFillBounds() {
+// Union of the HARD-CODED boxes for the current "Regions to show" selection.
+// Returns {xlim,ylim}, or null when the selection is "All countries"/empty (→
+// world; the caller falls back to the geometry extent). We deliberately use the
+// curated boxes — never the friend geometry's extent — so a combination like
+// North America + South America stays over the Americas instead of stretching
+// across the Atlantic when a sovereign (e.g. France, via French Guiana) drags
+// its far-flung mainland into the active set.
+function selectionBbox() {
   const origin = $("originType").value, dest = $("destType").value;
   if (dest.startsWith("us_") && (origin === dest || origin.startsWith("us_"))) {
-    setBoundsFields(bounds.groups["United States"]); return;
+    return bounds.groups["United States"];
   }
   const gsel = selectedGroups();
   const csel = selectedCustom();
   const boxes = [];
-  for (const g of gsel) if (bounds.groups[g]) boxes.push(bounds.groups[g]);
+  const oc = originCountry();
+  for (const g of gsel) {
+    if (g === OPT_ALL) continue; // whole world — no box
+    else if (g === OPT_SAME_COUNTRY) { if (oc && bounds.countries[oc]) boxes.push(bounds.countries[oc]); }
+    else if (g === OPT_SAME_SUBCONT) {
+      const sub = oc && csub ? csub[oc] : null;
+      if (sub && bounds.subcontinents && bounds.subcontinents[sub]) boxes.push(bounds.subcontinents[sub]);
+    } else if (bounds.groups[g]) boxes.push(bounds.groups[g]);
+  }
   for (const c of csel) if (bounds.countries[c]) boxes.push(bounds.countries[c]);
-  if (boxes.length === 0) { clearBoundsFields(); return; }
-  setBoundsFields({
+  if (boxes.length === 0) return null;
+  return {
     xlim: [Math.min(...boxes.map((b) => b.xlim[0])), Math.max(...boxes.map((b) => b.xlim[1]))],
     ylim: [Math.min(...boxes.map((b) => b.ylim[0])), Math.max(...boxes.map((b) => b.ylim[1]))],
-  });
+  };
+}
+// [xmin, ymin, xmax, ymax] form (matches manualBbox/computeBbox), or null.
+function selectionBboxArray() {
+  const b = selectionBbox();
+  return b ? [b.xlim[0], b.ylim[0], b.xlim[1], b.ylim[1]] : null;
+}
+function autoFillBounds() {
+  const b = selectionBbox();
+  if (b) setBoundsFields(b); else clearBoundsFields();
 }
 
 function selectGroup(name) {
@@ -409,13 +462,12 @@ async function generate() {
     if (!$("sourceA").value) throw new Error("Pick a source region.");
     if (compareMode() && !$("sourceB").value) throw new Error("Pick a second region to compare.");
     const t = manifest.types[type];
-    const namesSrc = await getNames(t.sourceGeo);
-    const srcCountry = (namesSrc[$("sourceA").value] || [])[1];
+    await getNames(t.sourceGeo); // ensure the source level's names are cached (originCountry, etc.)
 
     const metroZctas = metroFilterZctas();
 
     step("loading geometry…");
-    let { geo: friendGeo, codes, hint } = await loadFriendGeo(t, srcCountry, metroZctas);
+    let { geo: friendGeo, codes, hint } = await loadFriendGeo(t, metroZctas);
     let { features: activeFeatures, ids: active } = activeFriends(friendGeo, t, codes);
     if (metroZctas) {
       activeFeatures = activeFeatures.filter((f) => metroZctas.has(f.properties.id));
@@ -458,7 +510,11 @@ async function generate() {
     const { w, h } = outputPixels();
     const opts = {
       friendGeo, colorById, activeIds: active,
-      bbox: (metroZctas ? null : manualBbox()) || computeBbox(friendGeo, active),
+      // Priority: explicit manual box → hard-coded selection box (regions /
+      // subcontinents / countries) → geometry extent (only for "All countries"
+      // / no selection). Using the hard-coded box for selections keeps combos
+      // from stretching to far-flung territories (e.g. French Guiana → France).
+      bbox: (metroZctas ? null : manualBbox()) || selectionBboxArray() || computeBbox(friendGeo, active),
       showBorders: $("borders").checked, borderFeatures, highlightId,
       title: $("title").value || autoTitle(), subtitle: $("subtitle").value,
       caption: CAPTION, legend, width: w, height: h,
@@ -767,10 +823,12 @@ async function applyPreset(name) {
 }
 
 function onDestChange() {
-  const origin = $("originType").value, dest = $("destType").value;
-  if (origin === "country" && dest !== "country") {
-    selectGroup(dest.startsWith("nuts") ? "Europe" : dest.startsWith("us_") ? "United States" : null);
-  }
+  const dest = $("destType").value;
+  // Sensible default "Regions to show" for the chosen destination level.
+  if (dest.startsWith("us_")) selectGroup(null);          // US-only friend level
+  else if (dest.startsWith("nuts")) selectGroup("Europe");
+  else if (dest === "country") selectGroup(OPT_ALL);       // world map of countries
+  else selectGroup(OPT_SAME_COUNTRY);                       // gadm1 / gadm2 region levels
   syncCbsaUI();
   refreshSources().then(autoFillBounds).catch(showError);
 }
@@ -778,13 +836,14 @@ function onDestChange() {
 // ---- init -----------------------------------------------------------------
 
 async function init() {
-  [manifest, groups, palettes, countries, bounds, presets] = await Promise.all([
+  [manifest, groups, palettes, countries, bounds, presets, csub] = await Promise.all([
     getJSON("manifest.json"),
     getJSON("groups.json"),
     getJSON("palettes.json"),
     getJSON("countries.json"),
     getJSON("bounds.json"),
     getJSON("presets.json"),
+    getJSON("country_subcontinent.json"),
   ]);
 
   // Guard against an older groups.json where a single-code group serialized as a
@@ -794,8 +853,19 @@ async function init() {
   buildTypeGraph();
   $("originType").innerHTML = ORIGIN_LEVELS.map((l) => `<option value="${l}">${LEVEL_LABEL[l]}</option>`).join("");
   fillDestOptions();
-  $("group").innerHTML = Object.keys(groups)
-    .map((g) => `<label class="chk"><input type="checkbox" value="${g}" /> ${g}</label>`).join("");
+  // Dynamic, origin-relative options first; then the explicit continent groups
+  // (drop "All countries" — it's a dynamic option now — and "United States",
+  // which is redundant with the Individual Countries list below).
+  const dynChk = [
+    [OPT_ALL, "All countries"],
+    [OPT_SAME_COUNTRY, "Same country as origin"],
+    [OPT_SAME_SUBCONT, "Same (sub)continent as origin"],
+  ];
+  const continentGroups = Object.keys(groups).filter((g) => g !== "All countries" && g !== "United States");
+  $("group").innerHTML =
+    dynChk.map(([v, label]) => `<label class="chk"><input type="checkbox" value="${v}" /> ${label}</label>`).join("") +
+    `<div class="chk-divider"></div>` +
+    continentGroups.map((g) => `<label class="chk"><input type="checkbox" value="${g}" /> ${g}</label>`).join("");
   $("customCountries").innerHTML = countries
     .map((c) => `<label class="chk" data-name="${c.name.toLowerCase()}"><input type="checkbox" value="${c.id}" /> ${c.name}</label>`)
     .join("");
@@ -821,6 +891,12 @@ async function init() {
   $("customCountries").addEventListener("change", autoFillBounds);
   $("countrySearch").addEventListener("input", filterCountryList);
   $("searchA").addEventListener("input", renderSourceOptions);
+  // When the origin region changes and a dynamic origin-relative option is
+  // active, re-fit the zoom to the new origin's country / subcontinent.
+  $("sourceA").addEventListener("change", () => {
+    const g = selectedGroups();
+    if (g.includes(OPT_SAME_COUNTRY) || g.includes(OPT_SAME_SUBCONT)) autoFillBounds();
+  });
   if ($("searchB")) $("searchB").addEventListener("input", renderSourceOptionsB);
   document.querySelectorAll('input[name="mapMode"]').forEach(
     (r) => r.addEventListener("change", syncCompareUI));

@@ -156,8 +156,76 @@ export_meta <- function(out_root) {
       ylim = c(unname(bb[["ymin"]]), unname(bb[["ymax"]]))
     )
   }
+  # Curated MAINLAND boxes for countries whose GADM0 extent is blown out by
+  # far-flung overseas territories (France's Pacific/Indian-Ocean collectivities,
+  # the UK's South Atlantic/Caribbean territories, US Pacific territories,
+  # Denmark's Greenland, Chile's Easter Island, ...) or by crossing the
+  # antimeridian (Russia, New Zealand, Fiji). Without these, "make a map of
+  # France/UK/..." auto-zooms out to the whole globe. This only changes the
+  # default zoom box — region coverage / data are unchanged, and the user can
+  # still override the box manually in the generator.
+  mainland_bounds <- list(
+    FR = list(xlim = c(-5.5, 9.8),    ylim = c(41.3, 51.2)),   # metropolitan France (incl. Corsica)
+    GB = list(xlim = c(-8.8, 2.1),    ylim = c(49.8, 61.2)),   # Great Britain + N. Ireland
+    US = list(xlim = c(-125, -66),    ylim = c(24.5, 49.5)),   # contiguous US
+    NL = list(xlim = c(3.2, 7.3),     ylim = c(50.7, 53.6)),   # European Netherlands
+    DK = list(xlim = c(8.0, 15.3),    ylim = c(54.5, 57.8)),   # mainland Denmark (excl. Greenland/Faroe)
+    NO = list(xlim = c(4.5, 31.2),    ylim = c(57.9, 71.3)),   # mainland Norway (excl. Svalbard/Jan Mayen)
+    ES = list(xlim = c(-9.4, 4.4),    ylim = c(35.9, 43.9)),   # mainland Spain + Balearics (excl. Canaries)
+    PT = list(xlim = c(-9.6, -6.1),   ylim = c(36.9, 42.2)),   # mainland Portugal (excl. Azores/Madeira)
+    CL = list(xlim = c(-75.8, -66.4), ylim = c(-56.0, -17.5)), # mainland Chile (excl. Easter Island)
+    EC = list(xlim = c(-81.1, -75.1), ylim = c(-5.1, 1.5)),    # mainland Ecuador (excl. Galapagos)
+    AU = list(xlim = c(112.9, 154.1), ylim = c(-43.8, -10.5)), # mainland Australia + Tasmania
+    NZ = list(xlim = c(166.3, 178.6), ylim = c(-47.4, -34.3)), # NZ main islands (excl. Chatham/Tokelau)
+    RU = list(xlim = c(19.5, 180.0),  ylim = c(41.0, 78.0)),   # Russia, minus the antimeridian-crossing tip
+    FJ = list(xlim = c(176.8, 180.0), ylim = c(-19.4, -16.0))  # Fiji main islands (avoid antimeridian span)
+  )
+  for (iso2 in names(mainland_bounds)) country_bbox[[iso2]] <- mainland_bounds[[iso2]]
+
+  # Complete, single-valued country -> subcontinent map, for the generator's
+  # "Same (sub)continent" option. countrycode classifies by the SOVEREIGN's
+  # mainland, so overseas territories don't scatter the assignment. The
+  # intermediate UN region splits the Americas (South/Central); fall back to the
+  # subregion elsewhere; a couple of manual fixes for codes countrycode misses.
+  sub_translate <- c(
+    "Southern Asia" = "South Asia", "Central Asia" = "Central Asia", "Eastern Asia" = "East Asia",
+    "South-eastern Asia" = "Southeast Asia", "South-Eastern Asia" = "Southeast Asia", "Western Asia" = "West Asia",
+    "Eastern Europe" = "Europe", "Northern Europe" = "Europe", "Southern Europe" = "Europe",
+    "Western Europe" = "Europe", "Channel Islands" = "Europe",
+    "Northern Africa" = "Africa", "Sub-Saharan Africa" = "Africa", "Eastern Africa" = "Africa",
+    "Middle Africa" = "Africa", "Southern Africa" = "Africa", "Western Africa" = "Africa",
+    "Northern America" = "North America", "Central America" = "Central America",
+    "Caribbean" = "Central America", "South America" = "South America",
+    "Australia and New Zealand" = "Oceania", "Melanesia" = "Oceania",
+    "Micronesia" = "Oceania", "Polynesia" = "Oceania"
+  )
+  sub_inter <- countrycode::countrycode(countries_in_data, "iso2c", "un.regionintermediate.name", warn = FALSE)
+  sub_reg   <- countrycode::countrycode(countries_in_data, "iso2c", "un.regionsub.name", warn = FALSE)
+  csub <- unname(sub_translate[ifelse(!is.na(sub_inter), sub_inter, sub_reg)])
+  names(csub) <- countries_in_data
+  manual_sub <- c(TW = "East Asia", HK = "East Asia", MO = "East Asia", XK = "Europe")
+  for (cc in names(manual_sub)) if (cc %in% names(csub)) csub[[cc]] <- manual_sub[[cc]]
+  csub <- csub[!is.na(csub)]
+  jsonlite::write_json(as.list(csub), file.path(out_root, "country_subcontinent.json"), auto_unbox = TRUE)
+
+  # Curated subcontinent zoom boxes — kept separate from the display-group boxes
+  # so e.g. "East Asia" can span all of China for the "Same (sub)continent" zoom.
+  subcontinent_bounds <- list(
+    "Europe"          = list(xlim = c(-11, 40),   ylim = c(35, 71)),
+    "Africa"          = list(xlim = c(-19, 52),   ylim = c(-35, 38)),
+    "North America"   = list(xlim = c(-168, -52), ylim = c(24, 80)),
+    "Central America" = list(xlim = c(-118, -59), ylim = c(7, 27)),
+    "South America"   = list(xlim = c(-82, -34),  ylim = c(-56, 13)),
+    "South Asia"      = list(xlim = c(60, 98),    ylim = c(5, 38)),
+    "West Asia"       = list(xlim = c(25, 63),    ylim = c(12, 43)),
+    "East Asia"       = list(xlim = c(73, 146),   ylim = c(18, 54)),
+    "Southeast Asia"  = list(xlim = c(92, 141),   ylim = c(-11, 23)),
+    "Central Asia"    = list(xlim = c(46, 88),    ylim = c(35, 56)),
+    "Oceania"         = list(xlim = c(112, 180),  ylim = c(-48, 0))
+  )
+
   jsonlite::write_json(
-    list(groups = group_bounds, countries = country_bbox),
+    list(groups = group_bounds, countries = country_bbox, subcontinents = subcontinent_bounds),
     file.path(out_root, "bounds.json"),
     auto_unbox = TRUE, pretty = TRUE
   )
