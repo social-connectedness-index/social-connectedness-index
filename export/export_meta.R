@@ -203,19 +203,28 @@ export_meta <- function(out_root) {
   sub_reg   <- countrycode::countrycode(countries_in_data, "iso2c", "un.regionsub.name", warn = FALSE)
   csub <- unname(sub_translate[ifelse(!is.na(sub_inter), sub_inter, sub_reg)])
   names(csub) <- countries_in_data
-  # RU: countrycode classifies it as "Eastern Europe" -> Europe, which drags the
-  # whole of Russia into every European "Same (sub)continent" map. Split it into
-  # its own "North Asia" group so European origins exclude it (and a Russian
-  # origin still maps just Russia).
-  manual_sub <- c(TW = "East Asia", HK = "East Asia", MO = "East Asia", XK = "Europe", RU = "North Asia")
+  # Some countries that countrycode lumps into "Europe" stretch a European
+  # origin's "Same (sub)continent" map far beyond the curated Europe frame, so we
+  # split them into their own groups. This both excludes them from other European
+  # origins' maps AND keeps each one mapping just itself when it's the origin:
+  #   RU -> North Asia    (Eastern Europe per countrycode; drags all of Russia in)
+  #   UA -> Eastern Europe (large, pushes the eastern edge out past the frame)
+  #   IS -> Northern Europe (far NW in the Atlantic, off the Europe frame)
+  manual_sub <- c(
+    TW = "East Asia", HK = "East Asia", MO = "East Asia", XK = "Europe",
+    RU = "North Asia", UA = "Eastern Europe", IS = "Northern Europe"
+  )
   for (cc in names(manual_sub)) if (cc %in% names(csub)) csub[[cc]] <- manual_sub[[cc]]
   csub <- csub[!is.na(csub)]
   jsonlite::write_json(as.list(csub), file.path(out_root, "country_subcontinent.json"), auto_unbox = TRUE)
 
   # Curated subcontinent zoom boxes — kept separate from the display-group boxes
   # so e.g. "East Asia" can span all of China for the "Same (sub)continent" zoom.
+  # Europe deliberately matches the "Europe" group box (group_bounds$Europe) so a
+  # European origin frames identically whether it picks "Europe" or "Same
+  # (sub)continent" — the wider members (RU/UA/IS) are split out above.
   subcontinent_bounds <- list(
-    "Europe"          = list(xlim = c(-11, 40),   ylim = c(35, 71)),
+    "Europe"          = list(xlim = c(-10, 36),   ylim = c(36, 70)),
     "Africa"          = list(xlim = c(-19, 52),   ylim = c(-35, 38)),
     "North America"   = list(xlim = c(-168, -52), ylim = c(24, 80)),
     "Central America" = list(xlim = c(-118, -59), ylim = c(7, 27)),

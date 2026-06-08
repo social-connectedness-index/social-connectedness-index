@@ -158,16 +158,12 @@ function rampColors(stops, n) {
 // One colour per fill bin (11).
 const BIN_COLORS = rampColors(RAMP_STOPS, BREAK_MULTIPLIERS.length + 1);
 
-// Legend labels generated from the breaks so they always match the bins.
+// Legend tick labels — the horizontal scale marks bin boundaries with the break
+// multipliers (mirrors the static Map Generator's compact legend bar). The panel
+// is narrow, so we label an evenly-spaced, readable subset of the 10 breaks
+// rather than all of them; the full gradient still shows every bin's colour.
 function fmtMult(m) { return (m >= 10 ? Math.round(m) : m) + "x"; }
-function binLabels() {
-  const labels = ["< 1x"];
-  for (let i = 0; i < BREAK_MULTIPLIERS.length - 1; i++) {
-    labels.push(fmtMult(BREAK_MULTIPLIERS[i]) + " - " + fmtMult(BREAK_MULTIPLIERS[i + 1]));
-  }
-  labels.push("> " + fmtMult(BREAK_MULTIPLIERS[BREAK_MULTIPLIERS.length - 1]));
-  return labels;
-}
+const LEGEND_TICK_MULTS = [1, 10, 100];
 
 // Default fill for an in-sample feature before any click; distinct grey for
 // out-of-sample (exists in the boundary file but has no SCI data).
@@ -710,15 +706,24 @@ map.on("load", async function () {
   // ----- legend + top-10 (shared) -----
   function updateLegend() {
     const legendScale = document.getElementById("legend-scale");
-    legendScale.innerHTML = "";
-    const addItem = function (color, label) {
-      const div = document.createElement("div");
-      div.className = "legend-item";
-      div.innerHTML = '<span class="legend-color" style="background-color: ' + color + ';"></span> ' + label;
-      legendScale.appendChild(div);
-    };
-    binLabels().forEach(function (label, i) { addItem(BIN_COLORS[i], label); });
-    addItem(NO_DATA_FILL, "No data");
+    const n = BIN_COLORS.length; // 11 fill bins
+    const bar = BIN_COLORS
+      .map(function (c) { return '<span class="legend-swatch" style="background-color:' + c + '"></span>'; })
+      .join("");
+    // Each break sits on the boundary between two bins, at position i+1 of n.
+    const ticks = LEGEND_TICK_MULTS
+      .map(function (m) {
+        const i = BREAK_MULTIPLIERS.indexOf(m);
+        const pos = (((i + 1) / n) * 100).toFixed(2);
+        return '<span class="legend-tick" style="left:' + pos + '%">' + fmtMult(m) + "</span>";
+      })
+      .join("");
+    legendScale.innerHTML =
+      '<div class="legend-bar">' + bar + "</div>" +
+      '<div class="legend-ticks">' + ticks + "</div>" +
+      '<div class="legend-nodata"><span class="legend-swatch-nodata" style="background-color:' +
+      NO_DATA_FILL +
+      '"></span>No data</div>';
   }
 
   function updateTop10Table(sorted, refSci, cfg) {
