@@ -90,11 +90,11 @@ build_crosswalk <- function() {
 # ---- patch the exported files in place (geometry preserved) -----------------
 patch_geojson <- function(path, xwalk) {
   d <- fromJSON(path, simplifyVector = FALSE)
-  n <- 0
+  n <- 0L
   for (k in seq_along(d$features)) {
     pr <- d$features[[k]]$properties
     if (!is.null(pr$id) && !is.null(xwalk[[pr$id]]) && is_na_name(pr$name)) {
-      d$features[[k]]$properties$name <- xwalk[[pr$id]]; n <- n + 1
+      d$features[[k]]$properties$name <- xwalk[[pr$id]]; n <- n + 1L
     }
   }
   if (n) write_json(d, path, auto_unbox = TRUE, digits = NA, null = "null")
@@ -102,9 +102,9 @@ patch_geojson <- function(path, xwalk) {
 }
 patch_names <- function(path, xwalk) {
   d <- fromJSON(path, simplifyVector = FALSE)
-  n <- 0
+  n <- 0L
   for (id in names(d)) {
-    if (!is.null(xwalk[[id]]) && is_na_name(d[[id]][[1]])) { d[[id]][[1]] <- xwalk[[id]]; n <- n + 1 }
+    if (!is.null(xwalk[[id]]) && is_na_name(d[[id]][[1]])) { d[[id]][[1]] <- xwalk[[id]]; n <- n + 1L }
   }
   if (n) write_json(d, path, auto_unbox = TRUE)
   n

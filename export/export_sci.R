@@ -24,6 +24,12 @@ RANGE_INDEX_TYPES <- c(
 # regions partition the type (combined). Reverse (country_*) types reuse the
 # *_to_country files; us_cbsa types are derived from ZCTA SCI via crosswalk
 # (config$sci_crosswalk / sci_origin_crosswalk in map_type_configs).
+#
+# NOTE: the type id is still "gadm2", but its DATA is now "GADM best" — a single
+# layer that picks the finest available GADM level per country (gadm_best_*.csv /
+# gadm_best.gpkg). The files are structurally identical to the old gadm2 ones, so
+# the id/plumbing is unchanged; only the source paths + the user-facing label
+# ("Region") differ. The shard country codes are the same 12.
 gadm2_shard_codes <- c("BO", "BR", "DO", "HN", "JO", "MW", "PG", "PY",
                        "TG", "UG", "US", "ZW")
 sci_types <- list(
@@ -35,11 +41,11 @@ sci_types <- list(
   country_gadm1     = list(path = "data/sci_2026/gadm1_to_country.csv"),
   country_us_county = list(path = "data/sci_2026/us_counties_to_country.csv"),
 
-  # ---- Phase 2 ----
+  # ---- Phase 2 ---- (gadm2 id, GADM-best data — see note above)
   gadm2             = list(shards = file.path(
-    "data/sci_2026", paste0("gadm2_shard_", gadm2_shard_codes, ".csv"))),
-  gadm2_country     = list(path = "data/sci_2026/gadm2_to_country.csv"),
-  country_gadm2     = list(path = "data/sci_2026/gadm2_to_country.csv"),
+    "data/sci_2026", paste0("gadm_best_shard_", gadm2_shard_codes, ".csv"))),
+  gadm2_country     = list(path = "data/sci_2026/gadm_best_to_country.csv"),
+  country_gadm2     = list(path = "data/sci_2026/gadm_best_to_country.csv"),
   us_zcta           = list(shards = file.path(
     "data/sci_2026", paste0("us_zcta_shard_", 0:9, ".csv"))),
   us_zcta_country   = list(path = "data/sci_2026/us_zcta_to_country.csv"),

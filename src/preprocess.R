@@ -40,6 +40,7 @@ preprocess_data <- function() {
     list(path = gadm0_shapefile_path, iso3_col = "sov_country"),
     list(path = gadm1_shapefile_path, iso3_col = "sov_country"),
     list(path = gadm2_shapefile_path, iso3_col = "sov_country"),
+    list(path = gadm_best_shapefile_path, iso3_col = "sov_country"),
     list(
       path = geoboundaries_gpkg_path,
       layer = "adm1",

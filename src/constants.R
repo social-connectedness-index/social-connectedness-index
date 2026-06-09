@@ -18,6 +18,49 @@ gadm_shapefiles_output_dir <- file.path(
 gadm0_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm0.gpkg")
 gadm1_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm1.gpkg")
 gadm2_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm2.gpkg")
+gadm3_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm3.gpkg")
+# "GADM best": one combined layer that picks the most appropriate admin level
+# per country (built by create_gadm_best_shapefile in clean_gadm_shapefiles.R).
+gadm_best_shapefile_path <- file.path(gadm_shapefiles_output_dir, "gadm_best.gpkg")
+
+# --- GADM "best" granularity config -----------------------------------------
+# For each country we pick a single GADM admin level to represent it in the
+# combined "gadm_best" layer: most countries default to GADM2, but some are too
+# coarse at GADM2 (pinned to GADM0/1) and some warrant finer detail (GADM3).
+gadm_best_granularities <- list(
+  gadm0 = c("AD", "AG", "BS", "DM", "FM", "KI", "KN", "LC", "MC", "MV", "SB",
+            "SC", "TO", "VC", "VU", "WS"),
+  gadm1 = c("AE", "AF", "AM", "AO", "BB", "BG", "BH", "BI", "BN", "BT", "BY",
+            "BZ", "CD", "CF", "CG", "CH", "CV", "CY", "DJ", "DZ", "EE", "EG",
+            "ER", "GA", "GD", "GH", "GM", "GQ", "GT", "GW", "GY", "HN", "HR",
+            "IL", "IS", "JM", "JP", "KE", "KM", "KW", "KZ", "LR", "LS", "LY",
+            "MD", "ME", "MK", "ML", "MN", "MR", "MT", "MU", "MW", "MZ", "NA",
+            "NE", "NG", "NL", "NZ", "PA", "PG", "QA", "RO", "RU", "RW", "SG",
+            "SI", "SL", "SO", "SR", "SS", "SV", "SZ", "TD", "TG", "TJ", "TL",
+            "TN", "TT", "TZ", "UG", "UZ", "YE", "ZM", "ZW"),
+  gadm3 = c("BA", "CL", "ES", "FR", "GB", "GR", "IN", "NP", "PK", "ZA")
+)
+# gadm2 = the default level for every other country. Built from the full ISO2
+# code list (countrycode's codelist) + Kosovo (no ISO2), minus the levels above.
+all_iso2_codes <- c(
+  countrycode::codelist$iso2c[!is.na(countrycode::codelist$iso2c)],
+  "XK" # Kosovo
+)
+gadm_best_granularities$gadm2 <- setdiff(
+  all_iso2_codes,
+  c(gadm_best_granularities$gadm0,
+    gadm_best_granularities$gadm1,
+    gadm_best_granularities$gadm3)
+)
+# Overseas territories pinned to a fixed GADM level by GID3 prefix (ISO3),
+# overriding their sovereign's chosen granularity.
+gadm1_territories_prefixes <- c(
+  "AIA", "BMU", "CYM", "GGY", "GUM", "IMN", "JEY", "MHL", "MNP", "MSR", "MYT",
+  "PRI", "PYF", "SJM", "SPM", "TCA", "VGB", "GRL"
+)
+gadm2_territories_prefixes <- c(
+  "BLM", "GLP", "GUF", "MTQ", "NCL", "REU", "SHN", "WLF"
+)
 
 geoboundaries_gpkg_path <- file.path(
   cleaned_shapefiles_dir,

@@ -25,7 +25,8 @@ clean_disputed_gids <- function(s) {
 #' @param .data sf of data to clean/join
 #' @param level_str string representing the admin level of the boundaries, i.e. "gadm1", "gadm2", etc.
 #' @param simplify_pct degree of simplification to apply to the shapes
-concat.glitched.regions <- function(.data, level_str, simplify_pct = NULL) {
+concat.glitched.regions <- function(.data, level_str, simplify_pct = NULL,
+                                    shard_simplify = FALSE) {
   summarized_data <- .data %>%
     group_by(key) %>%
     summarize(
@@ -35,8 +36,21 @@ concat.glitched.regions <- function(.data, level_str, simplify_pct = NULL) {
     )
 
   if (!is.null(simplify_pct)) {
-    summarized_data <- summarized_data %>%
-      ms_simplify(keep = simplify_pct, sys = TRUE)
+    if (shard_simplify) {
+      # ms_simplify serializes the whole layer to GeoJSON internally, which
+      # exceeds R's 2^31-byte string limit for the full worldwide GADM3 layer.
+      # Simplify one country at a time, then recombine (parity with how the web
+      # export shards GADM2/ZCTA before simplifying).
+      summarized_data <- ungroup(summarized_data)
+      parts <- split(summarized_data, summarized_data$country)
+      parts <- lapply(parts, function(p) {
+        ms_simplify(p, keep = simplify_pct, keep_shapes = TRUE, sys = TRUE)
+      })
+      summarized_data <- do.call(rbind, parts)
+    } else {
+      summarized_data <- summarized_data %>%
+        ms_simplify(keep = simplify_pct, sys = TRUE)
+    }
   }
 
   summarized_data <- st_make_valid(summarized_data) %>%
@@ -69,7 +83,8 @@ process_gadm_level <- function(
   key_col,
   name_col,
   level_str,
-  simplify_pct = NULL
+  simplify_pct = NULL,
+  shard_simplify = FALSE
 ) {
   gadm_sf = gadm_sf %>%
     filter(
@@ -83,7 +98,7 @@ process_gadm_level <- function(
     ) %>%
     select(country, key, name)
 
-  gadm_sf = concat.glitched.regions(gadm_sf, level_str, simplify_pct)
+  gadm_sf = concat.glitched.regions(gadm_sf, level_str, simplify_pct, shard_simplify)
   gadm_sf = gadm_sf %>%
     mutate(
       sov_country = ifelse(
@@ -108,7 +123,7 @@ load_gadm_data <- function(
 ) {
   expected_files <- file.path(
     out_dir,
-    c("gadm0.gpkg", "gadm1.gpkg", "gadm2.gpkg")
+    c("gadm0.gpkg", "gadm1.gpkg", "gadm2.gpkg", "gadm3.gpkg")
   )
   if (all(file.exists(expected_files))) {
     message("GADM shapefiles already exist, skipping cleaning.")
@@ -144,6 +159,18 @@ load_gadm_data <- function(
   gadm_level2 <- st_read(gadm_geopackage_path_unzipped, "ADM_2") %>%
     filter(!ENGTYPE_2 %in% c('Water body', 'Water Body', 'Waterbody'))
 
+  gadm_level3 <- st_read(gadm_geopackage_path_unzipped, "ADM_3") %>%
+    filter(
+      !ENGTYPE_3 %in% c('Water body', 'Water Body', 'Waterbody'),
+      # Hong Kong appears here as a null GID_0 row with no real GADM3 regions;
+      # its GADM2 regions are patched back in below.
+      !GID_0 == "NA"
+    )
+
+  # GADM1/2/3 are simplified per country (shard_simplify): the whole-layer GeoJSON
+  # that ms_simplify builds internally exceeds R's 2^31-byte string limit at these
+  # feature counts. GADM0 is only ~260 country polygons, so it stays whole-layer.
+  message("Processing GADM0...")
   gadm0_all = process_gadm_level(
     gadm_level0,
     "GID_0",
@@ -152,21 +179,35 @@ load_gadm_data <- function(
     "gadm0",
     0.25
   )
+  message("Processing GADM1...")
   gadm1_all = process_gadm_level(
     gadm_level1,
     "GID_0",
     "GID_1",
     "NAME_1",
     "gadm1",
-    0.10
+    0.10,
+    shard_simplify = TRUE
   )
+  message("Processing GADM2...")
   gadm2_all = process_gadm_level(
     gadm_level2,
     "GID_0",
     "GID_2",
     "NAME_2",
     "gadm2",
-    0.10
+    0.10,
+    shard_simplify = TRUE
+  )
+  message("Processing GADM3...")
+  gadm3_all = process_gadm_level(
+    gadm_level3,
+    "GID_0",
+    "GID_3",
+    "NAME_3",
+    "gadm3",
+    0.10,
+    shard_simplify = TRUE
   )
   # Here, we will carry forward the GADM regions for those countries that don't have definitions
   # all the way down the hierarchy. For example, CYP does not have defined GADM2 regions, so we
@@ -191,6 +232,20 @@ load_gadm_data <- function(
     gadm1_all %>% filter(!country %in% country_w_gadm2)
   )
 
+  country_w_gadm3 <- gadm3_all %>%
+    st_drop_geometry() %>%
+    select(country) %>%
+    distinct() %>%
+    pull(country)
+  gadm3_all <- rbind(
+    gadm3_all,
+    gadm2_all %>% filter(!country %in% country_w_gadm3),
+    # Hong Kong has no GADM3 of its own — carry its GADM2 regions forward.
+    gadm2_all %>% filter(substr(key, 1, 3) == "HKG")
+  )
+  # Guard against any duplicate keys introduced by the carry-forward (e.g. HKG).
+  gadm3_all <- gadm3_all[!duplicated(gadm3_all$key), ]
+
   if (!dir.exists(out_dir)) {
     dir.create(out_dir)
   }
@@ -198,4 +253,66 @@ load_gadm_data <- function(
   st_write(gadm0_all, file.path(out_dir, "gadm0.gpkg"), delete_dsn = TRUE)
   st_write(gadm1_all, file.path(out_dir, "gadm1.gpkg"), delete_dsn = TRUE)
   st_write(gadm2_all, file.path(out_dir, "gadm2.gpkg"), delete_dsn = TRUE)
+  st_write(gadm3_all, file.path(out_dir, "gadm3.gpkg"), delete_dsn = TRUE)
+}
+
+
+#' Picks the best available granularity for each country and combines them into a
+#' single "gadm_best" layer for downstream use. Most countries use GADM2; some
+#' are pinned to GADM0/1 (too granular at GADM2) or GADM3 (warrant finer detail)
+#' via `gadm_best_granularities` (constants.R), plus a few overseas territories
+#' pinned to a fixed level by GID3 prefix. Reads the per-level gadm{0..3}.gpkg.
+#'
+#' @param gadm_shapefiles_output Directory containing the per-level GADM gpkgs
+create_gadm_best_shapefile <- function(gadm_shapefiles_output) {
+  output_file = file.path(gadm_shapefiles_output, "gadm_best.gpkg")
+  if (file.exists(output_file)) {
+    message("GADM best shapefile already exists, skipping.")
+    return(invisible(NULL))
+  }
+
+  gadm_shapes = list()
+
+  for (gadm_level in 0:3) {
+    gadm_shapefile = st_read(
+      file.path(gadm_shapefiles_output, str_glue("gadm{gadm_level}.gpkg"))
+    ) %>%
+      # Drop disputed/special GADM "country" codes that have no ISO mapping.
+      filter(!(sov_country %in% c("XAD", "XCA", "XPI", "XSP", "XCL"))) %>%
+      mutate(
+        iso2c = countrycode(
+          sov_country,
+          origin = "iso3c",
+          destination = "iso2c",
+          custom_match = c("XKO" = "XK")
+        )
+      )
+
+    # Countries whose chosen "best" level is this level.
+    gadm_standard = gadm_shapefile %>%
+      filter(iso2c %in% gadm_best_granularities[[str_glue("gadm{gadm_level}")]])
+
+    # Overseas territories pinned to this level regardless of their sovereign.
+    gadm_territories = NULL
+    if (gadm_level == 1) {
+      gadm_territories = gadm_shapefile %>%
+        filter(str_starts(key, paste(gadm1_territories_prefixes, collapse = "|")))
+    }
+    if (gadm_level == 2) {
+      gadm_territories = gadm_shapefile %>%
+        filter(str_starts(key, paste(gadm2_territories_prefixes, collapse = "|")))
+    }
+
+    gadm_shapes[[str_glue("gadm{gadm_level}")]] =
+      bind_rows(gadm_standard, gadm_territories)
+  }
+
+  gadm_best_shapes = bind_rows(gadm_shapes) %>%
+    distinct(key, .keep_all = TRUE) %>%
+    # Per-country simplification can leave a few self-intersections / antimeridian
+    # artifacts; repair them so downstream spatial ops (exports, name backfill)
+    # don't choke.
+    st_make_valid()
+
+  st_write(gadm_best_shapes, output_file, delete_dsn = TRUE)
 }

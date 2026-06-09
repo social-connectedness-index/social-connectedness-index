@@ -28,7 +28,7 @@ const MAX_OPTIONS = 1500; // cap rendered <option>s for huge levels (us_zcta)
 const LEVEL_LABEL = {
   country: "Country",
   gadm1: "State / Province (GADM1)",
-  gadm2: "District / County (GADM2)",
+  gadm2: "Region (GADM Best)",
   us_county: "US County",
   us_cbsa: "US Metro Area (CBSA)",
   us_zcta: "US ZIP Code",
@@ -62,13 +62,14 @@ function sciPathFor(type, sourceId, country) {
   const direct = {
     country: "country.csv", gadm1: "gadm1.csv",
     us_county: "us_counties.csv",
-    gadm1_country: "gadm1_to_country.csv", gadm2_country: "gadm2_to_country.csv",
+    gadm1_country: "gadm1_to_country.csv", gadm2_country: "gadm_best_to_country.csv",
     us_county_country: "us_counties_to_country.csv", us_zcta_country: "us_zcta_to_country.csv",
-    country_gadm1: "gadm1_to_country.csv", country_gadm2: "gadm2_to_country.csv",
+    country_gadm1: "gadm1_to_country.csv", country_gadm2: "gadm_best_to_country.csv",
     country_us_county: "us_counties_to_country.csv", country_us_zcta: "us_zcta_to_country.csv",
   };
   if (direct[type]) return P + direct[type];
-  if (type === "gadm2") return P + `gadm2_shard_${country || "US"}.csv`;
+  // "gadm2" id is backed by the GADM-best shards (same 12 shard countries).
+  if (type === "gadm2") return P + `gadm_best_shard_${country || "US"}.csv`;
   // zcta-sourced types pick the shard by the source ZIP's first digit; cbsa/crosswalk
   // types read the zcta shards via crosswalk (any shard path points R to the dir).
   if (type === "us_zcta" || type === "us_zcta_county" || type === "us_zcta_cbsa") {

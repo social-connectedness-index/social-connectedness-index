@@ -22,8 +22,11 @@ geo_levels <- list(
     key = "key", name_col = "name", country_col = "sov_country",
     iso2 = TRUE, keep = 0.012
   ),
+  # "gadm2" id, but the geometry is now the combined "GADM best" layer (finest
+  # available GADM level per country). Same schema (key/name/sov_country) so the
+  # prepare/shard/simplify path is unchanged; output still lands in geo/gadm2/.
   gadm2 = list(
-    path = gadm2_shapefile_path,
+    path = gadm_best_shapefile_path,
     key = "key", name_col = "name", country_col = "sov_country",
     iso2 = TRUE, keep = 0.008, shard_by = "country"
   ),

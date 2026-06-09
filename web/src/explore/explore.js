@@ -1,14 +1,18 @@
 // Interactive Explorer for the Social Connectedness Index.
 //
-// A Mapbox-GL slippy map that lets you click any country, state/province
-// (GADM1), or district (GADM2) and recolours the world to show how strongly
-// that place connects to everywhere else at the same level.
+// A Mapbox-GL slippy map that lets you click any country or region ("GADM best"
+// — the finest available GADM level per country) and recolours the world to show
+// how strongly that place connects to everywhere else at the same level.
+//
+// TWO levels only: Country and Region. (The Region level keeps the internal id
+// "gadm2"; its data is the combined GADM-best layer, structurally identical to
+// the old gadm2 exports.)
 //
 // Unlike the standalone fork this was adapted from, ALL data comes from the
 // same R-exported assets that power the Map Generator (served from ./data/):
-//   geo:  geo/country.geojson, geo/gadm1.geojson, geo/gadm2/<CC>.geojson (+ _parts.json)
-//   sci:  sci/country/<id>.json, sci/gadm1/<id>.json     ({friend_id: raw_scaled_sci})
-//         sci/gadm2/index.json + part-NNN.bin            (range-indexed, same blob shape)
+//   geo:  geo/country.geojson, geo/gadm2/<CC>.geojson (+ _parts.json)
+//   sci:  sci/country/<id>.json                       ({friend_id: raw_scaled_sci})
+//         sci/gadm2/index.json + part-NNN.bin         (range-indexed, same blob shape)
 // Each geo feature has a uniform schema: { id, country, name }.
 //
 // On click we fetch ONE source's friend->SCI map, compute percentile-based
@@ -172,7 +176,9 @@ const NO_DATA_FILL = "#e6e8ea";
 const BORDER_COLOR = "#b9c2c9";
 
 // ---------------------------------------------------------------------------
-// Level configuration. Three levels only: Country, GADM1, GADM2.
+// Level configuration. Two levels only: Country and Region (GADM best).
+// The Region level keeps the internal id "level2"/sciType "gadm2" so the
+// sharded geometry + range-indexed SCI plumbing is unchanged.
 // ---------------------------------------------------------------------------
 const LEVELS = {
   level0: {
@@ -187,26 +193,14 @@ const LEVELS = {
     canFocus: false, // focusing on one country is meaningless at country level
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
   },
-  level1: {
-    sciType: "gadm1",
-    geo: "geo/gadm1.geojson",
-    sharded: false,
-    ranged: false,
-    appendCountry: true,
-    unit: "state or province",
-    title: "Top 10 Connected Regions",
-    col: "Region",
-    canFocus: true,
-    view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
-  },
   level2: {
-    sciType: "gadm2",
+    sciType: "gadm2", // GADM-best data under the gadm2 id
     sharded: true, // geometry sharded by ISO2 country
     ranged: true, // SCI delivered via range-index
     appendCountry: true,
-    unit: "district",
-    title: "Top 10 Connected Districts",
-    col: "District",
+    unit: "region",
+    title: "Top 10 Connected Regions",
+    col: "Region",
     canFocus: true,
     view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
   },
@@ -770,7 +764,7 @@ map.on("load", async function () {
 
   async function setActiveLayer(activeId) {
     await ensureLevel(activeId);
-    ["level0", "level1", "level2"].forEach(function (id) {
+    ["level0", "level2"].forEach(function (id) {
       if (!map.getLayer(id)) return;
       const vis = id === activeId ? "visible" : "none";
       map.setLayoutProperty(id, "visibility", vis);

@@ -12,7 +12,7 @@ dataset (`public/data/`):
 |------|-----------|
 | `index.html` | **Landing page** — chooser with two cards. |
 | `generator.html` | **Map Generator** — the canvas-rendered static map maker (described below). All 27 map types, downloads, R-code export. |
-| `explore.html` | **Interactive Explorer** — a Mapbox-GL slippy map (`src/explore/`). Click any country, state/province (GADM1), or district (GADM2) and the world recolours to its SCI. Three levels only; no downloads — its job is fast, live exploration. |
+| `explore.html` | **Interactive Explorer** — a Mapbox-GL slippy map (`src/explore/`). Click any country or region ("GADM best" — the finest available GADM level per country) and the world recolours to its SCI. Two levels only; no downloads — its job is fast, live exploration. |
 
 Cloudflare Pages serves these at `/`, `/generator`, and `/explore`.
 
@@ -23,7 +23,8 @@ Cloudflare Pages serves these at `/`, `/generator`, and `/explore`.
 > `http://localhost:5173`. Without a valid token the Explorer auto-falls back to a
 > no-basemap mode (polygons on a plain background — still fully usable). The
 > Explorer reuses the **same `public/data/` assets** as the Generator (country /
-> gadm1 / gadm2 geo + per-source SCI), so there is no separate data pipeline.
+> gadm2 geo + per-source SCI; the gadm2 id is backed by GADM-best data), so there
+> is no separate data pipeline.
 
 ## Map Generator — what it produces (static images, not an interactive map)
 

@@ -301,7 +301,7 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
 }
 #console-close:hover { background: rgba(0, 0, 0, 0.12); }
 
-/* "Focus on this country" toggle (shown in the side panel for State/District). */
+/* "Focus on this country" toggle (shown in the side panel at the Region level). */
 #focus-country-btn {
   display: block;
   width: 100%;

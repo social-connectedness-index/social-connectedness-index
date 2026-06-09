@@ -56,6 +56,7 @@ create_dir_if_not_exists(nuts_shapefiles_output_dir)
 
 ensure_node_on_path()
 load_gadm_data(gadm_gpkg_input, gadm_shapefiles_output_dir)
+create_gadm_best_shapefile(gadm_shapefiles_output_dir)
 load_geoboundaries_shapefiles(geoboundaries_gpkg_path)
 clean_us_zcta_shapefile()
 clean_us_county_shapefile()
