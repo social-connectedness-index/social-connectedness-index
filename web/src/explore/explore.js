@@ -72,7 +72,8 @@ if (!forceNoBasemap) {
   });
 }
 
-map.addControl(new mapboxgl.NavigationControl(), "top-right");
+// Zoom/compass at bottom-right so it doesn't sit under the top-right results card.
+map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
 map.addControl(new mapboxgl.AttributionControl({ compact: true }));
 
 let hoveredStateId = null;
@@ -126,9 +127,9 @@ function hoverTooltipHtml(feat, levelKey) {
 // static Map Generator's default of 0.25).
 const REFERENCE_QUANTILE = 0.25;
 
-// Multiplier break points (in units of the reference value). Finer than before
-// for a smoother gradient: 11 fill bins = "< 1x" + one per break.
-const BREAK_MULTIPLIERS = [1, 2, 3, 5, 7, 10, 15, 25, 50, 100];
+// Multiplier break points (in units of the reference value): 10 fill bins =
+// "< 1x" + one per break. These breaks are also the legend's tick positions.
+const BREAK_MULTIPLIERS = [1, 2, 5, 7, 10, 25, 50, 75, 100];
 
 // Green -> teal -> blue identity ramp (ColorBrewer GnBu control stops),
 // interpolated to exactly one colour per bin so the gradient stays smooth as
@@ -159,20 +160,18 @@ function rampColors(stops, n) {
   return out;
 }
 
-// One colour per fill bin (11).
+// One colour per fill bin (10).
 const BIN_COLORS = rampColors(RAMP_STOPS, BREAK_MULTIPLIERS.length + 1);
 
-// Legend tick labels — the horizontal scale marks bin boundaries with the break
-// multipliers (mirrors the static Map Generator's compact legend bar). The panel
-// is narrow, so we label an evenly-spaced, readable subset of the 10 breaks
-// rather than all of them; the full gradient still shows every bin's colour.
+// The horizontal scale draws a tick mark at EVERY break; only this readable
+// subset is labelled (the panel is narrow, so labelling all nine would overlap).
 function fmtMult(m) { return (m >= 10 ? Math.round(m) : m) + "x"; }
-const LEGEND_TICK_MULTS = [1, 10, 100];
+const LEGEND_TICK_MULTS = [1, 5, 10, 50, 100];
 
 // Default fill for an in-sample feature before any click; distinct grey for
 // out-of-sample (exists in the boundary file but has no SCI data).
-const DEFAULT_FILL = "#f4f6f7";
-const NO_DATA_FILL = "#e6e8ea";
+const DEFAULT_FILL = "#e3e7ea";
+const NO_DATA_FILL = "#cdd3d8";
 const BORDER_COLOR = "#b9c2c9";
 
 // ---------------------------------------------------------------------------
@@ -656,26 +655,51 @@ map.on("load", async function () {
     sel.refSci = refSci;
   }
 
-  // Reference value from only the regions currently on screen (excludes the
-  // source's self-link; in focus mode, only its own country). null if none.
+  // One-time, per-level list of {id, country, lng, lat} representative points,
+  // used by the dynamic ("scale to area in view") reference. Cached on the cfg
+  // because the geometry is stable for a level's lifetime; computing 33k region
+  // centroids on every map move would be far too slow.
+  function levelPoints(cfg) {
+    if (cfg._points) return cfg._points;
+    const pts = [];
+    const geo = cfg.geojson;
+    if (geo) {
+      for (const f of geo.features) {
+        const c = featureCentroid(f.geometry);
+        if (c) pts.push({ id: f.properties.id, country: f.properties.country, lng: c[0], lat: c[1] });
+      }
+    }
+    cfg._points = pts;
+    return pts;
+  }
+
+  // Reference value from only the regions whose centre is currently in view
+  // (excludes the source's self-link; in focus mode, only its own country).
+  // Returns null if nothing is in view.
+  //
+  // This is computed from the map's bounds + our own geometry rather than
+  // map.queryRenderedFeatures(): on the globe projection the rendered-feature
+  // query is unreliable (often returns nothing at the zoom levels used for
+  // country maps), which made the dynamic scale silently fall back to the global
+  // reference. SCI values come from sel.sci (the authoritative per-source map),
+  // not from queried feature properties, so the lookup can't come back empty.
   function visibleRef(levelKey) {
     const sel = lastSelection;
-    if (!sel) return null;
-    let feats;
-    try { feats = map.queryRenderedFeatures({ layers: [levelKey] }); }
-    catch (e) { return null; }
-    if (!feats || !feats.length) return null;
-    const focus = focusCountry && sel.cfg.canFocus && !!sel.clickedCountry;
+    if (!sel || sel.levelKey !== levelKey || !sel.sci) return null;
+    const bounds = map.getBounds();
+    if (!bounds) return null;
+    const cfg = sel.cfg;
+    const focus = focusCountry && cfg.canFocus && !!sel.clickedCountry;
     const seen = new Set();
     const vals = [];
-    for (const f of feats) {
-      const id = f.properties.id;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      if (id === sel.clickedId) continue;
-      if (focus && f.properties.country !== sel.clickedCountry) continue;
-      const v = f.properties.sci;
-      if (v != null && !isNaN(v) && v > 0) vals.push(v);
+    for (const p of levelPoints(cfg)) {
+      if (p.id === sel.clickedId || seen.has(p.id)) continue;
+      if (focus && p.country !== sel.clickedCountry) continue;
+      if (!bounds.contains([p.lng, p.lat])) continue;
+      const v = sel.sci[p.id];
+      if (v == null || isNaN(v) || v <= 0) continue;
+      seen.add(p.id);
+      vals.push(v);
     }
     if (!vals.length) return null;
     let r = getPercentile(vals, REFERENCE_QUANTILE);
@@ -700,21 +724,23 @@ map.on("load", async function () {
   // ----- legend + top-10 (shared) -----
   function updateLegend() {
     const legendScale = document.getElementById("legend-scale");
-    const n = BIN_COLORS.length; // 11 fill bins
+    const n = BIN_COLORS.length; // fill bins
     const bar = BIN_COLORS
       .map(function (c) { return '<span class="legend-swatch" style="background-color:' + c + '"></span>'; })
       .join("");
-    // Each break sits on the boundary between two bins, at position i+1 of n.
-    const ticks = LEGEND_TICK_MULTS
+    // Each break sits on the boundary between two bins, at position (i+1)/n. Label
+    // only the readable subset (the panel is narrow).
+    const labels = LEGEND_TICK_MULTS
       .map(function (m) {
         const i = BREAK_MULTIPLIERS.indexOf(m);
+        if (i < 0) return "";
         const pos = (((i + 1) / n) * 100).toFixed(2);
         return '<span class="legend-tick" style="left:' + pos + '%">' + fmtMult(m) + "</span>";
       })
       .join("");
     legendScale.innerHTML =
       '<div class="legend-bar">' + bar + "</div>" +
-      '<div class="legend-ticks">' + ticks + "</div>";
+      '<div class="legend-ticks">' + labels + "</div>";
   }
 
   function updateTop10Table(sorted, refSci, cfg) {
@@ -746,11 +772,12 @@ map.on("load", async function () {
 
   // ----- focus-country toggle -----
   function updateFocusButton() {
-    const btn = document.getElementById("focus-country-btn");
-    if (!btn) return;
+    const row = document.getElementById("focus-country-row");
+    const cb = document.getElementById("focus-country");
+    if (!row || !cb) return;
     const canShow = lastSelection && lastSelection.cfg.canFocus && !!lastSelection.clickedCountry;
-    btn.style.display = canShow ? "block" : "none";
-    btn.textContent = focusCountry ? "Show whole world" : "Focus on this country";
+    row.style.display = canShow ? "flex" : "none";
+    cb.checked = focusCountry;
   }
 
   // ----- level switcher -----
@@ -786,6 +813,7 @@ map.on("load", async function () {
       if (consoleEl) consoleEl.style.display = "none";
       const legendEl = document.getElementById("legend");
       if (legendEl) legendEl.style.display = "none";
+      closeTopConnections(); // the cleared selection has no top-10 to show
 
       document.querySelectorAll(".button-container button").forEach((b) => b.classList.remove("active"));
       this.classList.add("active");
@@ -806,11 +834,11 @@ map.on("load", async function () {
   // selected source's country (recoloured on the within-country distribution)
   // and zooms to it; toggling back returns to the global view.
   (function setupFocusButton() {
-    const btn = document.getElementById("focus-country-btn");
-    if (!btn) return;
-    btn.addEventListener("click", function () {
-      if (!lastSelection) return;
-      focusCountry = !focusCountry;
+    const cb = document.getElementById("focus-country");
+    if (!cb) return;
+    cb.addEventListener("change", function () {
+      if (!lastSelection) { cb.checked = false; return; }
+      focusCountry = cb.checked;
       renderSelection(focusCountry ? "country" : "world");
     });
   })();
@@ -834,6 +862,26 @@ map.on("load", async function () {
       const el = document.getElementById("console");
       if (el) el.style.display = "none";
     });
+  })();
+
+  // "See top connections" — opens the Top-10 list as a popup, dismissable via
+  // the × button, a click on the dimmed backdrop, or Escape. The list itself is
+  // kept up to date by updateTop10Table on every selection, so opening just
+  // reveals the latest ranking.
+  function closeTopConnections() {
+    const overlay = document.getElementById("top-connections-overlay");
+    if (overlay) overlay.setAttribute("hidden", "");
+  }
+  (function setupTopConnections() {
+    const btn = document.getElementById("see-top-connections-btn");
+    const overlay = document.getElementById("top-connections-overlay");
+    if (!btn || !overlay) return;
+    btn.addEventListener("click", () => overlay.removeAttribute("hidden"));
+    const close = document.getElementById("top-connections-close");
+    if (close) close.addEventListener("click", closeTopConnections);
+    // A click on the backdrop (but not the popup card) closes it.
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeTopConnections(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTopConnections(); });
   })();
 
   // "About this map" expandable panel.

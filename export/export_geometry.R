@@ -28,7 +28,12 @@ geo_levels <- list(
   gadm2 = list(
     path = gadm_best_shapefile_path,
     key = "key", name_col = "name", country_col = "sov_country",
-    iso2 = TRUE, keep = 0.008, shard_by = "country"
+    # Detail raised from the old keep=0.008 (shapes looked clunky) to keep=0.08 +
+    # 4-decimal coords (~11 m). GeoJSON size here is dominated by per-feature
+    # props (id/name/country), not coords, so high detail is cheap. The explorer
+    # loads ALL gadm2 shards for the Regions view (its one-time load), and shards
+    # still sit well under the 25 MiB/file cap.
+    iso2 = TRUE, keep = 0.08, precision = 4, shard_by = "country"
   ),
   us_county = list(
     path = us_county_shapefile_path,
