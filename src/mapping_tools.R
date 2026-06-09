@@ -102,14 +102,15 @@ map_type_configs <- list(
     highlight_sf = list(path = gadm1_shapefile_path, layer = NULL),
     highlight_region_key = "key"
   ),
-  # "gadm2" type now backed by the combined "GADM best" layer (finest available
-  # GADM level per country). Same schema/keys; pair it with the gadm_best_*.csv
-  # SCI files. (Geometry only — the SCI path is supplied by the caller.)
+  # NOTE: the standalone batch tool's "gadm2" type stays true GADM2 (gadm2.gpkg +
+  # gadm2_shard_*/gadm2_to_country SCI), so the map_structs.R examples keep working.
+  # The GADM-best swap is scoped to the WEB apps only (export_geometry.R points the
+  # web "gadm2" geo level at gadm_best.gpkg; export_sci.R at the gadm_best_* CSVs).
   gadm2 = list(
-    friend_sf = list(path = gadm_best_shapefile_path, layer = NULL),
+    friend_sf = list(path = gadm2_shapefile_path, layer = NULL),
     friend_region_key = "key",
     friend_country_key = "sov_country",
-    highlight_sf = list(path = gadm_best_shapefile_path, layer = NULL),
+    highlight_sf = list(path = gadm2_shapefile_path, layer = NULL),
     highlight_region_key = "key",
     admin1_borders = list(
       path = gadm1_shapefile_path,
@@ -128,7 +129,7 @@ map_type_configs <- list(
     friend_sf = list(path = gadm0_shapefile_path, layer = NULL),
     friend_region_key = "sov_country",
     friend_country_key = "sov_country",
-    highlight_sf = list(path = gadm_best_shapefile_path, layer = NULL),
+    highlight_sf = list(path = gadm2_shapefile_path, layer = NULL),
     highlight_region_key = "key"
   ),
   adm1 = list(
@@ -338,7 +339,7 @@ map_type_configs <- list(
     sci_country_filter_col = "user_country"
   ),
   country_gadm2 = list(
-    friend_sf = list(path = gadm_best_shapefile_path, layer = NULL),
+    friend_sf = list(path = gadm2_shapefile_path, layer = NULL),
     friend_region_key = "key",
     friend_country_key = "sov_country",
     highlight_sf = list(path = gadm0_shapefile_path, layer = NULL),

@@ -17,7 +17,7 @@
   <div id="notFound" style="display: none; opacity: 0;">Data not available</div>
   <div id="loading-icon"></div>
 
-  <!-- Top-left stack: home link, title + subtitle, the level switcher, then "About this map". -->
+  <!-- Top-left stack: home link, title (with the "i" About toggle), level switcher. -->
   <div id="top-controls">
     <div class="explore-nav">
       <a href="./index.html" class="nav-home">← All tools</a>
@@ -26,17 +26,16 @@
 
     <div id="image-text-container">
       <p id="soc">Social Connectedness Index</p>
-      <p id="soc-sub">Click any country</p>
+      <button type="button" id="data-explanation-btn" aria-expanded="false" aria-controls="data-explanation"
+              aria-label="About this map" title="About this map">
+        <span class="info-icon" aria-hidden="true">i</span>
+      </button>
     </div>
 
     <div class="button-container">
       <button type="button" id="level0" class="active">Countries</button>
       <button type="button" id="level2">Regions</button>
     </div>
-
-    <button type="button" id="data-explanation-btn" aria-expanded="false" aria-controls="data-explanation">
-      <span class="info-icon" aria-hidden="true">i</span> About this map
-    </button>
   </div>
 
   <!-- Expandable explanation, anchored top-left and floats above the map when open. -->

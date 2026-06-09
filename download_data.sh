@@ -118,6 +118,12 @@ else
 fi
 
 # Large sharded files from Google Drive
+# NOTE: these gadm2_shard_*.csv power the STANDALONE batch tool (src/main.R) only.
+# The WEB apps now use "GADM best" (gadm_best_shard_*.csv + gadm_best_to_country.csv),
+# which are NOT auto-downloaded here — they are supplied separately (no public URL
+# yet). gadm_best.gpkg geometry IS reproducible (built by create_gadm_best_shapefile
+# in setup.R). Without the gadm_best SCI CSVs, `export_all.R sci:gadm2` skips the
+# web gadm2 data. See gadm-best-replaces-gadm2 in the project notes.
 if ! ls "$SCI_2026_DIR"/gadm2_shard_*.csv &>/dev/null; then
     gdrive_download_and_extract \
         "1M3XTjZG_bgzGkEZ1tJgZ6qLcuPJU5Ck4" "gadm2.zip" "$SCI_2026_DIR"

@@ -53,14 +53,6 @@ body {
 /* Tick labels absolutely positioned at the bin boundaries below the bar. */
 .legend-ticks { position: relative; height: 14px; margin-top: 4px; font-size: 11px; color: #3b464f; }
 .legend-tick { position: absolute; transform: translateX(-50%); white-space: nowrap; }
-.legend-nodata {
-  display: flex; align-items: center; gap: 6px;
-  margin-top: 10px; font-size: 11px; color: #3b464f;
-}
-.legend-swatch-nodata {
-  width: 18px; height: 10px; border-radius: 2px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-}
 
 .table-container {
   position: relative;
@@ -154,6 +146,9 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   padding: 0;
   background: transparent;
   text-transform: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 #soc {
   margin: 0;
@@ -163,14 +158,6 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #3b464f;
-}
-#soc-sub {
-  margin: 3px 0 0 0;
-  font-size: 11px;
-  font-weight: 400;
-  color: #6a7480;
-  text-transform: none;
-  letter-spacing: 0.01em;
 }
 
 /* Level switcher. */
@@ -199,35 +186,32 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   transform: none;
 }
 
-/* "About this map" toggle button. */
+/* "About this map" toggle — an icon-only "i" sitting next to the title. */
 #data-explanation-btn {
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 500;
-  color: #3b464f;
+  padding: 0;
   background: transparent;
-  border: 1px solid #c8c8c8;
-  border-radius: 4px;
+  border: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  line-height: 0;
 }
 #data-explanation-btn .info-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px; height: 14px;
+  width: 16px; height: 16px;
   border-radius: 50%;
   background: #6a7480;
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   font-style: italic;
   line-height: 1;
+  transition: background 0.15s;
 }
-#data-explanation-btn[aria-expanded="true"],
-#data-explanation-btn:hover { background: #f2f2f2; }
+#data-explanation-btn[aria-expanded="true"] .info-icon,
+#data-explanation-btn:hover .info-icon { background: #3b464f; }
 
 /* Expandable explanation panel. */
 #data-explanation {
@@ -235,6 +219,10 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   top: 14px;
   left: 14px;
   z-index: 25;
+  /* border-box so the horizontal padding is included in width/max-width — without
+     it, width:calc(100vw - N) + padding renders wider than the viewport on mobile,
+     pushing the close (×) button off-screen. */
+  box-sizing: border-box;
   width: 360px;
   max-width: calc(100vw - 28px);
   max-height: calc(100vh - 80px);
@@ -389,10 +377,8 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   }
   .explore-nav { font-size: 11px; gap: 10px; }
   #soc { font-size: 11.5px; }
-  #soc-sub { font-size: 10px; }
   .button-container { flex-wrap: wrap; }
   .button-container > button { padding: 4px 8px; font-size: 11px; }
-  #data-explanation-btn { padding: 3px 8px; font-size: 10.5px; }
 
   /* Results become a dismissable bottom sheet — smaller, so the map stays
      visible — and the sheet itself scrolls. */

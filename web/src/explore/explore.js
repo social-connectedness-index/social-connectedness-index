@@ -329,7 +329,7 @@ function getPercentile(values, percentile) {
 
 // Bounding-box centre of a feature's geometry (one representative point per
 // region). Handles Polygon / MultiPolygon AND GeometryCollection (which stores
-// `geometries`, not `coordinates` — e.g. ~13% of countries and many GADM1).
+// `geometries`, not `coordinates` — e.g. ~13% of countries and many GADM regions).
 function featureCentroid(geom) {
   if (!geom) return null;
   let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity, any = false;
@@ -714,10 +714,7 @@ map.on("load", async function () {
       .join("");
     legendScale.innerHTML =
       '<div class="legend-bar">' + bar + "</div>" +
-      '<div class="legend-ticks">' + ticks + "</div>" +
-      '<div class="legend-nodata"><span class="legend-swatch-nodata" style="background-color:' +
-      NO_DATA_FILL +
-      '"></span>No data</div>';
+      '<div class="legend-ticks">' + ticks + "</div>";
   }
 
   function updateTop10Table(sorted, refSci, cfg) {
@@ -757,11 +754,6 @@ map.on("load", async function () {
   }
 
   // ----- level switcher -----
-  function setLayerSubtitle(levelKey) {
-    const sub = document.getElementById("soc-sub");
-    if (sub) sub.textContent = "Click any " + LEVELS[levelKey].unit;
-  }
-
   async function setActiveLayer(activeId) {
     await ensureLevel(activeId);
     ["level0", "level2"].forEach(function (id) {
@@ -787,7 +779,6 @@ map.on("load", async function () {
   // Initial level (countries), then wire the controls.
   await ensureLevel("level0");
   setActiveLayer("level0");
-  setLayerSubtitle("level0");
 
   document.querySelectorAll(".button-container button").forEach(function (button) {
     button.addEventListener("click", async function () {
@@ -806,7 +797,6 @@ map.on("load", async function () {
 
       gSel = this.id;
       await setActiveLayer(this.id);
-      setLayerSubtitle(this.id);
       // Keep the current camera — switching granularity should NOT zoom out or
       // recentre; the user stays wherever they were looking.
     });
