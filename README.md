@@ -452,6 +452,7 @@ Beyond the fields available in `map_structs.R`, `make_map()` accepts:
 | ---------------------- | ------------------------------- | -------------------------------------------- |
 | `filter_dest_cbsa`     | `NULL`                          | CBSA code to filter destinations; auto-zooms to the metro area |
 | `reference_quantile`   | `0.25`                          | Percentile used to normalize SCI values      |
+| `reference_value`      | `NULL`                          | Absolute SCI value to normalize by; overrides `reference_quantile` when set |
 | `legend_name`          | `"Likelihood of Friendship"`    | Legend title text                             |
 | `color_palette`        | default blue ramp               | Vector of hex colors for the color scale     |
 | `highlight_color`      | `"#FF0000"`                     | Fill color for the source region             |

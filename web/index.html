@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Social Connectedness Index</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="description" content="Explore and map Facebook's Social Connectedness Index — the relative likelihood of friendship between places." />
     <link rel="stylesheet" href="./src/landing.css" />
   </head>
@@ -19,10 +21,7 @@
 
       <section class="tool-grid">
         <a class="tool-card" href="./explore.html">
-          <div class="tool-card-art art-explore" aria-hidden="true">
-            <span class="art-dot d1"></span><span class="art-dot d2"></span>
-            <span class="art-dot d3"></span><span class="art-dot d4"></span>
-          </div>
+          <div class="tool-card-art art-explore" aria-hidden="true"></div>
           <div class="tool-card-body">
             <h2>Interactive Explorer</h2>
             <p>
@@ -35,15 +34,12 @@
         </a>
 
         <a class="tool-card" href="./generator.html">
-          <div class="tool-card-art art-generator" aria-hidden="true">
-            <span class="art-bar b1"></span><span class="art-bar b2"></span>
-            <span class="art-bar b3"></span><span class="art-bar b4"></span>
-          </div>
+          <div class="tool-card-art art-generator" aria-hidden="true"></div>
           <div class="tool-card-body">
             <h2>Map Generator</h2>
             <p>
               Build polished, publication-quality SCI maps with full control over geography,
-              colors, breaks, and titles — then download as PNG, SVG, PDF, or video, or export
+              colors, breaks, and titles — then download as image or video, or export
               the R code to reproduce them.
             </p>
             <span class="tool-cta">Make a map →</span>
@@ -52,19 +48,19 @@
       </section>
 
       <!-- ============================================================
-           CITATIONS — paste the full reference for each paper between
-           the <span class="citation-text"> ... </span> tags below,
-           replacing the placeholder text. Links/DOIs can be added as
-           normal <a href="..."> tags inside the span.
+           CITATIONS — each reference sits in a <span class="citation-text">.
+           The paper title is wrapped in an <a href="REPLACE_WITH_PDF_URL">;
+           swap that placeholder for the PDF/DOI link (one per paper).
+           Add more papers by copying a <li class="citation"> block.
            ============================================================ -->
       <section class="citations" id="citations">
         <p class="citations-intro">If you use the Social Connectedness Index in your work, please cite:</p>
         <ol class="citation-list">
           <li class="citation">
-            <span class="citation-text placeholder">Johnston, D., Kuchler, T., Kulkarni, M., & Stroebel, J. (2026). The Social Connectedness Index: a large-scale dataset of social ties across geographic locations. Data in Brief, XXX, XXX.</span>
+            <span class="citation-text">Johnston, D., Kuchler, T., Kulkarni, M., & Stroebel, J. (2026). <a href="https://pages.stern.nyu.edu/~jstroebe/PDF/JKKS_SCI.pdf" target="_blank" rel="noopener">The Social Connectedness Index: a large-scale dataset of social ties across geographic locations</a>. Data in Brief, XXX, XXX.</span>
           </li>
           <li class="citation">
-            <span class="citation-text placeholder">Bailey, M., Cao, R., Kuchler, T., Stroebel, J., & Wong, A. (2018). Social Connectedness: Measurement, Determinants, and Effects. Journal of Economic Perspectives, 32(3), 259-280.</span>
+            <span class="citation-text">Bailey, M., Cao, R., Kuchler, T., Stroebel, J., & Wong, A. (2018). <a href="https://pages.stern.nyu.edu/~jstroebe/PDF/JEP_SCI.pdf" target="_blank" rel="noopener">Social Connectedness: Measurement, Determinants, and Effects</a>. Journal of Economic Perspectives, 32(3), 259-280.</span>
           </li>
         </ol>
       </section>
@@ -77,6 +73,10 @@
           </a>
           (Humanitarian Data Exchange).
         </p>
+        <a class="lab-credit" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener">
+          <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" class="lab-logo" />
+          <span><strong>Social Capital Lab</strong></span>
+        </a>
       </footer>
     </main>
   </body>

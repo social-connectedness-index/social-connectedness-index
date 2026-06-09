@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Social Connectedness Index — Map Generator</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
@@ -40,7 +42,8 @@
       <select id="destType"></select>
       <div id="cbsaWrap" style="display:none">
         <label>Metro area (optional)</label>
-        <select id="destCbsa"></select>
+        <input id="searchCbsa" type="text" placeholder="Type to filter metro areas…" autocomplete="off" />
+        <div id="destCbsa" class="listbox" role="listbox" tabindex="0"></div>
         <div class="help-hint">Limit the ZIP codes shown to a single US metro area.</div>
       </div>
       <div id="countryWrap">
@@ -54,11 +57,6 @@
       <hr />
       <label>Title (optional)</label>
       <input id="title" type="text" />
-
-      <div class="btn-row">
-        <button id="generate" class="btn-generate">Generate Map</button>
-        <button id="reset" class="btn-reset">Reset</button>
-      </div>
 
       <hr />
       <details>
@@ -82,20 +80,51 @@
         </div>
 
         <div id="singleBreaksWrap">
-          <label>Reference quantile</label>
-          <input id="refq" type="number" min="0" max="1" step="0.05" value="0.25" />
-          <div class="help-hint">
-            Each region's SCI is divided by this quantile's value to produce a multiplier
-            (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile.
+          <label>Scale SCI by</label>
+          <div class="mode-toggle" id="refModeToggle">
+            <label><input type="radio" name="refMode" value="quantile" checked /> Reference quantile</label>
+            <label><input type="radio" name="refMode" value="absolute" /> Absolute SCI value</label>
           </div>
 
-          <label>Custom breaks (comma-separated)</label>
+          <div id="refqWrap">
+            <label>Reference quantile</label>
+            <input id="refq" type="number" min="0" max="1" step="0.05" value="0.25" />
+            <div class="help-hint">
+              Each region's SCI is divided by this quantile's value to produce a multiplier
+              (e.g., '5x' means 5 times as connected as the reference region). Default: 25th percentile.
+            </div>
+          </div>
+
+          <div id="refvalWrap" style="display:none">
+            <label>Absolute SCI value</label>
+            <input id="refval" type="number" min="0" step="any" placeholder="e.g. 100000" />
+            <div class="help-hint">
+              Each region's SCI is divided by this fixed SCI value to produce the multiplier
+              (e.g., '5x' means 5 times this value). Useful for putting several maps on the same
+              absolute scale instead of each map's own quantile.
+            </div>
+          </div>
+
+          <label>Break scheme</label>
+          <select id="breakScheme">
+            <option value="quantile">Quantile (auto)</option>
+            <option value="even">Even / linear</option>
+            <option value="log">Log scale</option>
+            <option value="custom">Custom</option>
+          </select>
+          <div class="help-hint">
+            How the legend bins are spaced. <b>Quantile</b> = equal number of regions per color;
+            <b>Even</b> = equal-width multiplier bands; <b>Log</b> = bands spaced by orders of
+            magnitude. The breaks below are filled in for the chosen scheme —
+            edit them and it switches to <b>Custom</b>.
+          </div>
+
+          <label>Breaks (comma-separated multipliers)</label>
           <input id="breaks" type="text" />
           <div class="help-hint">
-            Set custom legend boundaries in multiples of the reference quantile (e.g., '1, 5, 10'
-            bins regions into ≤1x, 1–5x, 5–10x, and &gt;10x). When left empty, the first bin
-            captures regions below the reference quantile and the remaining bins are equal-sized
-            quantile buckets.
+            Legend boundaries in multiples of the reference (e.g., '1, 5, 10' bins regions into
+            ≤1x, 1–5x, 5–10x, and &gt;10x). Auto-filled from the scheme above; clear it to fall
+            back to automatic quantile bins.
           </div>
         </div>
 
@@ -108,7 +137,7 @@
           </div>
         </div>
 
-        <label class="check"><input id="highlight" type="checkbox" /> Label selected region</label>
+        <label class="check"><input id="highlight" type="checkbox" /> Color home region</label>
         <label class="check"><input id="borders" type="checkbox" checked /> Show state borders</label>
 
         <div class="grid2">
@@ -126,11 +155,21 @@
         </div>
       </details>
 
+      <hr />
+      <div class="btn-row">
+        <button id="generate" class="btn-generate">Generate Map</button>
+        <button id="reset" class="btn-reset">Reset</button>
+      </div>
+
       <div id="status"></div>
       <p class="foot">
         Data: Social Connectedness Index ·
         <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">HDX</a>
       </p>
+      <a class="lab-mark" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener" title="Social Capital Lab">
+        <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" />
+        <span>Social Capital Lab</span>
+      </a>
     </aside>
 
     <main id="mapWrap">

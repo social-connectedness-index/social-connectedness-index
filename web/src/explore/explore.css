@@ -254,6 +254,24 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
 #data-explanation h3 { margin: 0 0 10px; padding-right: 24px; font-size: 14px; font-weight: 700; }
 #data-explanation p { margin: 0 0 10px; }
 #data-explanation p:last-child { margin-bottom: 0; }
+#data-explanation .map-attribution { margin-top: 12px; font-size: 11px; color: #6b7680; }
+
+/* Social Capital Lab credit inside the "About this map" panel. */
+.lab-mark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e7ebee;
+  text-decoration: none;
+  color: #4a5862;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+}
+.lab-mark img { width: 28px; height: 28px; display: block; }
+.lab-mark span { font-weight: 600; color: #10617b; }
+.lab-mark:hover span { text-decoration: underline; }
 
 /* Right-side results card — compact, stuck to the TOP-RIGHT (mirrors the
    top-left control panel), hugging its content instead of filling the height. */
@@ -376,24 +394,6 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
 #console .console-legend .legend-title { font-size: 12px; font-weight: 600; text-align: center; margin-bottom: 6px; }
 #console .console-legend .legend-ticks { font-size: 10px; }
 
-/* Credits — single line, bottom-left (bottom-right is the zoom + attribution). */
-#credits {
-  position: fixed;
-  bottom: 12px;
-  left: 12px;
-  z-index: 9;
-  padding: 6px 12px;
-  font-family: 'Poppins', sans-serif;
-  font-size: 11px;
-  line-height: 1.4;
-  color: #3b464f;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-#credits a { color: #1879d5; text-decoration: none; }
-#credits a:hover { text-decoration: underline; }
 
 /* Hover tooltip (region name + SCI). pointer-events:none so it never blocks
    the hover that drives it. */
@@ -451,7 +451,6 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   #top-10-container { max-height: none; overflow: visible; margin-top: 10px; }
 
   #data-explanation { width: calc(100vw - 16px); top: 8px; left: 8px; }
-  #credits { left: 8px; right: auto; bottom: 8px; font-size: 10px; padding: 4px 8px; }
 }
 
 /* --- Top-10 table: compact, vertically centred rows, tight column widths --- */

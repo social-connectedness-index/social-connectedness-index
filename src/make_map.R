@@ -101,6 +101,7 @@ make_map <- function(
   ylim = NULL,
   breaks = NULL,
   reference_quantile = 0.25,
+  reference_value = NULL,
   legend_name = "Likelihood of Friendship",
   break_label_format = function(x) {
     ifelse(x == floor(x), paste0(as.integer(x), "x"), paste0(x, "x"))
@@ -284,11 +285,16 @@ make_map <- function(
   sci_filtered <- assembled$data
   join_col <- assembled$join_col
 
-  sci_ref <- quantile(
-    sci_filtered$scaled_sci,
-    probs = reference_quantile,
-    na.rm = TRUE
-  )
+  # Scale by a fixed absolute SCI value when supplied, else by the quantile.
+  if (!is.null(reference_value)) {
+    sci_ref <- reference_value
+  } else {
+    sci_ref <- quantile(
+      sci_filtered$scaled_sci,
+      probs = reference_quantile,
+      na.rm = TRUE
+    )
+  }
 
   sci_filtered <- sci_filtered %>%
     mutate(scaled_sci_rel = scaled_sci / sci_ref)

@@ -54,14 +54,15 @@ function uniqueSignif(arr, digits) {
 
 // ---- single-map normalization & breaks -----------------------------------
 
-// scaled_sci_rel = scaled_sci / quantile(scaled_sci, referenceQuantile)
-export function normalize(sciByFriend, activeIds, referenceQuantile) {
+// scaled_sci_rel = scaled_sci / ref, where ref is either the value at
+// referenceQuantile (default) or, when absoluteRef is supplied, that fixed value.
+export function normalize(sciByFriend, activeIds, referenceQuantile, absoluteRef = null) {
   const vals = [];
   for (const id of activeIds) {
     const v = sciByFriend[id];
     if (v != null && !Number.isNaN(v)) vals.push(v);
   }
-  const ref = quantile(vals, referenceQuantile);
+  const ref = absoluteRef != null ? absoluteRef : quantile(vals, referenceQuantile);
   const rel = {};
   for (const id of activeIds) {
     const v = sciByFriend[id];
@@ -87,6 +88,63 @@ export function autoBreaks(relValues) {
 function round(x, digits) {
   const f = Math.pow(10, digits);
   return Math.round(x * f) / f;
+}
+
+// ---- break schemes (interactive "Break scheme" dropdown) ------------------
+// Each returns ~9 interior breaks (→ ~10 bins) in multiplier units, starting at
+// 1× (the reference). `quantile` reuses autoBreaks above. All share a robust
+// upper bound (98th pct, rounded to a 1/2/5×10ⁿ "nice" number) so a lone outlier
+// (e.g. the source region's own huge self-SCI) can't stretch the whole scale.
+
+const BREAK_COUNT = 9; // interior breaks → 10 color bins
+
+// Round x UP to the next 1, 2, or 5 times a power of ten (e.g. 37→50, 120→200).
+function niceCeil(x) {
+  if (!(x > 1)) return 10;
+  const p = Math.pow(10, Math.floor(Math.log10(x)));
+  const m = x / p;
+  const nice = m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10;
+  return nice * p;
+}
+
+// Round a break to a tidy magnitude-aware precision, then drop duplicates while
+// keeping ascending order. Returns null if fewer than 2 distinct breaks survive.
+function tidyBreaks(arr) {
+  const r = arr.map((x) => (x < 10 ? Math.round(x * 10) / 10 : x < 100 ? Math.round(x) : Math.round(x / 5) * 5));
+  const seen = new Set();
+  const out = [];
+  for (const v of r) if (!seen.has(v)) { seen.add(v); out.push(v); }
+  return out.length >= 2 ? out : null;
+}
+
+function robustHi(relValues) {
+  const hi = quantile(relValues, 0.98);
+  return niceCeil(Number.isFinite(hi) ? hi : 1);
+}
+
+// Equal-width multiplier bands from 1× to the robust max.
+export function evenBreaks(relValues) {
+  const hi = robustHi(relValues);
+  if (!(hi > 1)) return null;
+  const out = [];
+  for (let k = 0; k < BREAK_COUNT; k++) out.push(1 + ((hi - 1) * k) / (BREAK_COUNT - 1));
+  return tidyBreaks(out);
+}
+
+// Geometric (log-spaced) bands from 1× to the robust max — hiᵏ/⁽ⁿ⁻¹⁾.
+export function logBreaks(relValues) {
+  const hi = robustHi(relValues);
+  if (!(hi > 1)) return null;
+  const out = [];
+  for (let k = 0; k < BREAK_COUNT; k++) out.push(Math.pow(hi, k / (BREAK_COUNT - 1)));
+  return tidyBreaks(out);
+}
+
+// Dispatch a scheme name to its interior breaks (null = fall back to auto bins).
+export function breaksForScheme(scheme, relValues) {
+  if (scheme === "even") return evenBreaks(relValues);
+  if (scheme === "log") return logBreaks(relValues);
+  return autoBreaks(relValues); // "quantile" (and any unknown) → data deciles
 }
 
 // build_map_plot binning: produce all_breaks (with +/-Inf ends), legend breaks,

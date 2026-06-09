@@ -29,7 +29,7 @@ html, body {
   color: #10617b;
 }
 .landing-head .lede {
-  max-width: 640px;
+  max-width: 820px;
   margin: 0 auto;
   font-size: 17px;
   line-height: 1.55;
@@ -63,37 +63,24 @@ html, body {
 }
 
 .tool-card-art {
-  position: relative;
-  height: 132px;
+  height: 158px;
   overflow: hidden;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-bottom: 1px solid #eef2f4;
 }
-.art-explore { background: linear-gradient(135deg, #10617b 0%, #2f93b3 100%); }
-.art-generator { background: linear-gradient(135deg, #173a4a 0%, #43a2ca 100%); }
-
-/* little decorative "connection" dots for the explorer card */
-.art-dot {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.16);
+/* Card thumbnails (web/public/img). Explorer = full-bleed globe shot; Generator
+   = a choropleth on a white field, shown "contain" so the whole shape stays in
+   view rather than being cropped. */
+.art-explore {
+  background-image: url('/img/explorer-card.jpg');
+  background-size: cover;
 }
-.art-dot.d1 { width: 14px; height: 14px; top: 34px; left: 60px; }
-.art-dot.d2 { width: 10px; height: 10px; top: 78px; left: 150px; }
-.art-dot.d3 { width: 9px;  height: 9px;  top: 44px; left: 240px; }
-.art-dot.d4 { width: 7px;  height: 7px;  top: 92px; left: 320px; }
-
-/* decorative "chart bars" for the generator card */
-.art-bar {
-  position: absolute;
-  bottom: 0;
-  width: 30px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 4px 4px 0 0;
+.art-generator {
+  background-color: #ffffff;
+  background-image: url('/img/generator-card.jpg');
+  background-size: contain;
 }
-.art-bar.b1 { left: 70px;  height: 48px; }
-.art-bar.b2 { left: 116px; height: 86px; }
-.art-bar.b3 { left: 162px; height: 64px; }
-.art-bar.b4 { left: 208px; height: 100px; }
 
 .tool-card-body { padding: 22px 24px 26px; }
 .tool-card-body h2 {
@@ -147,22 +134,38 @@ html, body {
 .citation {
   font-size: 14.5px;
   line-height: 1.6;
-  color: #2a3a42;
+  color: #1b2329;
 }
 .citation::marker { color: #10617b; font-weight: 600; }
 .citation a { color: #1879d5; text-decoration: none; }
 .citation a:hover { text-decoration: underline; }
-.citation-text.placeholder { color: #9aa7af; font-style: italic; }
 
 /* ---- footer ---- */
 .landing-foot {
-  margin-top: 48px;
+  margin-top: 20px;
   text-align: center;
-  font-size: 13px;
-  color: #6a7882;
+  font-size: 14px;
+  color: #4a5862;
 }
-.landing-foot a { color: #1879d5; text-decoration: none; }
+.landing-foot a {
+  color: #10617b;
+  font-weight: 600;
+  text-decoration: none;
+}
 .landing-foot a:hover { text-decoration: underline; }
+.lab-credit {
+  margin-top: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #4a5862;
+  font-size: 13px;
+  text-decoration: none;
+}
+.lab-credit .lab-logo { width: 38px; height: 38px; display: block; }
+.lab-credit strong { color: #10617b; font-weight: 600; }
+.lab-credit:hover strong { text-decoration: underline; }
 
 @media (max-width: 720px) {
   .landing { padding: 40px 18px 32px; }

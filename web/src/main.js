@@ -8,8 +8,9 @@
 import {
   normalize, autoBreaks, buildBins, interpolatePalette, labelSingle, colorsFor,
   comparisonLogRatios, comparisonBreaks, labelComparison, divergingPalette, colorsForComparison,
+  breaksForScheme,
 } from "./sci.js";
-import { computeBbox, renderMap } from "./render.js";
+import { computeBbox, renderMap, naturalHeight } from "./render.js";
 import { encodeMp4, mp4Supported } from "./video.js";
 import { downloadSvg } from "./export_vector.js";
 
@@ -20,6 +21,8 @@ const $ = (id) => document.getElementById(id);
 const CAPTION = "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab";
 const SHARE_URL = "https://social-connectedness.org/";
 const MAX_OPTIONS = 1500; // cap rendered <option>s for huge levels (us_zcta)
+// Palettes whose colors clash with a red home-region highlight (use black instead).
+const REDISH_PALETTES = new Set(["Red", "Orange"]);
 
 // ---- type system ----------------------------------------------------------
 // Levels are the selectable granularities; types are origin->dest combos. We
@@ -94,6 +97,7 @@ const OPT_SAME_SUBCONT = "__same_subcontinent__";
 // others. Continent groups + individual countries stay additive on top.
 const SCOPE_OPTS = [OPT_ALL, OPT_SAME_COUNTRY, OPT_SAME_SUBCONT];
 let cbsaList = null;       // [{ code, title, zctas:[...] }] — lazy-loaded
+let cbsaOpts = null;       // [{ id, label }] for the searchable metro listbox
 const geoCache = {};      // level (or "level/shard") -> FeatureCollection
 const partsCache = {};    // sharded level -> [shardKey,...]
 const namesCache = {};    // level -> { id: [name, country] }
@@ -189,6 +193,15 @@ function setMode(mode) {
   if (el) el.checked = true;
 }
 
+// Single-map scaling: divide each region's SCI by either a reference quantile
+// (default) or a fixed absolute SCI value the user types.
+const refMode = () => document.querySelector('input[name="refMode"]:checked')?.value || "quantile";
+function syncRefModeUI() {
+  const abs = refMode() === "absolute";
+  if ($("refqWrap")) $("refqWrap").style.display = abs ? "none" : "";
+  if ($("refvalWrap")) $("refvalWrap").style.display = abs ? "" : "none";
+}
+
 // ---- populate controls ----------------------------------------------------
 
 function fillDestOptions() {
@@ -282,6 +295,25 @@ function renderSourceOptionsB() {
 // "Regions to show" is two click-to-toggle checkbox lists (region groups +
 // individual countries) instead of cmd-click <select multiple> boxes.
 const selectedGroups = () => [...$("group").querySelectorAll("input:checked")].map((i) => i.value);
+
+// Uncheck the auto scope options (All countries / Same country / Same
+// subcontinent) — done when the user adds an explicit continent or country.
+function uncheckScopeOpts() {
+  for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) {
+    if (SCOPE_OPTS.includes(cb.value)) cb.checked = false;
+  }
+}
+
+// Uncheck explicit selections (continent groups + individual countries) — done
+// when the user picks an auto scope option. The two are mutually exclusive.
+function uncheckExplicitSelections() {
+  for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) {
+    if (!SCOPE_OPTS.includes(cb.value)) cb.checked = false;
+  }
+  for (const cb of $("customCountries").querySelectorAll('input[type="checkbox"]')) {
+    cb.checked = false;
+  }
+}
 const selectedCustom = () => [...$("customCountries").querySelectorAll("input:checked")].map((i) => i.value);
 
 // ISO2 country of the currently selected source region (the country-level id
@@ -365,6 +397,71 @@ async function loadBorderFeatures(t, codes, metroZctas, activeFeatures) {
 function parseBreaks(text) {
   const nums = text.split(",").map((s) => parseFloat(s.trim())).filter((n) => !Number.isNaN(n));
   return nums.length ? nums.sort((a, b) => a - b) : null;
+}
+
+// ---- break scheme preview -------------------------------------------------
+// The "Break scheme" dropdown auto-fills the breaks box with the scheme's actual
+// numbers so they're visible and editable. We recompute on every relevant change
+// ("immediately on selection"), kept cheap by deriving the shown regions'
+// multipliers from the SCI + names indexes (both cached) instead of geometry.
+
+const breakScheme = () => $("breakScheme") ? $("breakScheme").value : "quantile";
+
+let fillingBreaks = false; // guards the box so a programmatic fill isn't read as a user edit
+function setBreaksBox(str) {
+  if (!$("breaks")) return;
+  fillingBreaks = true;
+  $("breaks").value = str;
+  fillingBreaks = false;
+}
+
+// Multipliers of the currently-shown single-map regions, WITHOUT loading
+// geometry: active ids = friend regions in the selected countries (from the
+// light names index, or the metro's ZIPs), intersected with the source's SCI.
+async function previewRelValues() {
+  const type = currentType();
+  const t = manifest.types[type];
+  if (!t || compareMode() || !$("sourceA").value) return null;
+  const sciData = await getSci(type, $("sourceA").value);
+  let activeIds;
+  const metroZctas = metroFilterZctas();
+  if (metroZctas) {
+    activeIds = [...metroZctas].filter((id) => sciData[id] != null);
+  } else {
+    const names = await getNames(t.friendGeo);
+    const codes = t.friendByCountry ? selectedCountryCodes() : null;
+    activeIds = Object.keys(names).filter(
+      (id) => sciData[id] != null && (codes == null || codes.has(names[id][1]))
+    );
+  }
+  if (!activeIds.length) return null;
+  let absRef = null;
+  if (refMode() === "absolute") {
+    absRef = parseFloat($("refval").value);
+    if (!(absRef > 0)) return null;
+  }
+  const { rel } = normalize(sciData, activeIds, parseFloat($("refq").value) || 0.25, absRef);
+  return activeIds.map((id) => rel[id]).filter((v) => v != null);
+}
+
+let breaksPreviewToken = 0;
+let breaksPreviewTimer = null;
+// Debounced recompute of the breaks box for the active scheme. No-op in compare
+// mode or Custom scheme (the user owns the box then).
+function refreshBreaksPreview() {
+  if (breaksPreviewTimer) clearTimeout(breaksPreviewTimer);
+  breaksPreviewTimer = setTimeout(() => {
+    const scheme = breakScheme();
+    if (compareMode() || scheme === "custom") return;
+    const token = ++breaksPreviewToken;
+    previewRelValues()
+      .then((relVals) => {
+        if (token !== breaksPreviewToken) return; // a newer change superseded us
+        const br = relVals ? breaksForScheme(scheme, relVals) : null;
+        setBreaksBox(br ? br.join(", ") : "");
+      })
+      .catch(() => { /* preview is best-effort; leave the box as-is on error */ });
+  }, 250);
 }
 
 // Custom comparison breaks: the user types multipliers (e.g. "1.5, 2, 3") and we
@@ -469,10 +566,41 @@ function selectGroup(name) {
   for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) {
     cb.checked = name != null && cb.value === name;
   }
+  reorderGroups();
 }
 
 function clearCustomCountries() {
   for (const cb of $("customCountries").querySelectorAll('input[type="checkbox"]')) cb.checked = false;
+  reorderCountries();
+}
+
+// Reorder a set of checklist rows so checked ones float to the top (alphabetical
+// by label), with unchecked rows below in their original order (data-ord, stamped
+// at build). Rows are moved in place via appendChild, preserving checked state +
+// listeners; any fixed leading rows (scope options + divider) are left untouched.
+function floatCheckedToTop(rows, container) {
+  const checked = [], unchecked = [];
+  for (const r of rows) (r.querySelector("input").checked ? checked : unchecked).push(r);
+  checked.sort((a, b) => a.textContent.trim().localeCompare(b.textContent.trim()));
+  unchecked.sort((a, b) => (+a.dataset.ord) - (+b.dataset.ord));
+  const frag = document.createDocumentFragment();
+  for (const r of [...checked, ...unchecked]) frag.appendChild(r);
+  container.appendChild(frag);
+}
+// Continent groups float to top when checked; the scope options + divider stay put.
+function reorderGroups() {
+  const rows = [...$("group").querySelectorAll("label.chk")]
+    .filter((r) => !SCOPE_OPTS.includes(r.querySelector("input").value));
+  floatCheckedToTop(rows, $("group"));
+}
+function reorderCountries() {
+  floatCheckedToTop([...$("customCountries").querySelectorAll("label.chk")], $("customCountries"));
+  filterCountryList(); // re-apply the search filter to the moved rows
+}
+// Stamp each checklist row with its original (build-time) order for later sorting.
+function stampChecklistOrder(id) {
+  let i = 0;
+  for (const r of $(id).querySelectorAll("label.chk")) r.dataset.ord = i++;
 }
 
 // Show only the country rows matching the search box (checked-but-hidden rows
@@ -525,7 +653,13 @@ async function generate() {
         labels: breaks.map(labelComparison) };
     } else {
       const sciData = await getSci(type, $("sourceA").value);
-      const { rel } = normalize(sciData, active, parseFloat($("refq").value) || 0.25);
+      const absMode = refMode() === "absolute";
+      let absRef = null;
+      if (absMode) {
+        absRef = parseFloat($("refval").value);
+        if (!(absRef > 0)) throw new Error("Enter a positive absolute SCI value to scale by.");
+      }
+      const { rel } = normalize(sciData, active, parseFloat($("refq").value) || 0.25, absRef);
       const relVals = activeFeatures.map((f) => rel[f.properties.id]).filter((v) => v != null);
       if (relVals.length === 0) throw new Error("No SCI data for this region in the selected countries.");
       const breaks = parseBreaks($("breaks").value) || autoBreaks(relVals);
@@ -539,6 +673,9 @@ async function generate() {
     const borderFeatures = await loadBorderFeatures(t, codes, metroZctas, activeFeatures);
     const highlightId = !compareMode() && $("highlight").checked && t.sourceGeo === t.friendGeo
       ? $("sourceA").value : null;
+    // The home-region fill is red by default, but red/orange palettes make a red
+    // highlight indistinguishable from the data — use black for those.
+    const highlightColor = REDISH_PALETTES.has($("palette").value) ? "#000000" : "#FF0000";
     const { w, h } = outputPixels();
     const opts = {
       friendGeo, colorById, activeIds: active,
@@ -546,11 +683,18 @@ async function generate() {
       // subcontinents / countries) → geometry extent (only for "All countries"
       // / no selection). Using the hard-coded box for selections keeps combos
       // from stretching to far-flung territories (e.g. French Guiana → France).
-      bbox: (metroZctas ? null : manualBbox()) || selectionBboxArray() || computeBbox(friendGeo, active),
-      showBorders: $("borders").checked, borderFeatures, highlightId,
+      // A metro filter drives its OWN zoom: skip both the manual and the
+      // selection box (the latter is the whole-US box for ZIP→ZIP) so the
+      // metro-filtered geometry's extent wins.
+      bbox: (metroZctas ? null : (manualBbox() || selectionBboxArray())) || computeBbox(friendGeo, active),
+      showBorders: $("borders").checked, borderFeatures, highlightId, highlightColor,
       title: $("title").value || autoTitle(), subtitle: $("subtitle").value,
       caption: CAPTION, legend, width: w, height: h,
     };
+    // Trim the empty top/bottom letterbox on wide (e.g. world) maps by shrinking
+    // the canvas to the map's natural aspect. Clamped so it only ever reduces the
+    // height — tall/narrow maps keep the requested height.
+    opts.height = Math.min(opts.height, naturalHeight(opts));
     lastRender = opts;
     lastCanvas = renderMap(opts);
 
@@ -689,14 +833,22 @@ function buildRCode() {
   ];
   if (typeInfo().friendByCountry && codes) lines.push(`  friend_countries = c(${[...codes].map((c) => `"${c}"`).join(", ")})`);
   if (cbsa) lines.push(`  filter_dest_cbsa = "${cbsa.code}"`);
-  const refq = parseFloat($("refq").value) || 0.25;
-  if (refq !== 0.25) lines.push(`  reference_quantile = ${refq}`);
+  if (refMode() === "absolute") {
+    const rv = parseFloat($("refval").value);
+    if (rv > 0) lines.push(`  reference_value = ${rv}`);
+  } else {
+    const refq = parseFloat($("refq").value) || 0.25;
+    if (refq !== 0.25) lines.push(`  reference_quantile = ${refq}`);
+  }
   const br = parseBreaks($("breaks").value);
   if (br) lines.push(`  breaks = c(${br.join(", ")})`);
   if ($("title").value) lines.push(`  title = "${$("title").value}"`);
   if ($("subtitle").value) lines.push(`  subtitle = "${$("subtitle").value}"`);
   if (!$("borders").checked) lines.push(`  show_admin1_borders = FALSE`);
-  if ($("highlight").checked) lines.push(`  label_focal_region = TRUE`);
+  if ($("highlight").checked) {
+    lines.push(`  label_focal_region = TRUE`);
+    if (REDISH_PALETTES.has($("palette").value)) lines.push(`  highlight_color = "#000000"`);
+  }
   const z2 = manualBbox();
   if (z2) { lines.push(`  xlim = c(${z2[0]}, ${z2[2]})`); lines.push(`  ylim = c(${z2[1]}, ${z2[3]})`); }
   lines.push(`  output_path = "output/maps/map.png"`);
@@ -725,6 +877,7 @@ function reset() {
   fillDestOptions();
   $("destType").value = "country";
   if ($("destCbsa")) $("destCbsa").value = "";
+  if ($("searchCbsa")) $("searchCbsa").value = "";
   syncCbsaUI();
   $("searchA").value = "";
   if ($("searchB")) $("searchB").value = "";
@@ -735,6 +888,11 @@ function reset() {
     if ($(id)) $(id).value = "";
   }
   $("refq").value = "0.25";
+  if ($("refval")) $("refval").value = "";
+  if ($("breakScheme")) $("breakScheme").value = "quantile";
+  const rq = document.querySelector('input[name="refMode"][value="quantile"]');
+  if (rq) rq.checked = true;
+  syncRefModeUI();
   $("width").value = "30"; $("height").value = "25"; $("dpi").value = "300";
   $("palette").selectedIndex = 0;
   $("borders").checked = true;
@@ -745,7 +903,7 @@ function reset() {
   $("mapContainer").innerHTML = "";
   $("downloadRow").style.display = "none";
   $("placeholder").style.display = "";
-  refreshSources().catch(showError);
+  refreshSources().then(refreshBreaksPreview).catch(showError);
 }
 
 // ---- metro (CBSA) ZIP filter ----------------------------------------------
@@ -755,12 +913,21 @@ function reset() {
 async function ensureCbsaList() {
   if (cbsaList) return cbsaList;
   cbsaList = await getJSON("cbsa_zcta.json");
-  if ($("destCbsa")) {
-    $("destCbsa").innerHTML =
-      `<option value="">(All ZIP Codes)</option>` +
-      cbsaList.map((c) => `<option value="${c.code}">${c.title}</option>`).join("");
-  }
+  // Searchable listbox options: a leading "(All ZIP Codes)" row (empty value)
+  // followed by every metro, filtered live by #searchCbsa (mirrors source regions).
+  cbsaOpts = [{ id: "", label: "(All ZIP Codes)" }, ...cbsaList.map((c) => ({ id: c.code, label: c.title }))];
+  renderCbsaOptions();
   return cbsaList;
+}
+
+// Render the metro listbox, keeping the current pick if still in the filtered
+// list, else falling back to "(All ZIP Codes)" (the first, always-present row).
+function renderCbsaOptions() {
+  if (!$("destCbsa") || !cbsaOpts) return;
+  const prev = $("destCbsa").value;
+  const { html, hasPrev } = optionsHtml(cbsaOpts, prev, $("searchCbsa") ? $("searchCbsa").value : "");
+  $("destCbsa").innerHTML = html;
+  $("destCbsa").value = hasPrev ? prev : "";
 }
 
 // The metro filter only applies when coloring ZIPs (friend level us_zcta).
@@ -797,7 +964,7 @@ function onDestChange() {
   else if (dest === "country") selectGroup(OPT_ALL);       // world map of countries
   else selectGroup(OPT_SAME_COUNTRY);                       // gadm1 / gadm2 region levels
   syncCbsaUI();
-  refreshSources().then(autoFillBounds).catch(showError);
+  refreshSources().then(() => { autoFillBounds(); refreshBreaksPreview(); }).catch(showError);
 }
 
 // ---- init -----------------------------------------------------------------
@@ -835,28 +1002,51 @@ async function init() {
   $("customCountries").innerHTML = countries
     .map((c) => `<label class="chk" data-name="${c.name.toLowerCase()}"><input type="checkbox" value="${c.id}" /> ${c.name}</label>`)
     .join("");
+  stampChecklistOrder("group");
+  stampChecklistOrder("customCountries");
   $("palette").innerHTML = Object.keys(palettes.single).map((p) => `<option>${p}</option>`).join("");
   if ($("cpalette")) $("cpalette").innerHTML = Object.keys(palettes.comparison).map((p) => `<option>${p}</option>`).join("");
 
   initListbox("sourceA");
   initListbox("sourceB");
+  initListbox("destCbsa");
   syncCompareUI();
+  syncRefModeUI();
   syncCbsaUI();
   await refreshSources();
+  refreshBreaksPreview();
 
   $("originType").addEventListener("change", () => { fillDestOptions(); onDestChange(); });
   $("destType").addEventListener("change", onDestChange);
-  if ($("destCbsa")) $("destCbsa").addEventListener("change", onCbsaChange);
+  if ($("destCbsa")) $("destCbsa").addEventListener("change", () => { onCbsaChange(); refreshBreaksPreview(); });
+  if ($("searchCbsa")) $("searchCbsa").addEventListener("input", renderCbsaOptions);
   $("group").addEventListener("change", (e) => {
-    // Enforce at-most-one among the scope options; leave continent groups alone.
-    if (e.target.checked && SCOPE_OPTS.includes(e.target.value)) {
-      for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) {
-        if (cb !== e.target && SCOPE_OPTS.includes(cb.value)) cb.checked = false;
+    if (e.target.checked) {
+      if (SCOPE_OPTS.includes(e.target.value)) {
+        // Picking one scope option (All / Same country / Same subcontinent)
+        // clears the other two scope options AND any explicit continent/country
+        // selections — they're mutually exclusive.
+        for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) {
+          if (cb !== e.target && SCOPE_OPTS.includes(cb.value)) cb.checked = false;
+        }
+        uncheckExplicitSelections();
+        reorderCountries(); // cleared countries fall back to their original order
+      } else {
+        // Picking an explicit continent group clears the auto scope options.
+        uncheckScopeOpts();
       }
     }
+    reorderGroups();
     autoFillBounds();
+    refreshBreaksPreview();
   });
-  $("customCountries").addEventListener("change", autoFillBounds);
+  $("customCountries").addEventListener("change", (e) => {
+    // Adding an explicit individual country also clears the auto scope options.
+    if (e.target.checked) uncheckScopeOpts();
+    reorderCountries();
+    autoFillBounds();
+    refreshBreaksPreview();
+  });
   $("countrySearch").addEventListener("input", filterCountryList);
   $("searchA").addEventListener("input", renderSourceOptions);
   // When the origin region changes and a dynamic origin-relative option is
@@ -864,10 +1054,21 @@ async function init() {
   $("sourceA").addEventListener("change", () => {
     const g = selectedGroups();
     if (g.includes(OPT_SAME_COUNTRY) || g.includes(OPT_SAME_SUBCONT)) autoFillBounds();
+    refreshBreaksPreview();
   });
   if ($("searchB")) $("searchB").addEventListener("input", renderSourceOptionsB);
   document.querySelectorAll('input[name="mapMode"]').forEach(
-    (r) => r.addEventListener("change", syncCompareUI));
+    (r) => r.addEventListener("change", () => { syncCompareUI(); refreshBreaksPreview(); }));
+  document.querySelectorAll('input[name="refMode"]').forEach(
+    (r) => r.addEventListener("change", () => { syncRefModeUI(); refreshBreaksPreview(); }));
+  // Break-scheme controls: pick a scheme to auto-fill the box; editing the box
+  // by hand switches the scheme to Custom (and stops auto-filling).
+  if ($("breakScheme")) $("breakScheme").addEventListener("change", refreshBreaksPreview);
+  if ($("breaks")) $("breaks").addEventListener("input", () => {
+    if (!fillingBreaks && $("breakScheme")) $("breakScheme").value = "custom";
+  });
+  if ($("refq")) $("refq").addEventListener("input", refreshBreaksPreview);
+  if ($("refval")) $("refval").addEventListener("input", refreshBreaksPreview);
   $("generate").addEventListener("click", generate);
   $("dlPng").addEventListener("click", () => download("png"));
   $("dlJpg").addEventListener("click", () => download("jpg"));

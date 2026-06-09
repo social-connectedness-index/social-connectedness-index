@@ -32,16 +32,19 @@ The web app produces the same **static, ggplot-style map images** as the R tool
 (`src/make_map.R`) — not a zoomable slippy map. The choropleth, title/subtitle,
 legend, and caption are drawn on an HTML5 **canvas** (`src/render.js`) using an
 equirectangular projection fit to the chosen bounds. The coloring math
-(reference-quantile normalization, automatic and custom breaks, palette
-interpolation, legend labels, and diverging comparison palettes) is a
-parity-verified port of `src/make_map.R` / `src/mapping_tools.R`, in `src/sci.js`.
+(reference-quantile **or absolute-value** normalization; break schemes —
+quantile / even / log / custom; palette interpolation, legend labels, and
+diverging comparison palettes) is a parity-verified port of `src/make_map.R` /
+`src/mapping_tools.R`, in `src/sci.js`. World/wide maps auto-trim their vertical
+letterbox to the map's natural aspect (`naturalHeight` in `src/render.js`).
 (The web app replaced the old interactive R/Shiny app, which has been removed; the
 R tool now lives on only as the batch/scripting backend and the data export below.)
 
 It supports these controls: origin/destination type selection,
-source-region search, country-group and custom-country filtering, palette,
-reference quantile, custom breaks, borders, source highlighting, and titles.
-Both **single-region** and
+source-region search, country-group and custom-country filtering (with a
+searchable metro filter for ZIP maps), palette, SCI scaling (reference quantile
+or absolute value), break scheme (quantile / even / log / custom), borders,
+home-region coloring, and titles. Both **single-region** and
 **comparison** (two-region, diverging) maps are supported.
 
 **Map types:** 18 of the standalone R tool's map types are available. Excluded

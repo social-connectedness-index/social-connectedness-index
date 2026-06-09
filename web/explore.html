@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Interactive map of Facebook's Social Connectedness Index." />
   <title>Interactive Social Connectedness Index</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
@@ -45,6 +47,11 @@
     <p>The map shows the relative probability that a Facebook user in the selected location has a friendship link to a Facebook user in every other location at the same level.</p>
     <p>The Social Connectedness Index is the number of Facebook friendship links between two locations divided by the product of their Facebook user populations, scaled so only relative values matter (e.g. if the SCI between location A and location B is twice as large as the SCI between location A and location C, then a randomly chosen Facebook user in location A is twice as likely to be friends with a randomly chosen Facebook user in location B than with a user in location C).</p>
     <p>More details, including the full data download, are available at the <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
+    <p class="map-attribution">Basemap © <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">Mapbox</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · <a href="https://www.mapbox.com/map-feedback/" target="_blank" rel="noopener">Improve this map</a></p>
+    <a class="lab-mark" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener" title="Social Capital Lab">
+      <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" />
+      <span>Social Capital Lab</span>
+    </a>
   </div>
 
   <!-- Right-side panel: bold-centered title, then legend, then top-10 table.
@@ -78,10 +85,6 @@
       <div class="legend-title">Likelihood of Friendship</div>
       <div class="legend-scale" id="legend-scale"></div>
     </div>
-  </div>
-
-  <div id="credits">
-    Data: <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Facebook Social Connectedness Index</a>
   </div>
 
   <!-- "See top connections" popup — the Top-10 list, opened from the side panel

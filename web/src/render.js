@@ -139,6 +139,56 @@ function fitText(text, maxWidth, startSize, bold, maxLines, minSize) {
   return { lines, size };
 }
 
+// Lay out the H-independent "chrome": margin, font sizes, wrapped title/subtitle/
+// caption, and the vertical space each reserves (top text block, legend, caption)
+// plus the y where the map can start. Shared by drawScene and naturalHeight so
+// the two never drift.
+function layoutChrome(W, opts) {
+  const { title = "", subtitle = "", caption = "" } = opts;
+  const margin = Math.round(W * 0.025);
+  const titleFs = Math.round(W / 40);
+  const subFs = Math.round(W / 52);
+  const capFs = Math.round(W / 78);   // caption (dataset link + handle)
+  const legendFs = Math.round(W / 68); // legend title + tick labels
+  const textMaxW = W - margin * 2;
+  const titleFit = title ? fitText(title, textMaxW, titleFs, true, 2, Math.round(titleFs * 0.62)) : { lines: [], size: titleFs };
+  const titleArr = titleFit.lines;
+  const titleDrawFs = titleFit.size;
+  const subArr = subtitle ? wrapText(subtitle, textMaxW, subFs, false) : [];
+  const capArr = caption ? wrapText(caption, textMaxW, capFs, false) : [];
+  const titleLines = titleArr.length;
+  const subLines = subArr.length;
+  const capLines = capArr.length;
+  const captionSpace = capLines ? capLines * capFs * 1.4 + margin * 0.3 : 0;
+  const legendSpace = Math.round(legendFs * 4.8);
+  // Reproduce drawScene's top-text advance to find where the map can start.
+  let y = margin + (titleLines ? titleDrawFs : 0);
+  if (titleLines) y += titleLines * titleDrawFs * 1.25;
+  if (subLines) y += subLines * subFs * 1.4 + subFs;
+  const mapTop = title || subtitle ? y + margin * 0.4 : margin;
+  return {
+    margin, subFs, capFs, legendFs, titleArr, titleDrawFs, subArr, capArr,
+    titleLines, subLines, capLines, captionSpace, legendSpace, mapTop,
+  };
+}
+
+// The output height at which a width-fit map leaves NO vertical letterbox: the
+// map fills the frame width and is exactly as tall as its projected aspect needs,
+// with chrome stacked above/below. Callers clamp with min(userHeight, this), so it
+// only TRIMS the empty top/bottom bands on wide (e.g. world) maps and never grows
+// tall ones. Returns a pixel height.
+export function naturalHeight(opts) {
+  const W = Math.round(opts.width);
+  const [minLon, minLat, maxLon, maxLat] = opts.bbox;
+  const cosLat = Math.max(Math.cos((((minLat + maxLat) / 2) * Math.PI) / 180), 0.05);
+  const lonSpan = (maxLon - minLon) * cosLat;
+  const latSpan = (maxLat - minLat) || 1;
+  const L = layoutChrome(W, opts);
+  const availW = W - L.margin * 2;
+  const drawH = latSpan * (availW / lonSpan); // map height when width is the binding fit
+  return Math.round(L.mapTop + drawH + L.legendSpace + L.captionSpace + L.margin);
+}
+
 // ---- shared scene ---------------------------------------------------------
 
 function drawScene(g, opts) {
@@ -157,26 +207,13 @@ function drawScene(g, opts) {
   const lonSpan = (maxLon - minLon) * cosLat;
   const latSpan = maxLat - minLat || 1;
 
-  const margin = Math.round(W * 0.025);
-  const titleFs = Math.round(W / 40);
-  const subFs = Math.round(W / 52);
-  const capFs = Math.round(W / 78);   // caption (dataset link + handle) — a bit larger for readability
-  const legendFs = Math.round(W / 68); // legend title + tick labels — a bit larger
-
-  // Auto-wrap title/subtitle/caption to the frame width so nothing runs off the
-  // edge and no manual "\n" is needed. The title also auto-shrinks to stay ≤2
-  // lines when it can, so a long title doesn't crowd out the map.
-  const textMaxW = W - margin * 2;
-  const titleFit = title ? fitText(title, textMaxW, titleFs, true, 2, Math.round(titleFs * 0.62)) : { lines: [], size: titleFs };
-  const titleArr = titleFit.lines;
-  const titleDrawFs = titleFit.size;
-  const subArr = subtitle ? wrapText(subtitle, textMaxW, subFs, false) : [];
-  const capArr = caption ? wrapText(caption, textMaxW, capFs, false) : [];
-  const titleLines = titleArr.length;
-  const subLines = subArr.length;
-  const capLines = capArr.length;
-  const captionSpace = capLines ? capLines * capFs * 1.4 + margin * 0.3 : 0;
-  const legendSpace = Math.round(legendFs * 4.8);
+  // Auto-wrap/shrink the title, subtitle and caption to the frame width (see
+  // layoutChrome) so nothing runs off the edge and no manual "\n" is needed.
+  const L = layoutChrome(W, opts);
+  const {
+    margin, subFs, capFs, legendFs, titleArr, titleDrawFs, subArr, capArr,
+    titleLines, subLines, capLines, captionSpace, legendSpace, mapTop,
+  } = L;
 
   g.background("#ffffff");
 
@@ -190,7 +227,6 @@ function drawScene(g, opts) {
     y += subLines * subFs * 1.4 + subFs;
   }
 
-  const mapTop = (title || subtitle ? y + margin * 0.4 : margin);
   const mapBottom = H - legendSpace - captionSpace - margin;
   const mapLeft = margin;
   const mapRight = W - margin;

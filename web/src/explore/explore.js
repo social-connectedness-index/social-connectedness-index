@@ -74,7 +74,10 @@ if (!forceNoBasemap) {
 
 // Zoom/compass at bottom-right so it doesn't sit under the top-right results card.
 map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
-map.addControl(new mapboxgl.AttributionControl({ compact: true }));
+// No on-map AttributionControl: the required © Mapbox / © OpenStreetMap credit
+// lives in the "About this map" (i) panel instead (see #data-explanation in
+// explore.html) — equivalent to Mapbox's own compact "behind a click" control,
+// just relocated to keep the map corners clean.
 
 let hoveredStateId = null;
 
