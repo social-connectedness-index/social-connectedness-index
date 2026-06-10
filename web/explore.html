@@ -54,7 +54,7 @@
     </a>
   </div>
 
-  <!-- Right-side panel: bold-centered title, then legend, then top-10 table.
+  <!-- Right-side panel: bold-centered title, then toggles, then legend.
        On mobile this becomes a dismissable bottom sheet (close button below). -->
   <div id="console" style="display: none;">
     <button type="button" id="console-close" aria-label="Close">×</button>
@@ -70,41 +70,35 @@
       </label>
 
       <label class="toggle-row" id="dynamic-scale-row">
-        <span class="toggle-label">Scale colors to the area in view</span>
+        <span class="toggle-label">Scale colors to the area in view<span class="info-wrap">
+          <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
+            <span class="info-icon" aria-hidden="true">i</span>
+          </button>
+          <span class="info-tip" role="tooltip">By default, colors are scaled to the selected place's connections across the whole world, so the same color always means the same connection strength. Turn this on to rescale the colors to only the regions currently in view — useful for seeing finer differences within the area you're looking at.</span>
+        </span></span>
         <span class="switch">
           <input type="checkbox" id="dynamic-scale" />
           <span class="slider" aria-hidden="true"></span>
         </span>
       </label>
 
-      <button type="button" id="see-top-connections-btn" aria-haspopup="dialog"
-              aria-controls="top-connections-overlay">See top connections</button>
+      <div class="control-row" id="ref-quantile-row">
+        <label class="control-label" for="ref-quantile">Scale relative to<span class="info-wrap">
+          <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
+            <span class="info-icon" aria-hidden="true">i</span>
+          </button>
+          <span class="info-tip" role="tooltip">Sets which point of the selected place's connection distribution counts as the baseline "1x" color. By default the 25th percentile is used. Lower it to make more regions read as strongly connected; raise it to make the map more selective.</span>
+        </span></label>
+        <span class="ref-quantile-field">
+          <input type="number" id="ref-quantile" min="0" max="100" step="1" value="25" />
+          <span class="ref-quantile-suffix">th percentile</span>
+        </span>
+      </div>
     </div>
 
     <div id="legend" class="console-legend">
       <div class="legend-title">Likelihood of Friendship</div>
       <div class="legend-scale" id="legend-scale"></div>
-    </div>
-  </div>
-
-  <!-- "See top connections" popup — the Top-10 list, opened from the side panel
-       and dismissable (× button / backdrop click / Escape). -->
-  <div id="top-connections-overlay" hidden>
-    <div id="top-connections-popup" role="dialog" aria-modal="true" aria-labelledby="table-title">
-      <button type="button" id="top-connections-close" class="close-btn" aria-label="Close">×</button>
-      <div id="top-10-container" class="table-container">
-        <div class="table-title" id="table-title">Top 10 Connected Countries</div>
-        <table id="top-10-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th id="tab-lab">Country</th>
-              <th>SCI</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
     </div>
   </div>
 

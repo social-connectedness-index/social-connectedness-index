@@ -232,9 +232,23 @@ async function refreshSources() {
   renderSourceOptionsB();
 }
 
+// Fold text for accent-insensitive search: strip diacritics (ü→u, é→e, ñ→n) plus
+// a few non-decomposing letters, then lowercase — so "Dusseldorf" matches
+// "Düsseldorf" regardless of OS or keyboard. (toLowerCase alone left accented
+// names unmatchable when typed with plain letters, notably on Windows.)
+const SEARCH_FOLD = { "ß": "ss", "ø": "o", "ł": "l", "æ": "ae", "œ": "oe", "đ": "d", "ð": "d", "þ": "th", "ı": "i" };
+const fold = (s) =>
+  (s || "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "") // drop combining diacritical marks
+    .toLowerCase()
+    .replace(/[ßøłæœđðþı]/g, (c) => SEARCH_FOLD[c] || c);
+
 function optionsHtml(list, prevValue, query) {
-  const q = (query || "").trim().toLowerCase();
-  let opts = q ? list.filter((o) => o.label.toLowerCase().includes(q)) : list;
+  const q = fold((query || "").trim());
+  // Cache each option's folded label so we don't re-normalize on every keystroke
+  // (the source lists can hold tens of thousands of regions).
+  let opts = q ? list.filter((o) => (o._fold || (o._fold = fold(o.label))).includes(q)) : list;
   const truncated = opts.length > MAX_OPTIONS;
   if (truncated) opts = opts.slice(0, MAX_OPTIONS);
   let html = opts.map((o) => `<div class="opt" role="option" data-v="${o.id}">${o.label}</div>`).join("");
@@ -529,8 +543,12 @@ function clearBoundsFields() {
 // across the Atlantic when a sovereign (e.g. France, via French Guiana) drags
 // its far-flung mainland into the active set.
 function selectionBbox() {
-  const origin = $("originType").value, dest = $("destType").value;
-  if (dest.startsWith("us_") && (origin === dest || origin.startsWith("us_"))) {
+  const dest = $("destType").value;
+  // Any US sub-national friend level (County / ZIP Code / Metro) frames to the
+  // continental-US box — the same bounds as a United States map — regardless of
+  // the origin level. Otherwise computeBbox(friendGeo) would inflate the frame
+  // to include Alaska/Hawaii/territories and lose the continental US.
+  if (dest.startsWith("us_")) {
     return bounds.groups["United States"];
   }
   const gsel = selectedGroups();
@@ -606,7 +624,7 @@ function stampChecklistOrder(id) {
 // Show only the country rows matching the search box (checked-but-hidden rows
 // stay checked, so the selection survives across searches).
 function filterCountryList() {
-  const q = $("countrySearch").value.trim().toLowerCase();
+  const q = fold($("countrySearch").value.trim());
   for (const row of $("customCountries").children) {
     row.style.display = !q || (row.dataset.name || "").includes(q) ? "" : "none";
   }
@@ -1000,7 +1018,7 @@ async function init() {
     `<div class="chk-divider"></div>` +
     continentGroups.map((g) => `<label class="chk"><input type="checkbox" value="${g}" /> ${g}</label>`).join("");
   $("customCountries").innerHTML = countries
-    .map((c) => `<label class="chk" data-name="${c.name.toLowerCase()}"><input type="checkbox" value="${c.id}" /> ${c.name}</label>`)
+    .map((c) => `<label class="chk" data-name="${fold(c.name)}"><input type="checkbox" value="${c.id}" /> ${c.name}</label>`)
     .join("");
   stampChecklistOrder("group");
   stampChecklistOrder("customCountries");

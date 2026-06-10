@@ -91,44 +91,27 @@ const hoverPopup = new mapboxgl.Popup({
   maxWidth: "240px",
 });
 
-// Friendliness multiplier (sci / reference), formatted for a tooltip.
-function fmtSciMultiplier(sci, refSci) {
-  if (sci == null || isNaN(sci) || !refSci || refSci <= 0) return null;
-  const m = sci / refSci;
-  if (m < 1) return "<1x";
-  if (m < 100) return Math.round(m) + "x";
-  const f = m > 99999 ? 5000 : m > 9999 ? 500 : 50;
-  return (Math.round(m / f) * f).toLocaleString() + "x";
-}
-
 // Tooltip HTML for a hovered feature on the given level.
 function hoverTooltipHtml(feat, levelKey) {
   const cfg = LEVELS[levelKey];
   let name = feat.properties.name || feat.properties.id;
-  if (cfg.appendCountry && feat.properties.country && name !== feat.properties.country) {
-    name += ", " + feat.properties.country;
+  if (cfg.appendCountry && feat.properties.country) {
+    // Append the full country name (e.g. "Berlin, Germany"), not the ISO2 code.
+    const country = countryNameOf(feat.properties.country);
+    if (country && country !== name) name += ", " + country;
   }
-  let html = '<div class="tt-name">' + name + "</div>";
-  // Only show an SCI value once a source on THIS level has been selected.
-  const sel = lastSelection;
-  if (sel && sel.levelKey === levelKey && sel.refSci) {
-    let line;
-    if (feat.properties.id === sel.clickedId) line = "Selected region";
-    else {
-      const m = fmtSciMultiplier(feat.properties.sci, sel.refSci);
-      line = m == null ? "No data" : m + " friendship likelihood";
-    }
-    html += '<div class="tt-sci">' + line + "</div>";
-  }
-  return html;
+  // Tooltip shows only the region name (SCI value intentionally omitted).
+  return '<div class="tt-name">' + name + "</div>";
 }
 
 // ---------------------------------------------------------------------------
 // Colours + bins (shared by all three levels).
 // ---------------------------------------------------------------------------
 // Reference quantile of a source's friend distribution = "1x" (matches the
-// static Map Generator's default of 0.25).
-const REFERENCE_QUANTILE = 0.25;
+// static Map Generator's default of the 25th percentile). User-adjustable via
+// the "Scale relative to … percentile" control in the panel.
+const DEFAULT_REFERENCE_QUANTILE = 0.25;
+let referenceQuantile = DEFAULT_REFERENCE_QUANTILE;
 
 // Multiplier break points (in units of the reference value): 10 fill bins =
 // "< 1x" + one per break. These breaks are also the legend's tick positions.
@@ -190,10 +173,7 @@ const LEVELS = {
     ranged: false,
     appendCountry: false, // country names are self-explanatory
     unit: "country",
-    title: "Top 10 Connected Countries",
-    col: "Country",
     canFocus: false, // focusing on one country is meaningless at country level
-    view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
   },
   level2: {
     sciType: "gadm2", // GADM-best data under the gadm2 id
@@ -201,16 +181,13 @@ const LEVELS = {
     ranged: true, // SCI delivered via range-index
     appendCountry: true,
     unit: "region",
-    title: "Top 10 Connected Regions",
-    col: "Region",
     canFocus: true,
-    view: { center: DEFAULT_CENTER, zoom: DEFAULT_ZOOM },
   },
 };
 
 let gSel = "level0";
 
-// "Focus country" mode: when on, the choropleth + Top-10 are restricted to
+// "Focus country" mode: when on, the choropleth is restricted to
 // regions within the selected source's own country, recoloured on the within-
 // country distribution (so within-country variation is visible) and zoomed to
 // that country. Off = the global view. `lastSelection` lets the toggle
@@ -229,6 +206,26 @@ async function getJSON(path) {
   const r = await fetch(DATA_BASE + "/" + path);
   if (!r.ok) throw new Error("HTTP " + r.status + " for " + path);
   return r.json();
+}
+
+// ISO2 → full country name (e.g. "DE" → "Germany"), loaded once for the
+// selection labels. Falls back to the raw code until loaded / if unknown.
+let countryNames = null;
+function countryNameOf(iso2) {
+  if (!iso2) return "";
+  const entry = countryNames && countryNames[iso2];
+  return (entry && entry[0]) || iso2;
+}
+
+// Human label for a selection: "Region, Country" for region levels (e.g.
+// "Berlin, Germany"), just the name for the country level.
+function selectionLabel(sel) {
+  const name = sel.clickedName || sel.clickedId;
+  if (sel.cfg.appendCountry && sel.clickedCountry) {
+    const country = countryNameOf(sel.clickedCountry);
+    if (country && country !== name) return name + ", " + country;
+  }
+  return name;
 }
 
 // Per-source SCI cache, keyed "<sciType>/<id>".
@@ -449,6 +446,9 @@ function focusBounds(features, country, anchorId) {
 }
 
 map.on("load", async function () {
+  // Preload ISO2 → country-name map for selection labels (small, cached once).
+  try { countryNames = await getJSON("geo/country_names.json"); } catch (e) { countryNames = {}; }
+
   // --- generic level setup (lazy: built on first activation) ---
   const setupDone = {};
 
@@ -570,26 +570,25 @@ map.on("load", async function () {
     });
   }
 
-  // Paint + legend + top-10 for the current selection. `zoom` is one of
-  // "none" (keep camera), "country" (frame the focused country), or "world"
-  // (return to the level's default view). Honours the global `focusCountry`
-  // flag, which restricts everything to the source's own country.
+  // Paint + legend for the current selection. `zoom` is either "none" (keep the
+  // current camera) or "country" (frame the focused country). Honours the global
+  // `focusCountry` flag, which restricts everything to the source's own country.
   function renderSelection(zoom) {
     const sel = lastSelection;
     if (!sel) return;
-    const { levelKey, cfg, clickedId, clickedName, clickedCountry, sci } = sel;
+    const { levelKey, cfg, clickedId, clickedCountry, sci } = sel;
     const geojson = cfg.geojson;
     const focus = focusCountry && cfg.canFocus && !!clickedCountry;
 
     document.getElementById("console").style.display = "block";
     document.getElementById("legend").style.display = "block";
-    document.getElementById("title").innerText = clickedName || clickedId;
+    document.getElementById("title").innerText = selectionLabel(sel);
 
     // Stamp the fill value on EVERY feature (so multi-feature regions all
-    // colour), but add each id to the ranked list only ONCE, and — in focus
-    // mode — only for regions within the source's own country.
+    // colour), and collect each id's SCI only ONCE for the colour reference —
+    // in focus mode, only for regions within the source's own country.
     let clickedSci = null;
-    const list = [];
+    const sciList = [];
     const seenIds = new Set();
     geojson.features.forEach(function (f) {
       const id = f.properties.id;
@@ -600,17 +599,13 @@ map.on("load", async function () {
       if (focus && f.properties.country !== clickedCountry) return;
       if (seenIds.has(id)) return;
       seenIds.add(id);
-      let label = f.properties.name || id;
-      if (cfg.appendCountry && f.properties.country) label += ", " + f.properties.country;
-      list.push({ admin: label, sci: v });
+      sciList.push(v);
     });
-
-    const sorted = list.sort((a, b) => b.sci - a.sci);
 
     // Reference value over the (optionally country-restricted) friend
     // distribution, excluding the source's own self-link. Guaranteed positive.
-    const sciValues = sorted.map((c) => c.sci).filter((v) => v !== null && !isNaN(v) && v !== clickedSci);
-    let refSci = getPercentile(sciValues, REFERENCE_QUANTILE);
+    const sciValues = sciList.filter((v) => v !== null && !isNaN(v) && v !== clickedSci);
+    let refSci = getPercentile(sciValues, referenceQuantile);
     if (!refSci || refSci <= 0) {
       const pos = sciValues.filter((v) => v > 0);
       refSci = pos.length ? Math.min.apply(null, pos) : 1;
@@ -623,7 +618,6 @@ map.on("load", async function () {
     if (dynamicScale) map.once("idle", () => applyCurrentScale(levelKey));
 
     updateLegend();
-    updateTop10Table(sorted, refSci, cfg);
     updateFocusButton();
 
     if (zoom === "country" && focus) {
@@ -635,9 +629,6 @@ map.on("load", async function () {
         // rather than risk a bad jump.
         console.warn("[SCI] focus zoom skipped: unreliable bounds for", clickedCountry);
       }
-    } else if (zoom === "world") {
-      const view = cfg.view;
-      if (view) map.flyTo({ ...view, essential: true, duration: 1000 });
     }
   }
 
@@ -705,7 +696,7 @@ map.on("load", async function () {
       vals.push(v);
     }
     if (!vals.length) return null;
-    let r = getPercentile(vals, REFERENCE_QUANTILE);
+    let r = getPercentile(vals, referenceQuantile);
     if (!r || r <= 0) r = Math.min.apply(null, vals);
     return r;
   }
@@ -724,7 +715,7 @@ map.on("load", async function () {
     if (dynamicScale && lastSelection) applyCurrentScale(lastSelection.levelKey);
   });
 
-  // ----- legend + top-10 (shared) -----
+  // ----- legend -----
   function updateLegend() {
     const legendScale = document.getElementById("legend-scale");
     const n = BIN_COLORS.length; // fill bins
@@ -746,40 +737,19 @@ map.on("load", async function () {
       '<div class="legend-ticks">' + labels + "</div>";
   }
 
-  function updateTop10Table(sorted, refSci, cfg) {
-    document.getElementById("table-title").innerHTML = cfg.title;
-    document.getElementById("tab-lab").innerHTML = cfg.col;
-    const tableBody = document.querySelector("#top-10-table tbody");
-    tableBody.innerHTML = "";
-
-    function roundedMultiplier(sci) {
-      if (!refSci || refSci === 0) return "-";
-      const multiplier = sci / refSci;
-      if (multiplier < 999) return "" + Math.round(multiplier / 5) * 5;
-      let factor;
-      if (multiplier > 99999) factor = 5000;
-      else if (multiplier > 9999) factor = 500;
-      else factor = 50;
-      return (Math.round(multiplier / factor) * factor).toLocaleString();
-    }
-
-    sorted.slice(0, 10).forEach(function (item, index) {
-      const row = document.createElement("tr");
-      row.innerHTML =
-        '<td><span class="rank-circle">' + (index + 1) + "</span></td>" +
-        "<td>" + item.admin + "</td>" +
-        "<td>" + roundedMultiplier(item.sci) + "x</td>";
-      tableBody.appendChild(row);
-    });
-  }
-
   // ----- focus-country toggle -----
   function updateFocusButton() {
     const row = document.getElementById("focus-country-row");
     const cb = document.getElementById("focus-country");
     if (!row || !cb) return;
-    const canShow = lastSelection && lastSelection.cfg.canFocus && !!lastSelection.clickedCountry;
+    const sel = lastSelection;
+    const canShow = sel && sel.cfg.canFocus && !!sel.clickedCountry;
     row.style.display = canShow ? "flex" : "none";
+    if (canShow) {
+      const labelEl = row.querySelector(".toggle-label");
+      // e.g. "Focus on Germany" — name the selected region's country.
+      if (labelEl) labelEl.textContent = "Focus on " + countryNameOf(sel.clickedCountry);
+    }
     cb.checked = focusCountry;
   }
 
@@ -816,7 +786,6 @@ map.on("load", async function () {
       if (consoleEl) consoleEl.style.display = "none";
       const legendEl = document.getElementById("legend");
       if (legendEl) legendEl.style.display = "none";
-      closeTopConnections(); // the cleared selection has no top-10 to show
 
       document.querySelectorAll(".button-container button").forEach((b) => b.classList.remove("active"));
       this.classList.add("active");
@@ -833,16 +802,17 @@ map.on("load", async function () {
     });
   });
 
-  // "Focus on this country" toggle — restricts the choropleth + Top-10 to the
+  // "Focus on this country" toggle — restricts the choropleth to the
   // selected source's country (recoloured on the within-country distribution)
-  // and zooms to it; toggling back returns to the global view.
+  // and zooms to it. Toggling back re-paints on the global distribution but
+  // KEEPS the current camera (no pan/zoom away from where the user is looking).
   (function setupFocusButton() {
     const cb = document.getElementById("focus-country");
     if (!cb) return;
     cb.addEventListener("change", function () {
       if (!lastSelection) { cb.checked = false; return; }
       focusCountry = cb.checked;
-      renderSelection(focusCountry ? "country" : "world");
+      renderSelection(focusCountry ? "country" : "none");
     });
   })();
 
@@ -857,6 +827,94 @@ map.on("load", async function () {
     });
   })();
 
+  // "Scale relative to NN st/nd/rd/th percentile" — sets the reference quantile
+  // (the "1x" point) for both the fixed and the dynamic colour scales. Re-renders
+  // the current selection (keeping the camera) so the new reference takes effect.
+  (function setupRefQuantile() {
+    const inp = document.getElementById("ref-quantile");
+    const suffix = document.querySelector(".ref-quantile-suffix");
+    if (!inp) return;
+    // Ordinal suffix: 1st, 2nd, 3rd, 4th… but 11th/12th/13th.
+    const ordinal = (n) => {
+      const t = n % 100;
+      if (t >= 11 && t <= 13) return "th";
+      return { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th";
+    };
+    const syncSuffix = () => {
+      if (suffix) suffix.textContent = ordinal(parseInt(inp.value, 10) || 0) + " percentile";
+    };
+    inp.addEventListener("change", function () {
+      let pct = parseFloat(inp.value);
+      if (isNaN(pct)) pct = DEFAULT_REFERENCE_QUANTILE * 100;
+      pct = Math.max(0, Math.min(100, pct));
+      inp.value = pct; // reflect the clamped value back into the field
+      referenceQuantile = pct / 100;
+      syncSuffix();
+      if (lastSelection) renderSelection("none");
+    });
+    syncSuffix(); // match the default value on load
+  })();
+
+  // Per-option "i" info tooltips (e.g. on "Scale colors to the area in view").
+  // The tip is position:fixed (so it escapes #console's overflow clipping) and
+  // positioned here relative to its icon. Shows on hover/focus; on touch a click
+  // pins it open. Clicking the icon must NOT flip the switch it sits inside.
+  (function setupOptionInfo() {
+    // Place the tip just below its icon, right-aligned to it, then clamp into
+    // the viewport (flip above if there's no room below).
+    const position = (btn, tip) => {
+      const r = btn.getBoundingClientRect();
+      const tw = tip.offsetWidth || 230;
+      const th = tip.offsetHeight || 80;
+      let left = Math.min(r.right - tw, window.innerWidth - tw - 8);
+      left = Math.max(8, left);
+      let top = r.bottom + 8;
+      if (top + th > window.innerHeight - 8) top = Math.max(8, r.top - th - 8);
+      tip.style.left = left + "px";
+      tip.style.top = top + "px";
+    };
+    const peek = (wrap) => {
+      const btn = wrap.querySelector(".opt-info-btn");
+      const tip = wrap.querySelector(".info-tip");
+      if (!btn || !tip) return;
+      position(btn, tip);
+      tip.classList.add("show");
+    };
+    const unpeek = (wrap) => {
+      const tip = wrap.querySelector(".info-tip");
+      if (tip) tip.classList.remove("show");
+    };
+    const close = (wrap) => {
+      unpeek(wrap);
+      wrap.classList.remove("pinned");
+      const btn = wrap.querySelector(".opt-info-btn");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    };
+    const closeAll = (except) =>
+      document.querySelectorAll(".info-wrap").forEach((w) => { if (w !== except) close(w); });
+
+    document.querySelectorAll(".info-wrap").forEach((wrap) => {
+      const btn = wrap.querySelector(".opt-info-btn");
+      if (!btn) return;
+      wrap.addEventListener("mouseenter", () => peek(wrap));
+      wrap.addEventListener("mouseleave", () => { if (!wrap.classList.contains("pinned")) unpeek(wrap); });
+      btn.addEventListener("focus", () => peek(wrap));
+      btn.addEventListener("blur", () => { if (!wrap.classList.contains("pinned")) unpeek(wrap); });
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();  // don't let the surrounding <label> flip the switch
+        e.stopPropagation();
+        const willPin = !wrap.classList.contains("pinned");
+        closeAll(null);
+        if (willPin) { wrap.classList.add("pinned"); btn.setAttribute("aria-expanded", "true"); peek(wrap); }
+      });
+    });
+
+    // Tap/click anywhere else, press Escape, or resize to dismiss a pinned tip.
+    document.addEventListener("click", () => closeAll(null));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(null); });
+    window.addEventListener("resize", () => closeAll(null));
+  })();
+
   // Close the results panel (mainly for mobile, where it's a bottom sheet).
   (function setupConsoleClose() {
     const btn = document.getElementById("console-close");
@@ -865,26 +923,6 @@ map.on("load", async function () {
       const el = document.getElementById("console");
       if (el) el.style.display = "none";
     });
-  })();
-
-  // "See top connections" — opens the Top-10 list as a popup, dismissable via
-  // the × button, a click on the dimmed backdrop, or Escape. The list itself is
-  // kept up to date by updateTop10Table on every selection, so opening just
-  // reveals the latest ranking.
-  function closeTopConnections() {
-    const overlay = document.getElementById("top-connections-overlay");
-    if (overlay) overlay.setAttribute("hidden", "");
-  }
-  (function setupTopConnections() {
-    const btn = document.getElementById("see-top-connections-btn");
-    const overlay = document.getElementById("top-connections-overlay");
-    if (!btn || !overlay) return;
-    btn.addEventListener("click", () => overlay.removeAttribute("hidden"));
-    const close = document.getElementById("top-connections-close");
-    if (close) close.addEventListener("click", closeTopConnections);
-    // A click on the backdrop (but not the popup card) closes it.
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) closeTopConnections(); });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTopConnections(); });
   })();
 
   // "About this map" expandable panel.

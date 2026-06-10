@@ -122,6 +122,23 @@ function robustHi(relValues) {
   return niceCeil(Number.isFinite(hi) ? hi : 1);
 }
 
+// Guarantee the open-ended TOP bin ([last break, ∞)) always holds ≥1 region:
+// drop any top breaks the data never reaches. The robust upper bound (niceCeil of
+// the 98th pct) rounds UP, so for maps with no extreme outlier (e.g. a cross-level
+// country→US-county map, which has no self-SCI) the actual max can sit below the
+// last one or two breaks, leaving the top buckets empty. Trimming those keeps the
+// p98 scale intact for the populated range while ensuring the top bucket is used.
+function ensureTopBinUsed(breaks, relValues) {
+  if (!breaks || breaks.length < 2) return breaks;
+  let max = -Infinity;
+  for (const v of relValues) if (Number.isFinite(v) && v > max) max = v;
+  if (!Number.isFinite(max)) return breaks;
+  // Keep breaks strictly below the max so the max lands inside the open top bin.
+  const kept = breaks.filter((b) => b < max);
+  // If trimming would leave too few breaks the spread is tiny; keep the original.
+  return kept.length >= 2 ? kept : breaks;
+}
+
 // Equal-width multiplier bands from 1× to the robust max.
 export function evenBreaks(relValues) {
   const hi = robustHi(relValues);
@@ -141,10 +158,13 @@ export function logBreaks(relValues) {
 }
 
 // Dispatch a scheme name to its interior breaks (null = fall back to auto bins).
+// Every scheme is trimmed so the top bucket always holds ≥1 region.
 export function breaksForScheme(scheme, relValues) {
-  if (scheme === "even") return evenBreaks(relValues);
-  if (scheme === "log") return logBreaks(relValues);
-  return autoBreaks(relValues); // "quantile" (and any unknown) → data deciles
+  let br;
+  if (scheme === "even") br = evenBreaks(relValues);
+  else if (scheme === "log") br = logBreaks(relValues);
+  else br = autoBreaks(relValues); // "quantile" (and any unknown) → data deciles
+  return ensureTopBinUsed(br, relValues);
 }
 
 // build_map_plot binning: produce all_breaks (with +/-Inf ends), legend breaks,
