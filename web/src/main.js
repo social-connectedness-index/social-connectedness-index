@@ -786,7 +786,11 @@ const canvasBlob = (canvas, type, quality) =>
 // only the unavoidable geometric top/bottom margin (no extra padding).
 const REEL_W = 1080, REEL_H = 1920;
 function buildReelCanvas() {
-  const SS = 2; // supersample factor — render big, downscale for clean edges
+  // Supersample on desktop for crisp text/edges. NOT on iOS: rendering the whole
+  // choropleth onto a 2160x3840 canvas pushed iOS Safari past its per-tab memory
+  // limit, which silently reloaded the page mid-encode. 1x stays within budget
+  // there (the 1080-wide frame is still plenty sharp on a phone screen).
+  const SS = isIOS() ? 1 : 2; // supersample factor — render big, downscale for clean edges
   const w = REEL_W * SS;
   // Height that leaves no empty band, clamped to the reel height so tall/narrow
   // maps fill the frame instead of overflowing.
@@ -812,51 +816,80 @@ const isIOS = () =>
   /iP(hone|od|ad)/.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
-// Hand the encoded video to the user. iOS Safari ignores the <a download>
-// attribute for blob URLs (it opens the video inline or does nothing), so a
-// normal download silently fails there — that's why MP4 "didn't work" on iPhone.
-// On iOS we route through the Web Share API so the user can "Save Video" to Photos
-// or Files; desktop and Android keep the direct download that already works.
+// Hand the encoded video to the user.
+//
+// iOS Safari is the hard case: it ignores <a download> for blob URLs, AND the
+// multi-second encode expires the tap's transient activation that
+// navigator.share() requires — so both earlier approaches (direct download, then
+// an automatic Web-Share) silently failed on iPhone. Instead we show the finished
+// video INLINE: the user can press-and-hold it to "Save to Photos" (which needs
+// neither <a download> nor a live gesture), or tap Share (a fresh gesture, which
+// navigator.share accepts). Desktop/Android keep the share-sheet-or-download path.
 async function deliverVideo(blob, filename) {
   const file = new File([blob], filename, { type: "video/mp4" });
-  if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (isIOS()) {
+    showVideoResult(file, blob);
+    return;
+  }
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
       $("status").textContent = "";
       return;
     } catch (e) {
       if (e.name === "AbortError") { $("status").textContent = ""; return; }
-      // The share can fail because the user's tap (transient activation) expired
-      // while encoding ran. Offer a fresh button so the next tap is a valid
-      // gesture for navigator.share.
-      showSaveVideoButton(file);
-      return;
+      // otherwise fall through to a direct download
     }
   }
   downloadBlob(blob, filename);
   $("status").textContent = "";
 }
 
-// Fresh-gesture fallback for iOS: a tappable "Save video" button (encoding may
-// have consumed the original tap's activation, which navigator.share requires).
-function showSaveVideoButton(file) {
-  const s = $("status");
-  s.textContent = "Video ready — ";
-  const btn = document.createElement("button");
-  btn.className = "dl-btn";
-  btn.textContent = "Save video";
-  btn.addEventListener("click", async () => {
-    try {
-      await navigator.share({ files: [file] });
-      s.textContent = "";
-    } catch (e) {
-      if (e.name === "AbortError") return;
-      const url = URL.createObjectURL(file);
-      window.open(url, "_blank", "noopener,noreferrer");
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    }
-  });
-  s.appendChild(btn);
+// Inline video result overlay (used on iOS). Plays the encoded MP4 in a real
+// <video>; press-and-hold offers "Save to Photos" with no API and no live
+// gesture needed, and the Share button is itself a fresh gesture for
+// navigator.share. Also doubles as visible confirmation the encode succeeded.
+function showVideoResult(file, blob) {
+  $("status").textContent = "";
+  const url = URL.createObjectURL(blob);
+
+  const overlay = document.createElement("div");
+  overlay.className = "video-result";
+  const cleanup = () => { overlay.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000); };
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) cleanup(); });
+
+  const video = document.createElement("video");
+  video.src = url;
+  video.controls = true;
+  video.loop = true;
+  video.muted = true;
+  video.autoplay = true;
+  video.setAttribute("playsinline", ""); // play in place rather than forcing fullscreen
+  video.playsInline = true;
+
+  const hint = document.createElement("p");
+  hint.textContent = "Press and hold the video, then “Save to Photos.” Or tap Share below.";
+
+  const row = document.createElement("div");
+  row.className = "video-result-actions";
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    const share = document.createElement("button");
+    share.className = "dl-btn";
+    share.textContent = "Share";
+    share.addEventListener("click", async () => {
+      try { await navigator.share({ files: [file] }); }
+      catch (e) { /* dismissed or unsupported — the press-and-hold path still works */ }
+    });
+    row.appendChild(share);
+  }
+  const done = document.createElement("button");
+  done.className = "dl-btn";
+  done.textContent = "Done";
+  done.addEventListener("click", cleanup);
+  row.appendChild(done);
+
+  overlay.append(video, hint, row);
+  document.body.appendChild(overlay);
 }
 
 const slug = () => (sourceLabelText().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "sci_map");

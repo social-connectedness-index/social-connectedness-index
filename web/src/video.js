@@ -74,6 +74,14 @@ export async function encodeMp4(frameCanvas, { seconds = 10, fps = 30, bitrate =
     const vf = new VideoFrame(frame, { timestamp: (i * 1e6) / fps, duration: 1e6 / fps });
     encoder.encode(vf, { keyFrame: i % fps === 0 });
     vf.close();
+    // Backpressure: without this, all `total` frames are queued in one tight
+    // loop and the encoder's in-flight surfaces pile up. On iOS Safari that
+    // exceeds the strict per-tab memory budget and the OS silently kills and
+    // reloads the page mid-encode (the "it just reloads from scratch" bug).
+    // Wait for the encoder to drain to a few pending frames before queueing more.
+    while (encoder.encodeQueueSize > 4 && !encoderError) {
+      await new Promise((r) => setTimeout(r, 8));
+    }
   }
   await encoder.flush();
   if (encoderError) {
