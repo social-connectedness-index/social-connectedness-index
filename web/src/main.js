@@ -30,8 +30,8 @@ const REDISH_PALETTES = new Set(["Red", "Orange"]);
 
 const LEVEL_LABEL = {
   country: "Country",
-  gadm1: "State / Province (GADM1)",
-  gadm2: "Region (GADM Best)",
+  gadm1: "State / Province",
+  gadm2: "Region",
   us_county: "US County",
   us_cbsa: "US Metro Area (CBSA)",
   us_zcta: "US ZIP Code",
@@ -731,11 +731,20 @@ async function generate() {
 // ---- download -------------------------------------------------------------
 
 function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = filename;
+  a.rel = "noopener";
+  // The anchor must be in the DOM for the click to trigger a download in some
+  // mobile browsers.
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  a.remove();
+  // Revoke LATER, not immediately: revoking right after click() aborts the
+  // download before the browser has finished reading the blob — most visible for
+  // larger files (MP4) on mobile, where the read is slower than a small PNG/JPG.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 const canvasBlob = (canvas, type, quality) =>
@@ -976,11 +985,10 @@ function onCbsaChange() {
 }
 
 function onDestChange() {
-  const dest = $("destType").value;
-  // Sensible default "Regions to show" for the chosen destination level.
-  if (dest.startsWith("us_")) selectGroup(null);          // US-only friend level
-  else if (dest === "country") selectGroup(OPT_ALL);       // world map of countries
-  else selectGroup(OPT_SAME_COUNTRY);                       // gadm1 / gadm2 region levels
+  // No auto-default for "Regions to show" — clear it and let the user choose.
+  // (An empty selection means "all countries"; for region levels that's a heavy
+  // worldwide load, surfaced via the loadFriendGeo hint when the user generates.)
+  selectGroup(null);
   syncCbsaUI();
   refreshSources().then(() => { autoFillBounds(); refreshBreaksPreview(); }).catch(showError);
 }

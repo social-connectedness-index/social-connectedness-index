@@ -250,6 +250,21 @@ load_gadm_data <- function(
     dir.create(out_dir)
   }
 
+  # The Great Lakes are baked into the US GADM1 state polygons (Michigan, Ohio,
+  # etc.), so state maps — and the gadm1-based "show state borders" overlay —
+  # fill them as land and draw borders across open water. Erase them for the US,
+  # matching the county/ZCTA levels (already lake-erased in clean_us_shapefiles.R).
+  # US-only; every other country is untouched. (GADM country code is ISO3 here.)
+  great_lakes <- get_great_lakes_polygon()
+  us_mask <- gadm1_all$country == "USA"
+  if (any(us_mask)) {
+    gadm1_us <- gadm1_all[us_mask, ] %>%
+      st_make_valid() %>%
+      st_difference(great_lakes) %>%
+      st_make_valid()
+    gadm1_all <- rbind(gadm1_all[!us_mask, ], gadm1_us)
+  }
+
   st_write(gadm0_all, file.path(out_dir, "gadm0.gpkg"), delete_dsn = TRUE)
   st_write(gadm1_all, file.path(out_dir, "gadm1.gpkg"), delete_dsn = TRUE)
   st_write(gadm2_all, file.path(out_dir, "gadm2.gpkg"), delete_dsn = TRUE)

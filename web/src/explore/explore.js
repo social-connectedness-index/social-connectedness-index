@@ -356,6 +356,34 @@ function featureCentroid(geom) {
   return any ? [(minx + maxx) / 2, (miny + maxy) / 2] : null;
 }
 
+// Bounding box [minx, miny, maxx, maxy] of a feature's geometry (for fly-to).
+function featureBounds(geom) {
+  if (!geom) return null;
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity, any = false;
+  const sc = (c) => {
+    if (typeof c[0] === "number") {
+      const x = c[0], y = c[1];
+      if (isFinite(x) && isFinite(y)) {
+        any = true;
+        if (x < minx) minx = x; if (x > maxx) maxx = x;
+        if (y < miny) miny = y; if (y > maxy) maxy = y;
+      }
+    } else for (let i = 0; i < c.length; i++) sc(c[i]);
+  };
+  const sg = (g) => { if (!g) return; if (g.type === "GeometryCollection") (g.geometries || []).forEach(sg); else if (g.coordinates) sc(g.coordinates); };
+  sg(geom);
+  return any ? [minx, miny, maxx, maxy] : null;
+}
+
+// Accent-insensitive search fold (mirrors the Map Generator): "Dusseldorf"
+// matches "Düsseldorf" regardless of OS/keyboard.
+const SEARCH_FOLD = { "ß": "ss", "ø": "o", "ł": "l", "æ": "ae", "œ": "oe", "đ": "d", "ð": "d", "þ": "th", "ı": "i" };
+const foldText = (s) =>
+  (s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[ßøłæœđðþı]/g, (c) => SEARCH_FOLD[c] || c);
+
+const escapeHtml = (s) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 const unwrapLon = (x, ref) => {
   while (x - ref > 180) x -= 360;
   while (x - ref < -180) x += 360;
@@ -518,30 +546,47 @@ map.on("load", async function () {
     hideSpinner();
   }
 
+  // Select a region (from a map click OR the search box): fetch its SCI, recolour
+  // the world, and — when `fly` — bring the region into view (search results are
+  // usually off-screen). Shared so search and click behave identically.
+  async function selectRegion(levelKey, cfg, clickedId, clickedName, clickedCountry, fly) {
+    showSpinner();
+    const sci = await fetchSci(cfg, clickedId);
+    hideSpinner();
+    if (!sci) return;
+    lastSelection = {
+      levelKey: levelKey, cfg: cfg, clickedId: clickedId,
+      clickedName: clickedName, clickedCountry: clickedCountry, sci: sci,
+    };
+    renderSelection(focusCountry ? "country" : "none");
+    if (fly) flyToFeature(cfg, clickedId);
+  }
+
+  // Fit the camera to a region's geometry (union of its features' bounds).
+  function flyToFeature(cfg, id) {
+    if (!cfg.geojson) return;
+    let b = null;
+    for (const f of cfg.geojson.features) {
+      if (f.properties.id !== id) continue;
+      const fb = featureBounds(f.geometry);
+      if (!fb) continue;
+      b = b ? [Math.min(b[0], fb[0]), Math.min(b[1], fb[1]), Math.max(b[2], fb[2]), Math.max(b[3], fb[3])] : fb;
+    }
+    if (b) {
+      try { map.fitBounds([[b[0], b[1]], [b[2], b[3]]], { padding: 60, maxZoom: 6, duration: 1200, linear: false }); }
+      catch (e) { console.warn("[SCI] flyToFeature failed:", e); }
+    }
+  }
+
   function wireLevelEvents(levelKey, cfg) {
     map.on("click", levelKey, async function (e) {
       const feat = e.features[0];
-      const clickedId = feat.properties.id;
-
       // Out-of-sample: no SCI row to anchor the choropleth — do nothing
       // (keeps any previous highlight on screen).
       if (feat.properties.has_data === false) return;
-
-      showSpinner();
-      const sci = await fetchSci(cfg, clickedId);
-      hideSpinner();
-      if (!sci) return;
-
-      lastSelection = {
-        levelKey: levelKey,
-        cfg: cfg,
-        clickedId: clickedId,
-        clickedName: feat.properties.name,
-        clickedCountry: feat.properties.country,
-        sci: sci,
-      };
-      // A fresh click zooms to the country only if we're already in focus mode.
-      renderSelection(focusCountry ? "country" : "none");
+      // A click keeps the camera (the region is already on screen); only focus
+      // mode re-zooms. The search box passes fly=true to bring it into view.
+      selectRegion(levelKey, cfg, feat.properties.id, feat.properties.name, feat.properties.country, false);
     });
 
     map.on("mousemove", levelKey, function (e) {
@@ -795,12 +840,109 @@ map.on("load", async function () {
       lastSelection = null;
       updateFocusButton();
 
+      // Reset the search to the new level (placeholder + clear + close results).
+      const si = document.getElementById("region-search");
+      const sr = document.getElementById("region-search-results");
+      if (si) { si.value = ""; si.placeholder = this.id === "level2" ? "Search regions…" : "Search countries…"; }
+      if (sr) { sr.hidden = true; sr.innerHTML = ""; }
+
       gSel = this.id;
       await setActiveLayer(this.id);
       // Keep the current camera — switching granularity should NOT zoom out or
       // recentre; the user stays wherever they were looking.
     });
   });
+
+  // Region/country search box (shares the level-switcher row). Filters the active
+  // level's clickable regions by name (accent-insensitive) and, on pick, selects
+  // that region exactly like a map click + flies the camera to it.
+  (function setupRegionSearch() {
+    const input = document.getElementById("region-search");
+    const box = document.getElementById("region-search-results");
+    if (!input || !box) return;
+    input.placeholder = gSel === "level2" ? "Search regions…" : "Search countries…";
+
+    // Per-level search index (cached on cfg): one entry per clickable region.
+    // Built lazily on first search — the Region level holds tens of thousands.
+    function buildIndex(cfg) {
+      if (cfg._search) return cfg._search;
+      const seen = new Set(), out = [];
+      for (const f of (cfg.geojson ? cfg.geojson.features : [])) {
+        const p = f.properties;
+        if (p.has_data === false || seen.has(p.id)) continue;
+        seen.add(p.id);
+        let label = p.name || p.id;
+        if (cfg.appendCountry && p.country) {
+          const cn = countryNameOf(p.country);
+          if (cn && cn !== label) label += ", " + cn;
+        }
+        out.push({ id: p.id, name: p.name, country: p.country, label, fold: foldText(label) });
+      }
+      out.sort((a, b) => a.label.localeCompare(b.label));
+      cfg._search = out;
+      return out;
+    }
+    let hits = [];      // currently-shown matches
+    let activeIdx = -1; // keyboard-highlighted row
+
+    const close = () => { box.hidden = true; box.innerHTML = ""; hits = []; activeIdx = -1; };
+
+    function highlight(i) {
+      const opts = box.querySelectorAll(".search-opt");
+      opts.forEach((o, k) => o.classList.toggle("active", k === i));
+      activeIdx = i;
+      if (i >= 0 && opts[i]) opts[i].scrollIntoView({ block: "nearest" });
+    }
+
+    function pick(entry) {
+      if (!entry) return;
+      const cfg = LEVELS[gSel];
+      close();
+      input.value = entry.label;
+      selectRegion(gSel, cfg, entry.id, entry.name, entry.country, true);
+    }
+
+    function render() {
+      const cfg = LEVELS[gSel];
+      const q = foldText(input.value.trim());
+      if (!cfg || !cfg.geojson || !q) { close(); return; }
+      hits = [];
+      for (const e of buildIndex(cfg)) {
+        if (e.fold.includes(q)) { hits.push(e); if (hits.length >= 40) break; }
+      }
+      box.innerHTML = hits.length
+        ? hits.map((h, i) => `<div class="search-opt" role="option" data-idx="${i}">${escapeHtml(h.label)}</div>`).join("")
+        : '<div class="search-empty">No matches</div>';
+      box.hidden = false;
+      highlight(hits.length ? 0 : -1); // auto-highlight the top match so Enter picks it
+    }
+
+    input.addEventListener("input", render);
+    input.addEventListener("focus", () => { if (input.value.trim()) render(); });
+
+    // Keyboard nav: ↑/↓ move (wrapping), Enter selects, Escape closes.
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { close(); return; }
+      if (box.hidden || !hits.length) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); highlight((activeIdx + 1) % hits.length); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); highlight((activeIdx - 1 + hits.length) % hits.length); }
+      else if (e.key === "Enter") { e.preventDefault(); pick(hits[activeIdx >= 0 ? activeIdx : 0]); }
+    });
+
+    // Mouse: hovering a row syncs the highlight; mousedown (before the input's
+    // blur) picks it so the outside-click handler doesn't close it first.
+    box.addEventListener("mouseover", function (e) {
+      const opt = e.target.closest(".search-opt");
+      if (opt) highlight(+opt.dataset.idx);
+    });
+    box.addEventListener("mousedown", function (e) {
+      const opt = e.target.closest(".search-opt");
+      if (!opt) return;
+      e.preventDefault();
+      pick(hits[+opt.dataset.idx]);
+    });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".search-row")) close(); });
+  })();
 
   // "Focus on this country" toggle — restricts the choropleth to the
   // selected source's country (recoloured on the within-country distribution)

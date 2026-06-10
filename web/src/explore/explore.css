@@ -156,6 +156,53 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   transform: none;
 }
 
+/* Search box shares the level-switcher row; results drop below the whole row. */
+.search-row { position: relative; display: flex; align-items: center; gap: 6px; width: 100%; }
+.region-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  color: #3b464f;
+  padding: 5px 8px 5px 26px;
+  border: 1px solid #cdd3d8;
+  border-radius: 4px;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236a7480' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 8px center;
+  background-size: 13px;
+}
+.region-search::placeholder { color: #9aa3ab; }
+.region-search:focus-visible {
+  outline: none;
+  border-color: #2b8cbe;
+  box-shadow: 0 0 0 2px rgba(43, 140, 190, 0.25);
+}
+.search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+.search-results[hidden] { display: none; }
+.search-opt {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: #3b464f;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-opt:hover,
+.search-opt.active { background: #eef5fb; }
+.search-empty { padding: 6px 10px; font-size: 12px; color: #9aa3ab; }
+
 /* "About this map" toggle — an icon-only "i" sitting next to the title. */
 #data-explanation-btn {
   padding: 0;
@@ -471,6 +518,9 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   #soc { font-size: 11.5px; }
   .button-container { flex-wrap: wrap; }
   .button-container > button { padding: 4px 8px; font-size: 11px; }
+  /* Search drops to its own full-width line below the level buttons on mobile. */
+  .search-row { flex-wrap: wrap; }
+  .region-search { flex-basis: 100%; }
 
   /* Results become a dismissable bottom sheet — smaller, so the map stays
      visible — and the sheet itself scrolls. */
