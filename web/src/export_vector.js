@@ -4,11 +4,19 @@
 import { renderSvg } from "./render.js";
 
 function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = filename;
+  a.rel = "noopener";
+  // The anchor must be in the DOM for the click to trigger a download in some
+  // mobile browsers; and the object URL must be revoked LATER, not immediately —
+  // revoking right after click() can abort the download before the browser has
+  // finished reading the blob. (Same fix as downloadBlob in main.js.)
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function downloadSvg(opts, filename) {

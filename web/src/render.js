@@ -1,7 +1,7 @@
 // render.js — Draw a STATIC choropleth (title, subtitle, map, horizontal legend,
 // caption) laid out like the ggplot output of the R tool. The drawing logic
 // (drawScene) is backend-agnostic so the exact same layout renders to either a
-// raster <canvas> (PNG/JPG/MP4) or a vector <svg> string (SVG/PDF).
+// raster <canvas> (PNG/JPG/MP4) or a vector <svg> string (SVG).
 
 const NA_COLOR = "#BFBFBF";
 

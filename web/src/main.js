@@ -1,6 +1,6 @@
 // main.js — UI wiring, data loading, and orchestration for the SCI map maker.
-// Produces a STATIC map image (like the R tool's ggplot output) with PNG/JPG/MP4/
-// SVG/PDF download. UI flow: Origin type -> Source region -> Destination type,
+// Produces a STATIC map image (like the R tool's ggplot output) with PNG/JPG/SVG/
+// MP4 download. UI flow: Origin type -> Source region -> Destination type,
 // with country filtering, plus an optional two-region compare.
 //
 // The type system, sharded-geometry list, and range-indexed SCI list all come
