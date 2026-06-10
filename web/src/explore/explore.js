@@ -21,12 +21,52 @@
 // levels — now applied uniformly, which removes the R2 dependency and the
 // separate pre-binning ETL entirely.
 
+import { createTour } from "../tour.js";
+
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that explore.html loads config.js before explore.js.");
 }
 mapboxgl.accessToken = window.SCI_CONFIG.MAPBOX_TOKEN;
 
 const DATA_BASE = (window.SCI_CONFIG.DATA_BASE || "./data").replace(/\/$/, "");
+
+// ---- first-run walkthrough -------------------------------------------------
+// Explain-only tour of the Explorer; see ../tour.js for the engine. The final
+// step targets #console, which only exists after a place is selected — when it's
+// hidden the engine falls back to a centered card, so the step adapts itself.
+const TOUR_STEPS = [
+  {
+    title: "Explore the Social Connectedness Index",
+    body: "This interactive map shows how strongly any place is connected by Facebook friendships to everywhere else. Pick a place and the whole world recolors. Here's a quick tour — skip anytime.",
+    targets: null,
+  },
+  {
+    title: "Countries or regions",
+    body: "Switch between exploring connections between countries or sub-national regions (states, provinces, counties — the most detailed level available per country).",
+    targets: [".button-container"],
+  },
+  {
+    title: "Search for a place",
+    body: "Type to jump straight to any country or region. Selecting one flies the map there and recolors the world around it.",
+    targets: ["#region-search"],
+  },
+  {
+    title: "Or just click the map",
+    body: "Click any country or region on the map to select it. Darker shading means a stronger friendship connection to the place you picked.",
+    targets: ["#map"],
+  },
+  {
+    title: "What the colors mean",
+    body: "Open “About this map” anytime for a plain-language explanation of the Social Connectedness Index and how the colors are calculated.",
+    targets: ["#data-explanation-btn"],
+  },
+  {
+    title: "Tune the view",
+    body: "After you select a place, a panel appears with a color legend and options: focus on one country, rescale the colors to just the area in view, and set the baseline percentile. That's it — start exploring!",
+    targets: ["#console"],
+  },
+];
+const tour = createTour(TOUR_STEPS, "sci_explore_tour_v1");
 
 // Default world view, US visible, nothing pre-highlighted.
 const DEFAULT_CENTER = [-30, 28];
@@ -1078,5 +1118,12 @@ map.on("load", async function () {
     const close = panel.querySelector(".close-btn");
     if (close) close.addEventListener("click", shut);
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") shut(); });
+  })();
+
+  // First-run walkthrough: wire the replay button and auto-show it once.
+  (function setupTour() {
+    const btn = document.getElementById("tourBtn");
+    if (btn) btn.addEventListener("click", tour.start);
+    tour.maybeAutoStart();
   })();
 });

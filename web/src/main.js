@@ -13,6 +13,54 @@ import {
 import { computeBbox, renderMap, naturalHeight } from "./render.js";
 import { encodeMp4, mp4Supported } from "./video.js";
 import { downloadSvg } from "./export_vector.js";
+import { createTour } from "./tour.js";
+
+// ---- first-run walkthrough -------------------------------------------------
+// Explain-only tour of the generator's controls; see tour.js for the engine.
+const TOUR_STEPS = [
+  {
+    title: "Map the Social Connectedness Index",
+    body: "Make publication-ready maps of the Social Connectedness Index, a large-scale measure of social ties across regions. This quick tour points out the main controls. You can skip anytime.",
+    targets: null,
+  },
+  {
+    title: "Single region or comparison",
+    body: "Map friendships from one home region, or switch to “Compare two regions” to see how two places' friendship patterns differ side by side. The rest of this tour assumes Single region.",
+    targets: ["#mapModeToggle"],
+  },
+  {
+    title: "Pick the home region",
+    body: "This is the place whose friendships you're mapping. Choose a region type (country, region/state, US county, or US ZIP), then use the search box to find and click the specific region.",
+    targets: ["#originType", "#sourceA"],
+  },
+  {
+    title: "Choose what's shown across the map",
+    body: "Pick the geographic level to color in, then which countries or region groups to display. For example: friendships from one US county, shown across every country in Europe.",
+    targets: ["#destType", "#countryWrap"],
+  },
+  {
+    title: "Add a title",
+    body: "Give your map a title (optional). Leave it blank and a sensible one is generated automatically from your selections.",
+    targets: ["#title"],
+  },
+  {
+    title: "Fine-tune in Advanced options",
+    body: "Open this for full control: color palette, how the SCI scale is anchored, legend breaks, state borders, map bounds (zoom), and export resolution. Sensible defaults are already set, so this is optional.",
+    targets: ["#advanced"],
+    before: () => { const d = document.getElementById("advanced"); if (d) d.open = true; },
+  },
+  {
+    title: "Generate your map",
+    body: "Click Generate Map to render it. Change any option and generate again to update — it only takes a moment.",
+    targets: ["#generate"],
+  },
+  {
+    title: "Download & share",
+    body: "Your finished map appears here. Download it as PNG, JPG, SVG, or an MP4 for social media — or use the share icons to post it directly. That's it, enjoy mapping!",
+    targets: ["#mapWrap"],
+  },
+];
+const tour = createTour(TOUR_STEPS, "sci_generator_tour_v1");
 
 const base = import.meta.env.BASE_URL;
 const dataUrl = (p) => `${base}data/${p}`;
@@ -57,31 +105,6 @@ function buildTypeGraph() {
 }
 function resolveType(o, d) {
   return (TYPE_FOR[o] && TYPE_FOR[o][d]) || null;
-}
-
-// R sci_path for the R-code export. Shard-based types pick a shard from the source.
-function sciPathFor(type, sourceId, country) {
-  const P = "data/sci_2026/";
-  const direct = {
-    country: "country.csv", gadm1: "gadm1.csv",
-    us_county: "us_counties.csv",
-    gadm1_country: "gadm1_to_country.csv", gadm2_country: "gadm_best_to_country.csv",
-    us_county_country: "us_counties_to_country.csv", us_zcta_country: "us_zcta_to_country.csv",
-    country_gadm1: "gadm1_to_country.csv", country_gadm2: "gadm_best_to_country.csv",
-    country_us_county: "us_counties_to_country.csv", country_us_zcta: "us_zcta_to_country.csv",
-  };
-  if (direct[type]) return P + direct[type];
-  // "gadm2" id is backed by the GADM-best shards (same 12 shard countries).
-  if (type === "gadm2") return P + `gadm_best_shard_${country || "US"}.csv`;
-  // zcta-sourced types pick the shard by the source ZIP's first digit; cbsa/crosswalk
-  // types read the zcta shards via crosswalk (any shard path points R to the dir).
-  if (type === "us_zcta" || type === "us_zcta_county" || type === "us_zcta_cbsa") {
-    return P + `us_zcta_shard_${String(sourceId)[0] || "0"}.csv`;
-  }
-  if (type === "us_cbsa" || type === "country_us_cbsa" || type === "us_cbsa_zcta") {
-    return P + "us_zcta_shard_0.csv";
-  }
-  return P + "country.csv";
 }
 
 // ---- state & data loading -------------------------------------------------
@@ -750,6 +773,87 @@ function downloadBlob(blob, filename) {
 const canvasBlob = (canvas, type, quality) =>
   new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 
+// ---- video (Instagram Reel / TikTok) --------------------------------------
+// Compose a 1080x1920 (9:16) portrait frame for the MP4. We re-render the scene
+// at reel width (supersampled 2x for crisp text/borders after downscale) and size
+// the canvas to the map's NATURAL height, so there's no internal letterbox: tall
+// maps fill the whole frame, wide maps fill the full width and are centered with
+// only the unavoidable geometric top/bottom margin (no extra padding).
+const REEL_W = 1080, REEL_H = 1920;
+function buildReelCanvas() {
+  const SS = 2; // supersample factor — render big, downscale for clean edges
+  const w = REEL_W * SS;
+  // Height that leaves no empty band, clamped to the reel height so tall/narrow
+  // maps fill the frame instead of overflowing.
+  const h = Math.min(REEL_H * SS, naturalHeight({ ...lastRender, width: w }));
+  const src = renderMap({ ...lastRender, width: w, height: h });
+
+  const frame = document.createElement("canvas");
+  frame.width = REEL_W;
+  frame.height = REEL_H;
+  const ctx = frame.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, REEL_W, REEL_H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  const s = Math.min(REEL_W / src.width, REEL_H / src.height);
+  const dw = src.width * s, dh = src.height * s;
+  ctx.drawImage(src, (REEL_W - dw) / 2, (REEL_H - dh) / 2, dw, dh);
+  return frame;
+}
+
+// iPadOS reports itself as "MacIntel" but has a touch screen — catch it too.
+const isIOS = () =>
+  /iP(hone|od|ad)/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+// Hand the encoded video to the user. iOS Safari ignores the <a download>
+// attribute for blob URLs (it opens the video inline or does nothing), so a
+// normal download silently fails there — that's why MP4 "didn't work" on iPhone.
+// On iOS we route through the Web Share API so the user can "Save Video" to Photos
+// or Files; desktop and Android keep the direct download that already works.
+async function deliverVideo(blob, filename) {
+  const file = new File([blob], filename, { type: "video/mp4" });
+  if (isIOS() && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] });
+      $("status").textContent = "";
+      return;
+    } catch (e) {
+      if (e.name === "AbortError") { $("status").textContent = ""; return; }
+      // The share can fail because the user's tap (transient activation) expired
+      // while encoding ran. Offer a fresh button so the next tap is a valid
+      // gesture for navigator.share.
+      showSaveVideoButton(file);
+      return;
+    }
+  }
+  downloadBlob(blob, filename);
+  $("status").textContent = "";
+}
+
+// Fresh-gesture fallback for iOS: a tappable "Save video" button (encoding may
+// have consumed the original tap's activation, which navigator.share requires).
+function showSaveVideoButton(file) {
+  const s = $("status");
+  s.textContent = "Video ready — ";
+  const btn = document.createElement("button");
+  btn.className = "dl-btn";
+  btn.textContent = "Save video";
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.share({ files: [file] });
+      s.textContent = "";
+    } catch (e) {
+      if (e.name === "AbortError") return;
+      const url = URL.createObjectURL(file);
+      window.open(url, "_blank", "noopener,noreferrer");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+  });
+  s.appendChild(btn);
+}
+
 const slug = () => (sourceLabelText().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "sci_map");
 
 async function download(fmt) {
@@ -763,10 +867,9 @@ async function download(fmt) {
       downloadSvg(lastRender, `${slug()}.svg`);
     } else if (fmt === "mp4") {
       if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/JPG.");
-      $("status").textContent = "encoding MP4…";
-      const blob = await encodeMp4(lastCanvas, { seconds: 10, fps: 30, portrait: true });
-      downloadBlob(blob, `${slug()}.mp4`);
-      $("status").textContent = "";
+      $("status").textContent = "Encoding MP4… this can take a few seconds.";
+      const blob = await encodeMp4(buildReelCanvas(), { seconds: 10, fps: 30 });
+      await deliverVideo(blob, `${slug()}.mp4`);
     }
   } catch (e) {
     showError(e);
@@ -823,63 +926,6 @@ async function sharePng(platform) {
   } catch (e) {
     showError(e);
   }
-}
-
-// ---- R code export --------------------------------------------------------
-
-function buildRCode() {
-  const type = currentType();
-  const codes = selectedCountryCodes();
-  const srcCountry = (namesCache[typeInfo().sourceGeo]?.[$("sourceA").value] || [])[1];
-  const path = sciPathFor(type, $("sourceA").value, srcCountry);
-  const cc = codes ? `\n  friend_countries = c(${[...codes].map((c) => `"${c}"`).join(", ")}),` : "";
-  const z = manualBbox();
-  const zoom = z ? `\n  xlim = c(${z[0]}, ${z[2]}),\n  ylim = c(${z[1]}, ${z[3]}),` : "";
-  const titleArg = $("title").value ? `\n  title = "${$("title").value}",` : "";
-  const subArg = $("subtitle").value ? `\n  subtitle = "${$("subtitle").value}",` : "";
-  const cbsa = selectedCbsa();
-  const cbsaArg = cbsa ? `\n  filter_dest_cbsa = "${cbsa.code}",` : "";
-
-  if (compareMode()) {
-    const cp = palettes.comparison[$("cpalette").value];
-    const labArg = `\n  label_a = "${cmpLabelA()}",\n  label_b = "${cmpLabelB()}",`;
-    const cbText = $("cbreaks").value.trim();
-    const cbArg = cbText
-      ? `\n  breaks = sort(c(-log2(c(${cbText})), 0, log2(c(${cbText})))),`
-      : "";
-    return `source("src/setup.R")\nmake_comparison_map(\n  type = "${type}",\n` +
-      `  region_a_id = "${$("sourceA").value}",\n  region_b_id = "${$("sourceB").value}",\n` +
-      `  sci_path = "${path}",${cc}${cbsaArg}${labArg}${cbArg}\n` +
-      `  color_a = "${cp.color_a}", color_b = "${cp.color_b}", color_mid = "${cp.color_mid}",` +
-      `${titleArg}${subArg}${zoom}\n  output_path = "output/maps/map.png"\n)`;
-  }
-  const lines = [
-    `  type = "${type}"`,
-    `  user_region_id = "${$("sourceA").value}"`,
-    `  sci_path = "${path}"`,
-  ];
-  if (typeInfo().friendByCountry && codes) lines.push(`  friend_countries = c(${[...codes].map((c) => `"${c}"`).join(", ")})`);
-  if (cbsa) lines.push(`  filter_dest_cbsa = "${cbsa.code}"`);
-  if (refMode() === "absolute") {
-    const rv = parseFloat($("refval").value);
-    if (rv > 0) lines.push(`  reference_value = ${rv}`);
-  } else {
-    const refq = parseFloat($("refq").value) || 0.25;
-    if (refq !== 0.25) lines.push(`  reference_quantile = ${refq}`);
-  }
-  const br = parseBreaks($("breaks").value);
-  if (br) lines.push(`  breaks = c(${br.join(", ")})`);
-  if ($("title").value) lines.push(`  title = "${$("title").value}"`);
-  if ($("subtitle").value) lines.push(`  subtitle = "${$("subtitle").value}"`);
-  if (!$("borders").checked) lines.push(`  show_admin1_borders = FALSE`);
-  if ($("highlight").checked) {
-    lines.push(`  label_focal_region = TRUE`);
-    if (REDISH_PALETTES.has($("palette").value)) lines.push(`  highlight_color = "#000000"`);
-  }
-  const z2 = manualBbox();
-  if (z2) { lines.push(`  xlim = c(${z2[0]}, ${z2[2]})`); lines.push(`  ylim = c(${z2[1]}, ${z2[3]})`); }
-  lines.push(`  output_path = "output/maps/map.png"`);
-  return `source("src/setup.R")\nmake_map(\n${lines.join(",\n")}\n)`;
 }
 
 // ---- compare mode toggle --------------------------------------------------
@@ -1103,11 +1149,9 @@ async function init() {
   document.querySelectorAll(".share-btn").forEach((b) =>
     b.addEventListener("click", () => sharePng(b.dataset.share)));
   $("reset").addEventListener("click", reset);
-  $("showCode").addEventListener("click", () => {
-    $("codeBox").value = buildRCode();
-    $("codeModal").style.display = "flex";
-  });
-  $("closeCode").addEventListener("click", () => ($("codeModal").style.display = "none"));
+  if ($("tourBtn")) $("tourBtn").addEventListener("click", tour.start);
+  // Show the walkthrough once to first-time visitors (now that the panel is built).
+  tour.maybeAutoStart();
 }
 
 init().catch(showError);

@@ -15,9 +15,12 @@
         <a href="./explore.html" class="tool-nav-alt">Interactive Explorer →</a>
       </div>
       <h1>Social Connectedness Index <span class="muted">Map Generator</span></h1>
+      <button id="tourBtn" class="tour-launch" type="button" title="Replay the tutorial">
+        <span class="tour-launch-icon" aria-hidden="true">?</span> Show tutorial
+      </button>
 
       <div class="section-label">Map configuration</div>
-      <div class="mode-toggle">
+      <div id="mapModeToggle" class="mode-toggle">
         <label><input type="radio" name="mapMode" value="single" checked /> Single region</label>
         <label><input type="radio" name="mapMode" value="compare" /> Compare two regions</label>
       </div>
@@ -59,7 +62,7 @@
       <input id="title" type="text" />
 
       <hr />
-      <details>
+      <details id="advanced">
         <summary>Advanced options</summary>
 
         <label>Subtitle (optional)</label>
@@ -186,7 +189,6 @@
             <button id="dlJpg" class="dl-btn">JPG</button>
             <button id="dlSvg" class="dl-btn">SVG</button>
             <button id="dlMp4" class="dl-btn">MP4</button>
-            <button id="showCode" class="dl-btn">R code</button>
           </div>
         </div>
         <div class="action-group">
@@ -214,14 +216,6 @@
         </div>
       </div>
     </main>
-
-    <div id="codeModal" class="modal">
-      <div class="modal-box">
-        <h3>Reproduce this map in R</h3>
-        <textarea id="codeBox" readonly></textarea>
-        <button id="closeCode">Close</button>
-      </div>
-    </div>
 
     <script type="module" src="./src/main.js"></script>
   </body>

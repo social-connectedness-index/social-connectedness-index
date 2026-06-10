@@ -23,7 +23,7 @@ body { display: flex; height: 100vh; overflow: hidden; }
 .tool-nav a:hover { text-decoration: underline; }
 .tool-nav .tool-nav-home { color: #6c757d; }
 
-#panel h1 { font-size: 18px; margin: 0 0 14px; color: #212529; }
+#panel h1 { font-size: 18px; margin: 0 0 6px; color: #212529; }
 #panel h1 .muted { display: block; margin-top: 2px; color: #6c757d; font-size: 13px; font-weight: normal; }
 
 .section-label {
@@ -174,16 +174,6 @@ details > *:not(summary) { margin-top: 4px; }
   background: radial-gradient(circle at 30% 107%,
     #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%);
 }
-
-/* ---- R code modal ---- */
-.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; }
-.modal-box { background: #fff; padding: 20px; border-radius: 10px; width: 600px; max-width: 90%; }
-.modal-box h3 { margin: 0 0 10px; }
-#codeBox {
-  width: 100%; height: 260px; font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 13px; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px;
-}
-.modal-box button { margin-top: 10px; padding: 8px 16px; }
 
 /* ---- mobile: stack panel on top, map below, let the page scroll ---- */
 @media (max-width: 768px) {

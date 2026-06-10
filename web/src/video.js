@@ -1,46 +1,57 @@
-// video.js — Encode a static map image into a short MP4 (like the R tool's
-// mp4 export: the image padded onto a portrait 1080x1920 frame). Uses the browser
-// WebCodecs API + mp4-muxer. Falls back with a clear message where unsupported.
+// video.js — Encode an already-composed frame canvas into a short MP4 (a still
+// image held for `seconds`, e.g. a 9:16 reel built by buildReelCanvas in main.js).
+// Uses the browser WebCodecs API + mp4-muxer. Falls back with a clear message
+// where unsupported.
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";
 
 export function mp4Supported() {
   return typeof window !== "undefined" && "VideoEncoder" in window && "VideoFrame" in window;
 }
 
-// Returns a Blob (video/mp4). `seconds` of the still image at `fps`.
-export async function encodeMp4(sourceCanvas, { seconds = 10, fps = 30, portrait = true } = {}) {
+// H.264 codec strings to try, best first. High → Main → Baseline, all level 4.0
+// (covers 1080x1920 @ 30fps). iOS hardware encoders accept High; we still fall
+// back so older/odd devices that only do Baseline keep working.
+const CODECS = ["avc1.640028", "avc1.4d0028", "avc1.420028"];
+
+// Encode `frameCanvas` (any size; coerced to even dimensions for H.264) as a
+// still video of `seconds` at `fps`. Returns a Blob (video/mp4).
+export async function encodeMp4(frameCanvas, { seconds = 10, fps = 30, bitrate = 6_000_000 } = {}) {
   if (!mp4Supported()) {
     throw new Error("MP4 export needs a browser with WebCodecs (Chrome, Edge, or Safari 17+). Try PNG or JPG.");
   }
 
-  const W = portrait ? 1080 : even(sourceCanvas.width);
-  const H = portrait ? 1920 : even(sourceCanvas.height);
+  // H.264 requires even width/height. Redraw onto an even-sized canvas if needed.
+  const W = even(frameCanvas.width);
+  const H = even(frameCanvas.height);
+  let frame = frameCanvas;
+  if (W !== frameCanvas.width || H !== frameCanvas.height) {
+    frame = document.createElement("canvas");
+    frame.width = W;
+    frame.height = H;
+    const fx = frame.getContext("2d");
+    fx.fillStyle = "#ffffff";
+    fx.fillRect(0, 0, W, H);
+    fx.drawImage(frameCanvas, 0, 0);
+  }
 
-  const frame = document.createElement("canvas");
-  frame.width = W;
-  frame.height = H;
-  const ctx = frame.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, W, H);
-  const s = Math.min(W / sourceCanvas.width, H / sourceCanvas.height);
-  const dw = sourceCanvas.width * s;
-  const dh = sourceCanvas.height * s;
-  ctx.drawImage(sourceCanvas, (W - dw) / 2, (H - dh) / 2, dw, dh);
-
-  const config = {
-    codec: "avc1.420028", // H.264 Baseline, level 4.0 (covers 1080x1920)
-    width: W,
-    height: H,
-    bitrate: 5_000_000,
-    framerate: fps,
-  };
-  // Some devices (notably mobile Safari) expose VideoEncoder but can't encode
-  // this H.264 config — surface that clearly instead of producing a broken file.
+  // Pick a codec this device can actually encode. Some devices (notably mobile
+  // Safari) expose VideoEncoder but only support a subset of H.264 configs.
+  // NOTE: `avc: { format: "avc" }` forces AVCC (length-prefixed) output — mp4-muxer
+  // needs that. Without it Safari emits Annex B and produces a corrupt/empty file
+  // that "downloads" but won't play. This is the key fix for MP4 on iPhone.
+  const base = { width: W, height: H, bitrate, framerate: fps, avc: { format: "avc" } };
+  let config = null;
   if (typeof VideoEncoder.isConfigSupported === "function") {
-    const support = await VideoEncoder.isConfigSupported(config).catch(() => null);
-    if (!support || !support.supported) {
+    for (const codec of CODECS) {
+      const cfg = { ...base, codec };
+      const support = await VideoEncoder.isConfigSupported(cfg).catch(() => null);
+      if (support && support.supported) { config = support.config || cfg; break; }
+    }
+    if (!config) {
       throw new Error("This device can't encode MP4 video. Try downloading PNG or JPG instead.");
     }
+  } else {
+    config = { ...base, codec: CODECS[0] };
   }
 
   const muxer = new Muxer({
