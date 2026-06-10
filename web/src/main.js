@@ -60,7 +60,12 @@ const TOUR_STEPS = [
     targets: ["#mapWrap"],
   },
 ];
-const tour = createTour(TOUR_STEPS, "sci_generator_tour_v1");
+const tour = createTour(TOUR_STEPS, "sci_generator_tour_v1", () => {
+  // The "Advanced options" step opens the panel to spotlight it; re-collapse it
+  // when the tour ends so it doesn't stay open afterward.
+  const d = document.getElementById("advanced");
+  if (d) d.open = false;
+});
 
 const base = import.meta.env.BASE_URL;
 const dataUrl = (p) => `${base}data/${p}`;

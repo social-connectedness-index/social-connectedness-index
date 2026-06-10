@@ -15,12 +15,15 @@
 //            resolve, the step falls back to a centered card. This makes a step
 //            safely adaptive (e.g. a panel that only appears after interaction).
 //   before:  optional fn run just before the step shows (e.g. open a <details>).
+//
+// onEnd: optional fn run once when the tour exits by any path (Done, Skip, Esc).
+//        Use it to undo side effects from `before` hooks (e.g. re-collapse a panel).
 import "./tour.css";
 
 const PAD = 6;   // spotlight padding around the target, px
 const GAP = 14;  // gap between target and popover, px
 
-export function createTour(steps, seenKey) {
+export function createTour(steps, seenKey, onEnd) {
   let idx = 0;
   let nodes = null;   // { blocker, spotlight, pop, dots, title, body, back, next }
   let rafId = 0;
@@ -174,6 +177,7 @@ export function createTour(steps, seenKey) {
     nodes.pop.remove();
     nodes = null;
     try { localStorage.setItem(seenKey, "1"); } catch (e) { /* private mode */ }
+    if (onEnd) { try { onEnd(); } catch (e) { /* non-fatal */ } }
   }
 
   // ---- public API ---------------------------------------------------------
