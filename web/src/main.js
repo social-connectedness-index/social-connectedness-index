@@ -10,7 +10,7 @@ import {
   comparisonLogRatios, comparisonBreaks, labelComparison, divergingPalette, colorsForComparison,
   breaksForScheme,
 } from "./sci.js";
-import { computeBbox, renderMap, naturalHeight } from "./render.js";
+import { computeBbox, renderMap, renderSvg, naturalHeight } from "./render.js";
 import { encodeMp4, mp4Supported } from "./video.js";
 import { downloadSvg } from "./export_vector.js";
 import { createTour } from "./tour.js";
@@ -135,6 +135,11 @@ const sciCache = {};      // "type/id" -> { fid: sci }
 let lastRender = null;     // { opts } passed to renderMap, for re-export
 let lastCanvas = null;
 let allSourceOpts = [];
+
+// Resolves once init() has loaded all data and wired the controls — so the
+// programmatic window.SCI API can wait for the page to be ready before driving it.
+let _sciReadyResolve;
+const sciReady = new Promise((res) => { _sciReadyResolve = res; });
 
 function showError(e) {
   console.error(e);
@@ -751,8 +756,18 @@ async function generate() {
     $("downloadRow").style.display = "";
     $("placeholder").style.display = "none";
     step(hint);
+    // Signal completion so automation (and any listener) can await a render
+    // without polling. No-op for ordinary users — nothing listens by default.
+    document.dispatchEvent(new CustomEvent("sci:generated", {
+      detail: { type, width: opts.width, height: opts.height },
+    }));
+    return lastCanvas;
   } catch (e) {
     showError(e);
+    document.dispatchEvent(new CustomEvent("sci:error", {
+      detail: { message: e && e.message ? e.message : String(e) },
+    }));
+    throw e; // let programmatic callers (window.SCI.generate) see the failure
   }
 }
 
@@ -1179,7 +1194,9 @@ async function init() {
   });
   if ($("refq")) $("refq").addEventListener("input", refreshBreaksPreview);
   if ($("refval")) $("refval").addEventListener("input", refreshBreaksPreview);
-  $("generate").addEventListener("click", generate);
+  // generate() now rejects on error (so window.SCI.generate can catch it); the
+  // button path already shows the error via showError, so swallow the rejection.
+  $("generate").addEventListener("click", () => { generate().catch(() => {}); });
   $("dlPng").addEventListener("click", () => download("png"));
   $("dlJpg").addEventListener("click", () => download("jpg"));
   $("dlSvg").addEventListener("click", () => download("svg"));
@@ -1188,8 +1205,252 @@ async function init() {
     b.addEventListener("click", () => sharePng(b.dataset.share)));
   $("reset").addEventListener("click", reset);
   if ($("tourBtn")) $("tourBtn").addEventListener("click", tour.start);
-  // Show the walkthrough once to first-time visitors (now that the panel is built).
-  tour.maybeAutoStart();
+
+  // Shareable / agent-driven deep links: when the URL carries recognized params
+  // (?origin=…&source=…&download=png), apply them — otherwise this is a normal
+  // visit and nothing here changes the experience. A deep link also skips the
+  // first-run tour (it'd cover the pre-loaded map); a plain visit shows it.
+  const urlCfg = configFromUrl();
+  if (urlCfg) {
+    try {
+      await applyConfig(urlCfg);
+      if (urlCfg._autogenerate) {
+        await generate();
+        if (urlCfg._download) await download(urlCfg._download);
+      }
+    } catch (e) {
+      showError(e);
+    }
+  } else {
+    // Show the walkthrough once to first-time visitors (now that the panel is built).
+    tour.maybeAutoStart();
+  }
+
+  _sciReadyResolve(); // window.SCI is now safe to drive
 }
+
+// ---------------------------------------------------------------------------
+// Programmatic control surface: shareable URL params + a window.SCI API.
+//
+// Purpose: let people share a link that reproduces an exact map, and let other
+// tools/agents drive the generator (a headless browser can call window.SCI.*).
+// None of this changes the experience for an ordinary visitor — with no URL
+// params the page behaves exactly as before, window.SCI just sits unused, and
+// the sci:generated event has no default listener.
+//
+// Config keys (all optional) accepted by applyConfig / window.SCI / URL params:
+//   mode "single"|"compare", origin, dest (level ids: country, gadm1, gadm2,
+//   us_county, us_cbsa, us_zcta), source / sourceName (id or name), sourceB /
+//   sourceBName, regions (all | same-country | same-subcontinent | a continent
+//   group name | ISO2 codes, comma-separated), metro (CBSA code), palette,
+//   comparePalette, refMode "quantile"|"absolute", refq, refval, breakScheme,
+//   breaks, compareBreaks, borders, highlight, title, subtitle, labelA, labelB,
+//   width, height, dpi, bbox [xmin,ymin,xmax,ymax].
+// ---------------------------------------------------------------------------
+
+function setSelectByValue(id, value) {
+  const el = $(id);
+  if (!el) return;
+  // Palette <option>s carry the name as both text and value, so this matches either.
+  if ([...el.options].some((o) => o.value === value || o.text === value)) el.value = value;
+}
+function setRadio(name, value) {
+  const el = document.querySelector(`input[name="${name}"][value="${value}"]`);
+  if (el) el.checked = true;
+}
+
+// Resolve a source region by exact-then-substring name match (accent-insensitive),
+// over the current type's source list. Sets the listbox value; returns the id.
+function selectSourceByName(id, name) {
+  const q = fold(String(name || "").trim());
+  if (!q) return null;
+  const f = (o) => (o._fold || (o._fold = fold(o.label)));
+  const match = allSourceOpts.find((o) => f(o) === q) || allSourceOpts.find((o) => f(o).includes(q));
+  if (match) $(id).value = match.id;
+  return match ? match.id : null;
+}
+
+// Apply a "Regions to show" selection: scope tokens, continent group names, or
+// ISO2 country codes (string CSV or array). Clears the current selection first.
+function applyRegions(spec) {
+  const tokens = (Array.isArray(spec) ? spec : String(spec).split(","))
+    .map((s) => String(s).trim()).filter(Boolean);
+  for (const cb of $("group").querySelectorAll('input[type="checkbox"]')) cb.checked = false;
+  for (const cb of $("customCountries").querySelectorAll('input[type="checkbox"]')) cb.checked = false;
+  const alias = {
+    "all": OPT_ALL, "all-countries": OPT_ALL,
+    "same-country": OPT_SAME_COUNTRY, "same_country": OPT_SAME_COUNTRY,
+    "same-subcontinent": OPT_SAME_SUBCONT, "same_subcontinent": OPT_SAME_SUBCONT,
+    "same-subcont": OPT_SAME_SUBCONT, "subcontinent": OPT_SAME_SUBCONT,
+  };
+  const groupBoxes = [...$("group").querySelectorAll('input[type="checkbox"]')];
+  const countryBoxes = [...$("customCountries").querySelectorAll('input[type="checkbox"]')];
+  for (const tok of tokens) {
+    const key = tok.toLowerCase();
+    const target = alias[key] || tok;
+    const box =
+      groupBoxes.find((cb) => cb.value === target) ||
+      groupBoxes.find((cb) => cb.value.toLowerCase() === key) ||
+      countryBoxes.find((cb) => cb.value.toUpperCase() === tok.toUpperCase());
+    if (box) box.checked = true;
+  }
+  reorderGroups();
+  reorderCountries();
+}
+
+// Apply a config object to the controls (the shared core of URL hydration and
+// window.SCI.config). Async: switching type must reload the source list before a
+// source can be selected. Only touches controls for keys that are present.
+async function applyConfig(cfg = {}) {
+  // NB: no sciReady await here — init()'s URL hydration calls this BEFORE ready
+  // resolves. Public entry points (window.SCI.*) gate on sciReady themselves.
+  if (cfg.mode === "single" || cfg.mode === "compare") { setMode(cfg.mode); syncCompareUI(); }
+  if (cfg.origin && ORIGIN_LEVELS.includes(cfg.origin)) { $("originType").value = cfg.origin; fillDestOptions(); }
+  if (cfg.dest) {
+    const opts = DEST_FOR_ORIGIN[$("originType").value] || [];
+    if (opts.includes(cfg.dest)) $("destType").value = cfg.dest;
+  }
+  syncCbsaUI();
+  await refreshSources(); // (re)populate the source list for the chosen type
+
+  if (cfg.source != null) $("sourceA").value = cfg.source;
+  else if (cfg.sourceName) selectSourceByName("sourceA", cfg.sourceName);
+  if (compareMode()) {
+    if (cfg.sourceB != null) $("sourceB").value = cfg.sourceB;
+    else if (cfg.sourceBName) selectSourceByName("sourceB", cfg.sourceBName);
+  }
+
+  if (cfg.regions != null) applyRegions(cfg.regions);
+  if (cfg.metro != null && $("destCbsa")) {
+    await ensureCbsaList().catch(() => {});
+    $("destCbsa").value = cfg.metro;
+    onCbsaChange();
+  }
+
+  if (cfg.palette) setSelectByValue("palette", cfg.palette);
+  if (cfg.comparePalette) setSelectByValue("cpalette", cfg.comparePalette);
+  if (cfg.refMode === "quantile" || cfg.refMode === "absolute") { setRadio("refMode", cfg.refMode); syncRefModeUI(); }
+  if (cfg.refq != null) $("refq").value = cfg.refq;
+  if (cfg.refval != null && $("refval")) $("refval").value = cfg.refval;
+  if (cfg.breakScheme && $("breakScheme")) $("breakScheme").value = cfg.breakScheme;
+  if (cfg.breaks != null) setBreaksBox(typeof cfg.breaks === "string" ? cfg.breaks : cfg.breaks.join(", "));
+  if (cfg.compareBreaks != null && $("cbreaks")) $("cbreaks").value = cfg.compareBreaks;
+  if (cfg.borders != null) $("borders").checked = !!cfg.borders;
+  if (cfg.highlight != null) $("highlight").checked = !!cfg.highlight;
+  if (cfg.title != null) $("title").value = cfg.title;
+  if (cfg.subtitle != null) $("subtitle").value = cfg.subtitle;
+  if (cfg.labelA != null && $("labelA")) $("labelA").value = cfg.labelA;
+  if (cfg.labelB != null && $("labelB")) $("labelB").value = cfg.labelB;
+  if (cfg.width != null) $("width").value = cfg.width;
+  if (cfg.height != null) $("height").value = cfg.height;
+  if (cfg.dpi != null) $("dpi").value = cfg.dpi;
+
+  // Bounds: an explicit bbox wins; otherwise auto-fill from the selection
+  // (unless a metro filter is set, which drives its own zoom).
+  if (Array.isArray(cfg.bbox) && cfg.bbox.length === 4) {
+    setBoundsFields({ xlim: [cfg.bbox[0], cfg.bbox[2]], ylim: [cfg.bbox[1], cfg.bbox[3]] });
+  } else if (cfg.regions != null && cfg.metro == null) {
+    autoFillBounds();
+  }
+}
+
+// Parse recognized query params into a config object (plus _autogenerate /
+// _download flags). Returns null when there are NO query params, so a normal
+// visit is left completely untouched.
+function configFromUrl() {
+  const p = new URLSearchParams(location.search);
+  if (![...p.keys()].length) return null;
+  const cfg = {};
+  const s = (k) => (p.has(k) ? p.get(k) : undefined);
+  const num = (k) => (p.has(k) ? parseFloat(p.get(k)) : undefined);
+  const bool = (k, dflt) => (p.has(k) ? !["0", "false", "no"].includes(p.get(k).toLowerCase()) : dflt);
+  if (s("mode")) cfg.mode = s("mode");
+  if (s("origin")) cfg.origin = s("origin");
+  if (s("dest")) cfg.dest = s("dest");
+  if (s("source")) cfg.source = s("source");
+  if (s("sourceName") || s("region")) cfg.sourceName = s("sourceName") || s("region");
+  if (s("sourceB")) cfg.sourceB = s("sourceB");
+  if (s("sourceBName")) cfg.sourceBName = s("sourceBName");
+  if (s("regions")) cfg.regions = s("regions");
+  if (s("metro")) cfg.metro = s("metro");
+  if (s("palette")) cfg.palette = s("palette");
+  if (s("comparePalette")) cfg.comparePalette = s("comparePalette");
+  if (s("refMode")) cfg.refMode = s("refMode");
+  if (p.has("refq")) cfg.refq = num("refq");
+  if (p.has("refval")) cfg.refval = num("refval");
+  if (s("breakScheme")) cfg.breakScheme = s("breakScheme");
+  if (s("breaks")) cfg.breaks = s("breaks");
+  if (s("compareBreaks")) cfg.compareBreaks = s("compareBreaks");
+  if (p.has("borders")) cfg.borders = bool("borders", true);
+  if (p.has("highlight")) cfg.highlight = bool("highlight", false);
+  if (s("title")) cfg.title = s("title");
+  if (s("subtitle")) cfg.subtitle = s("subtitle");
+  if (p.has("width")) cfg.width = num("width");
+  if (p.has("height")) cfg.height = num("height");
+  if (p.has("dpi")) cfg.dpi = num("dpi");
+  if (p.has("xmin") && p.has("ymin") && p.has("xmax") && p.has("ymax")) {
+    cfg.bbox = [num("xmin"), num("ymin"), num("xmax"), num("ymax")];
+  }
+  // download implies autogenerate; autogenerate=0 opts out.
+  cfg._autogenerate = p.has("autogenerate") ? bool("autogenerate", true) : p.has("download");
+  cfg._download = s("download");
+  return cfg;
+}
+
+const blobToDataUrl = (blob) =>
+  new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(blob);
+  });
+
+// Render the current map to a Blob WITHOUT triggering a browser download — the
+// useful path for headless automation (capture the Blob directly).
+async function sciToBlob(fmt = "png") {
+  if (!lastCanvas || !lastRender) throw new Error("Generate a map first (call SCI.generate).");
+  if (fmt === "png") return canvasBlob(lastCanvas, "image/png");
+  if (fmt === "jpg" || fmt === "jpeg") return canvasBlob(lastCanvas, "image/jpeg", 0.92);
+  if (fmt === "svg") return new Blob([renderSvg(lastRender)], { type: "image/svg+xml" });
+  if (fmt === "mp4") {
+    if (!mp4Supported()) throw new Error("MP4 needs WebCodecs (Chrome/Edge/Safari 17+); may be unavailable headless.");
+    return encodeMp4(buildReelCanvas(), { seconds: 10, fps: 30 });
+  }
+  throw new Error("Unknown format: " + fmt);
+}
+
+// Apply an optional config, then render. Resolves to the canvas; rejects on error.
+async function sciGenerate(cfg) {
+  await sciReady.catch(() => {});
+  if (cfg) await applyConfig(cfg);
+  return generate();
+}
+
+// Search the current type's source regions by name; optionally switch type first.
+async function sciFindRegions(query, opts = {}) {
+  await sciReady.catch(() => {});
+  if (opts.origin || opts.dest) await applyConfig({ origin: opts.origin, dest: opts.dest });
+  const q = fold(String(query || "").trim());
+  const f = (o) => (o._fold || (o._fold = fold(o.label)));
+  const list = q ? allSourceOpts.filter((o) => f(o).includes(q)) : allSourceOpts;
+  return list.slice(0, opts.limit || 20).map((o) => ({ id: o.id, label: o.label, country: o.country }));
+}
+
+// The public, documented automation surface. See /llms.txt for usage.
+window.SCI = {
+  version: 1,
+  ready: sciReady,
+  config: async (cfg) => { await sciReady; return applyConfig(cfg); },
+  generate: sciGenerate,
+  toBlob: sciToBlob,
+  dataUrl: async (fmt) => blobToDataUrl(await sciToBlob(fmt)),
+  download, // download(fmt) triggers a browser download (png/jpg/svg/mp4)
+  reset,
+  findRegions: sciFindRegions,
+  listTypes: () => Object.keys(manifest.types),
+  listLevels: () => ({ origins: ORIGIN_LEVELS, destForOrigin: DEST_FOR_ORIGIN, labels: LEVEL_LABEL }),
+  listPalettes: () => ({ single: Object.keys(palettes.single), comparison: Object.keys(palettes.comparison) }),
+  listGroups: () => Object.keys(groups),
+};
 
 init().catch(showError);

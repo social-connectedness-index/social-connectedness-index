@@ -79,6 +79,22 @@ comparison controls stay interactive without re-fetching. Large levels are shard
 per-file size within Cloudflare Pages limits. See `export/export_sci.R` and
 `export/export_geometry.R` for the details.
 
+## Programmatic / shareable / agent access
+
+The Map Generator has no server API (it's static), but it can be driven two ways
+— both invisible to ordinary visitors and usable from a headless browser:
+
+1. **URL parameters** — `generator.html?origin=…&source=…&regions=…` pre-fills the
+   controls; add `autogenerate=1` to render and `download=png|jpg|svg|mp4` to save.
+   Good for shareable "reproduce this exact map" links.
+2. **`window.SCI` API** — `await window.SCI.ready`, then `SCI.generate(cfg)`,
+   `SCI.toBlob(fmt)`, `SCI.findRegions(name)`, `SCI.listTypes()/listLevels()/
+   listPalettes()`, etc. A `sci:generated` DOM event fires after each render.
+
+Both are implemented in `src/main.js` (`applyConfig` / `configFromUrl` / the
+`window.SCI` object). The full schema and examples live in **`public/llms.txt`**
+(served at `/llms.txt`) — update it whenever the params or API change.
+
 ## Build the data (one-time, needs the full local dataset)
 
 From the repo root, with the cleaned shapefiles + SCI data present (run

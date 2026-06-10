@@ -1,0 +1,99 @@
+# Social Connectedness Index map maker — social-connectedness.org
+
+A free, browser-based tool for mapping the Social Connectedness Index (SCI), a
+measure of the relative probability of Facebook friendship between places. Two
+tools share one dataset:
+
+- /generator — Map Generator: makes a static map image (PNG/JPG/SVG, plus an MP4
+  reel) for one "home" region's friendship pattern, or a two-region comparison.
+- /explore   — Interactive Explorer: a Mapbox globe; click a country/region to
+  recolor the world by its SCI. (No programmatic API; human/visual use.)
+
+Everything runs client-side; there is no server-side API. The Map Generator can,
+however, be driven programmatically in two ways — both work in a headless browser
+(e.g. Playwright/Puppeteer) and neither affects ordinary visitors.
+
+## 1. Shareable URL parameters (/generator?...)
+
+Open the generator with query params to pre-fill the controls. Add `autogenerate=1`
+to render immediately, and `download=png|jpg|svg|mp4` to also save the file
+(download implies autogenerate). With no params the page behaves normally.
+
+Example — friendships FROM Los Angeles County shown across all US counties,
+auto-rendered (the home region is a county, so origin=us_county):
+  https://social-connectedness.org/generator?origin=us_county&dest=us_county&sourceName=Los%20Angeles&autogenerate=1
+
+Parameters (all optional):
+- mode          single | compare                      (default single)
+- origin        level id of the home region           (see "levels" below)
+- dest          level id to color across the map
+- source        exact region id for the home region   (preferred; unambiguous)
+- sourceName    region name to look up instead of id  (e.g. "Berlin")
+- sourceB / sourceBName   second region (mode=compare)
+- regions       what to show: all | same-country | same-subcontinent |
+                a continent group name | ISO2 codes — comma-separated
+                (e.g. regions=Europe  or  regions=US,CA,MX  or  regions=all)
+- metro         CBSA code to restrict a US ZIP map to one metro area
+- palette       single-map palette name (see SCI.listPalettes())
+- comparePalette   diverging palette name (mode=compare)
+- refMode       quantile | absolute        (how the SCI scale is anchored)
+- refq          reference quantile, 0-1    (default 0.25)
+- refval        absolute SCI value         (used when refMode=absolute)
+- breakScheme   quantile | even | log | custom
+- breaks        custom legend breaks, e.g. breaks=1,2,5,10,25
+- compareBreaks custom multipliers for comparison maps
+- borders       1|0   show state/province borders     (default 1)
+- highlight     1|0   color the home region           (default 0)
+- title, subtitle      text (auto-generated title if omitted)
+- width, height, dpi   output size in inches / DPI     (default 30 x 25 @ 300)
+- xmin, ymin, xmax, ymax   explicit map bounds (all four required together)
+- autogenerate  1|0   render after applying params
+- download      png | jpg | svg | mp4   save the result (implies autogenerate)
+
+Levels (origin/dest ids): country, gadm1 (State/Province), gadm2 (Region),
+us_county, us_cbsa (US Metro Area), us_zcta (US ZIP Code). Not every origin pairs
+with every dest — call SCI.listLevels() for the valid graph.
+
+## 2. window.SCI JavaScript API (for headless automation)
+
+The generator page exposes `window.SCI`. Await `window.SCI.ready` first. Methods:
+
+- await SCI.ready                         resolves when the page is loaded
+- await SCI.config(cfg)                   apply a config object (same keys as the
+                                          URL params above; camelCase, real types)
+- await SCI.generate(cfg?)               apply cfg (optional) then render; resolves
+                                          to the <canvas>, rejects on error
+- await SCI.toBlob("png"|"jpg"|"svg"|"mp4")   the current map as a Blob (best for
+                                          automation — no browser download dialog)
+- await SCI.dataUrl(fmt)                  the current map as a data: URL
+- SCI.download(fmt)                       trigger a normal browser download
+- await SCI.findRegions(query, {origin, dest, limit})
+                                          resolve a name to candidate {id,label,country}
+- SCI.listTypes() / SCI.listLevels() / SCI.listPalettes() / SCI.listGroups()
+- SCI.reset()
+
+The page also fires a DOM event `sci:generated` (detail: {type,width,height}) on
+each successful render, and `sci:error` (detail: {message}) on failure — so
+automation can await a render instead of polling.
+
+Batch example (10 regions → 10 PNGs), inside the loaded /generator page:
+  await window.SCI.ready;
+  const names = ["Los Angeles", "Cook County", "Harris County", /* ... */];
+  const out = [];
+  for (const n of names) {
+    // The home region is a county, so origin=us_county (dest is what gets colored).
+    const [hit] = await SCI.findRegions(n, { origin: "us_county", dest: "us_county" });
+    if (!hit) continue;
+    await SCI.generate({ origin: "us_county", dest: "us_county", source: hit.id });
+    out.push({ name: n, png: await SCI.toBlob("png") });
+  }
+
+Notes / caveats:
+- MP4 export needs the WebCodecs H.264 encoder. It works in a real (headed)
+  browser but may be unavailable in a headless one — prefer PNG/JPG/SVG for
+  headless pipelines.
+- Region ids are opaque (FIPS like 06037, GADM ids like IND.34.75_1). Use
+  `source` when you know the id; otherwise `sourceName` / SCI.findRegions().
+- The raw exported data is also fetchable as static JSON under /data/
+  (manifest.json, groups.json, palettes.json, countries.json, bounds.json,
+  geo/<level>_names.json, sci/<type>/<id>.json) if you'd rather compute directly.
