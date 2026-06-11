@@ -883,7 +883,7 @@ map.on("load", async function () {
       // Reset the search to the new level (placeholder + clear + close results).
       const si = document.getElementById("region-search");
       const sr = document.getElementById("region-search-results");
-      if (si) { si.value = ""; si.placeholder = this.id === "level2" ? "Search regions…" : "Search countries…"; }
+      if (si) { si.value = ""; si.placeholder = "Search"; }
       if (sr) { sr.hidden = true; sr.innerHTML = ""; }
 
       gSel = this.id;
@@ -900,7 +900,7 @@ map.on("load", async function () {
     const input = document.getElementById("region-search");
     const box = document.getElementById("region-search-results");
     if (!input || !box) return;
-    input.placeholder = gSel === "level2" ? "Search regions…" : "Search countries…";
+    input.placeholder = "Search";
 
     // Per-level search index (cached on cfg): one entry per clickable region.
     // Built lazily on first search — the Region level holds tens of thousands.

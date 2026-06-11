@@ -110,17 +110,24 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
 .explore-nav a:hover { text-decoration: underline; }
 .explore-nav .nav-home { color: #6a7480; }
 
-/* "Show tutorial" launch button: opt out of the global button:hover styling
-   (gray fill / white text / scale) so it reads as a plain link like the Map
-   Generator's, and sit flush at the bottom of the panel (no trailing margin). */
+/* Tutorial launch button: a compact "?" icon sitting just after the "i" About
+   button on the title row. Opt out of the global button:hover styling (gray fill
+   / white text / scale) and of the tour.css trailing margin so it sits flush. */
 #top-controls .tour-launch,
 #top-controls .tour-launch:not(.active):hover {
+  flex: none;
   margin: 0;
+  padding: 0;
   background: none;
   color: #1877f2;
   transform: none;
 }
-#top-controls .tour-launch:not(.active):hover { text-decoration: underline; }
+/* Match the "?" circle to the "i" About button's circle (16px / 11px). */
+#image-text-container .tour-launch-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+}
 
 #image-text-container {
   position: static;
@@ -147,6 +154,7 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
 .button-container > button {
   padding: 4px 10px;
   font-size: 12px;
+  line-height: 1.4; /* pin so input + buttons share an identical content height */
   font-weight: 500;
   border: 1px solid #b8b8b8;
   border-radius: 4px !important;
@@ -175,8 +183,9 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
   min-width: 0;
   font-family: 'Poppins', sans-serif;
   font-size: 12px;
+  line-height: 1.4; /* pin so input + buttons share an identical content height */
   color: #3b464f;
-  padding: 5px 8px 5px 26px;
+  padding: 4px 8px 4px 26px; /* match the Countries/Regions buttons' height */
   border: 1px solid #cdd3d8;
   border-radius: 4px;
   background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236a7480' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 8px center;
@@ -558,7 +567,18 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
     overflow-y: auto;
   }
   #console-close { display: block; }
-  #title { font-size: 15px; text-align: left; margin: 0 34px 7px 0; }
+  /* Centre the place name vertically in a band the same height as the close
+     button (30px) so it lines up with the X instead of sitting high. */
+  #title {
+    font-size: 15px;
+    text-align: left;
+    margin: 0 34px 7px 0;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+  }
+  /* Keep the first switch comfortably clear of the close button below the title. */
+  .panel-actions { margin-top: 10px; }
 
   #data-explanation { width: calc(100vw - 16px); top: 8px; left: 8px; }
 }

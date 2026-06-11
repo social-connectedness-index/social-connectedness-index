@@ -32,6 +32,10 @@
               aria-label="About this map" title="About this map">
         <span class="info-icon" aria-hidden="true">i</span>
       </button>
+      <button id="tourBtn" class="tour-launch" type="button" title="Replay the tutorial"
+              aria-label="Replay the tutorial">
+        <span class="tour-launch-icon" aria-hidden="true">?</span>
+      </button>
     </div>
 
     <div class="search-row">
@@ -39,14 +43,10 @@
         <button type="button" id="level0" class="active">Countries</button>
         <button type="button" id="level2">Regions</button>
       </div>
-      <input type="text" id="region-search" class="region-search" placeholder="Search countries…"
+      <input type="text" id="region-search" class="region-search" placeholder="Search"
              autocomplete="off" spellcheck="false" aria-label="Search for a country or region" />
       <div id="region-search-results" class="search-results" role="listbox" hidden></div>
     </div>
-
-    <button id="tourBtn" class="tour-launch" type="button" title="Replay the tutorial">
-      <span class="tour-launch-icon" aria-hidden="true">?</span> Show tutorial
-    </button>
   </div>
 
   <!-- Expandable explanation, anchored top-left and floats above the map when open. -->
@@ -70,7 +70,7 @@
     <h1 id="title">Selected country</h1>
 
     <div class="panel-actions">
-      <label class="toggle-row" id="focus-country-row" style="display: none;">
+      <label class="toggle-row" id="focus-country-row" for="focus-country" style="display: none;">
         <span class="toggle-label">Focus on this country</span>
         <span class="switch">
           <input type="checkbox" id="focus-country" />
@@ -78,7 +78,7 @@
         </span>
       </label>
 
-      <label class="toggle-row" id="dynamic-scale-row">
+      <label class="toggle-row" id="dynamic-scale-row" for="dynamic-scale">
         <span class="toggle-label">Scale colors to the area in view<span class="info-wrap">
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
