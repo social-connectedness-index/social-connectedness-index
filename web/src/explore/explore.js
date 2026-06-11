@@ -156,6 +156,10 @@ let referenceQuantile = DEFAULT_REFERENCE_QUANTILE;
 // Multiplier break points (in units of the reference value): 10 fill bins =
 // "< 1x" + one per break. These breaks are also the legend's tick positions.
 const BREAK_MULTIPLIERS = [1, 2, 5, 7, 10, 25, 50, 75, 100];
+// In "Focus on country" mode the spread is much narrower (within one country), so
+// a finer, lower-topped scale shows more variation. Same count (9 breaks → 10
+// bins) so BIN_COLORS is reused unchanged.
+const FOCUS_BREAK_MULTIPLIERS = [1, 2, 3, 4, 5, 7, 10, 15, 25];
 
 // Green -> teal -> blue identity ramp (ColorBrewer GnBu control stops),
 // interpolated to exactly one colour per bin so the gradient stays smooth as
@@ -193,12 +197,25 @@ const BIN_COLORS = rampColors(RAMP_STOPS, BREAK_MULTIPLIERS.length + 1);
 // subset is labelled (the panel is narrow, so labelling all nine would overlap).
 function fmtMult(m) { return (m >= 10 ? Math.round(m) : m) + "x"; }
 const LEGEND_TICK_MULTS = [1, 5, 10, 50, 100];
+const FOCUS_LEGEND_TICK_MULTS = [1, 3, 5, 10, 25];
+
+// The active break/tick sets depend on whether the current selection is actually
+// being rendered in focus-country mode.
+function isFocusActive() {
+  const sel = lastSelection;
+  return !!(sel && focusCountry && sel.cfg.canFocus && sel.clickedCountry);
+}
+function activeBreakMultipliers() { return isFocusActive() ? FOCUS_BREAK_MULTIPLIERS : BREAK_MULTIPLIERS; }
+function activeLegendTickMults() { return isFocusActive() ? FOCUS_LEGEND_TICK_MULTS : LEGEND_TICK_MULTS; }
 
 // Default fill for an in-sample feature before any click; distinct grey for
 // out-of-sample (exists in the boundary file but has no SCI data).
 const DEFAULT_FILL = "#e3e7ea";
 const NO_DATA_FILL = "#cdd3d8";
 const BORDER_COLOR = "#b9c2c9";
+// The clicked source region is filled in a very dark navy — darker than the top
+// colour bin (#084081) — so it stands out from the choropleth around it.
+const HIGHLIGHT_COLOR = "#04244a";
 
 // ---------------------------------------------------------------------------
 // Level configuration. Two levels only: Country and Region (GADM best).
@@ -582,6 +599,27 @@ map.on("load", async function () {
       beforeId
     );
 
+    // Country (national) outlines, sourced from the country layer. Drawn only in
+    // Region mode (see setActiveLayer) so sub-national regions sit inside visible
+    // national borders; in Country mode the country fills already show them. Added
+    // once, alongside the country level's setup.
+    if (levelKey === "level0" && !map.getLayer("country-outline")) {
+      map.addLayer(
+        {
+          id: "country-outline",
+          type: "line",
+          source: "level0",
+          layout: { visibility: "none", "line-join": "round" },
+          paint: {
+            "line-color": "#7c8893",
+            "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 4, 0.9, 7, 1.6],
+            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.55, 4, 0.85],
+          },
+        },
+        beforeId
+      );
+    }
+
     wireLevelEvents(levelKey, cfg);
     hideSpinner();
   }
@@ -724,10 +762,13 @@ map.on("load", async function () {
     if (!sel || sel.levelKey !== levelKey || !map.getLayer(levelKey)) return;
     const cfg = sel.cfg;
     const focus = focusCountry && cfg.canFocus && !!sel.clickedCountry;
-    const thresholds = BREAK_MULTIPLIERS.map((m) => m * refSci);
+    const thresholds = (focus ? FOCUS_BREAK_MULTIPLIERS : BREAK_MULTIPLIERS).map((m) => m * refSci);
     const step = ["step", ["coalesce", ["get", "sci"], 0], BIN_COLORS[0]];
     for (let i = 0; i < thresholds.length; i++) step.push(thresholds[i], BIN_COLORS[i + 1]);
-    const fillColor = ["case", ["==", ["get", "has_data"], false], NO_DATA_FILL];
+    const fillColor = ["case",
+      // Clicked source region: very dark navy, on top of everything else.
+      ["==", ["get", "id"], sel.clickedId], HIGHLIGHT_COLOR,
+      ["==", ["get", "has_data"], false], NO_DATA_FILL];
     if (focus) fillColor.push(["!=", ["get", "country"], sel.clickedCountry], DEFAULT_FILL);
     fillColor.push(["has", "sci"], step, DEFAULT_FILL);
     map.setPaintProperty(levelKey, "fill-color", fillColor);
@@ -803,15 +844,17 @@ map.on("load", async function () {
   // ----- legend -----
   function updateLegend() {
     const legendScale = document.getElementById("legend-scale");
+    const mults = activeBreakMultipliers();
+    const tickMults = activeLegendTickMults();
     const n = BIN_COLORS.length; // fill bins
     const bar = BIN_COLORS
       .map(function (c) { return '<span class="legend-swatch" style="background-color:' + c + '"></span>'; })
       .join("");
     // Each break sits on the boundary between two bins, at position (i+1)/n. Label
     // only the readable subset (the panel is narrow).
-    const labels = LEGEND_TICK_MULTS
+    const labels = tickMults
       .map(function (m) {
-        const i = BREAK_MULTIPLIERS.indexOf(m);
+        const i = mults.indexOf(m);
         if (i < 0) return "";
         const pos = (((i + 1) / n) * 100).toFixed(2);
         return '<span class="legend-tick" style="left:' + pos + '%">' + fmtMult(m) + "</span>";
@@ -847,6 +890,17 @@ map.on("load", async function () {
       map.setLayoutProperty(id, "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
     });
+    // National outlines: show only in Region mode, and lift above the region
+    // fills/borders so they read clearly (kept just below the basemap labels).
+    if (map.getLayer("country-outline")) {
+      const showOutline = activeId === "level2";
+      map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");
+      if (showOutline) {
+        const labelLayer = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+        try { map.moveLayer("country-outline", labelLayer); } catch (_) {}
+      }
+    }
+
     // Reset the active layer's fill to the has_data-aware default (clears any
     // choropleth painted while it was last active).
     if (map.getLayer(activeId)) {

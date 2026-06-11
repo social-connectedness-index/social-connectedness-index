@@ -144,11 +144,11 @@ function fitText(text, maxWidth, startSize, bold, maxLines, minSize) {
 // plus the y where the map can start. Shared by drawScene and naturalHeight so
 // the two never drift.
 function layoutChrome(W, opts) {
-  const { title = "", subtitle = "", caption = "" } = opts;
+  const { title = "", subtitle = "", caption = "", titleScale = 1, captionScale = 1 } = opts;
   const margin = Math.round(W * 0.025);
-  const titleFs = Math.round(W / 40);
+  const titleFs = Math.round((W / 40) * titleScale);
   const subFs = Math.round(W / 52);
-  const capFs = Math.round(W / 78);   // caption (dataset link + handle)
+  const capFs = Math.round((W / 78) * captionScale);  // caption (dataset link + handle)
   const legendFs = Math.round(W / 68); // legend title + tick labels
   const textMaxW = W - margin * 2;
   const titleFit = title ? fitText(title, textMaxW, titleFs, true, 2, Math.round(titleFs * 0.62)) : { lines: [], size: titleFs };
@@ -160,7 +160,10 @@ function layoutChrome(W, opts) {
   const subLines = subArr.length;
   const capLines = capArr.length;
   const captionSpace = capLines ? capLines * capFs * 1.4 + margin * 0.3 : 0;
-  const legendSpace = Math.round(legendFs * 4.8);
+  // No vertical band reserved for the legend when there isn't one (e.g. the
+  // clustering tool's categorical map passes no legend).
+  const hasLegend = !!(opts.legend && opts.legend.colors && opts.legend.colors.length);
+  const legendSpace = hasLegend ? Math.round(legendFs * 4.8) : 0;
   // Reproduce drawScene's top-text advance to find where the map can start.
   let y = margin + (titleLines ? titleDrawFs : 0);
   if (titleLines) y += titleLines * titleDrawFs * 1.25;

@@ -1,0 +1,231 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;400;600;700&display=swap');
+
+* { box-sizing: border-box; }
+
+body { font-family: 'Poppins', sans-serif; margin: 0; }
+
+#map { position: fixed; inset: 0; width: 100%; height: 100%; }
+
+#loading-icon {
+  display: none;
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  border: 8px solid #f3f3f3; border-top: 8px solid #3498db;
+  border-radius: 50%; width: 60px; height: 60px;
+  animation: spin 1s linear infinite; z-index: 9999;
+}
+@keyframes spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* ---- left control panel ---- */
+#panel {
+  position: fixed;
+  top: 14px; left: 14px; bottom: 14px;
+  width: 320px;
+  display: flex; flex-direction: column;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #e1e8ec;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(16, 97, 123, 0.18);
+  padding: 14px 16px;
+  overflow-y: auto;
+  z-index: 5;
+}
+
+.tool-nav {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12.5px; margin-bottom: 8px;
+}
+.tool-nav a { color: #1879d5; text-decoration: none; font-weight: 600; }
+.tool-nav a:hover { text-decoration: underline; }
+
+.panel-head { display: flex; align-items: center; justify-content: flex-start; gap: 7px; }
+.panel-head h1 { margin: 0; font-size: 17px; line-height: 1; color: #10617b; }
+.panel-lede { margin: 6px 0 14px; font-size: 12.5px; line-height: 1.5; color: #4a5862; }
+
+/* ---- fields ---- */
+.field { margin-bottom: 14px; }
+.field-label {
+  display: block; font-size: 13px; font-weight: 600; color: #2a3942; margin-bottom: 6px;
+}
+
+.search-box, .text-box, input[type="number"] {
+  width: 100%; padding: 7px 9px;
+  border: 1px solid #cfd9df; border-radius: 6px;
+  font-family: inherit; font-size: 13px; color: #2a3942;
+}
+input[type="number"] { width: 110px; }
+.search-box:focus, .text-box:focus, input[type="number"]:focus {
+  outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15);
+}
+
+/* group quick-select chips */
+.group-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.chip {
+  font: inherit; font-size: 11.5px;
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid #cfd9df; background: #f4f7f9; color: #3b4954;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s;
+}
+.chip:hover { background: #e7eef2; border-color: #b9d0da; }
+.chip-clear { color: #9a4a4a; border-color: #e3c9c9; background: #fbf2f2; }
+
+/* country checklist */
+.checklist {
+  margin-top: 8px;
+  max-height: 220px; overflow-y: auto;
+  border: 1px solid #e3e9ed; border-radius: 6px;
+  padding: 4px;
+}
+.check-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 6px; border-radius: 4px;
+  font-size: 13px; color: #2a3942; cursor: pointer;
+}
+.check-row:hover { background: #f1f6f8; }
+.check-row input { margin: 0; accent-color: #1879d5; }
+.check-divider { height: 1px; background: #e3e9ed; margin: 5px 2px; }
+
+.selected-summary { margin-top: 7px; font-size: 11.5px; color: #5a6873; line-height: 1.45; }
+
+/* checkbox option row (e.g. "Show country & state borders") */
+.checkbox-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: #2a3942; cursor: pointer;
+}
+.checkbox-row input { margin: 0; accent-color: #1879d5; }
+
+/* ---- actions ---- */
+.panel-actions { position: relative; display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.btn-primary, .btn-secondary {
+  font: inherit; font-weight: 600; font-size: 14px;
+  padding: 9px 12px; border-radius: 7px; cursor: pointer; border: 1px solid transparent;
+}
+.btn-primary { background: #10617b; color: #fff; }
+.btn-primary:hover { background: #0d4f64; }
+.btn-primary:disabled { background: #9bb6c0; cursor: default; }
+.btn-secondary { background: #fff; color: #10617b; border-color: #b9d0da; }
+.btn-secondary:hover:not(:disabled) { background: #eef5f8; }
+.btn-secondary:disabled { color: #aab8c0; border-color: #dde6ea; cursor: default; }
+
+.download-menu {
+  position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+  background: #fff; border: 1px solid #d7e0e5; border-radius: 7px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14); overflow: hidden; z-index: 10;
+}
+.download-menu button {
+  display: block; width: 100%; text-align: left;
+  font: inherit; font-size: 13px; color: #2a3942;
+  padding: 9px 12px; background: #fff; border: none; cursor: pointer;
+}
+.download-menu button:hover { background: #f1f6f8; }
+
+/* ---- status ---- */
+.status { font-size: 12px; line-height: 1.45; color: #4a5862; min-height: 16px; margin-bottom: 8px; }
+.status-ok { color: #1d7a4d; }
+.status-warn { color: #b3541e; }
+
+/* ---- legend ---- */
+.legend {
+  margin: 4px 0 12px; padding: 8px 10px;
+  background: #f7fafb; border: 1px solid #e3e9ed; border-radius: 6px;
+}
+.legend-title { font-size: 12.5px; font-weight: 600; color: #2a3942; margin-bottom: 6px; }
+.legend-swatches { display: flex; flex-wrap: wrap; gap: 5px 8px; }
+.legend-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #4a5862; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0, 0, 0, 0.12); }
+
+/* ---- footer ---- */
+.panel-foot {
+  margin-top: auto; padding-top: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-top: 1px solid #eef2f4;
+}
+.link-btn { background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-size: 12px; color: #1879d5; }
+.link-btn:hover { text-decoration: underline; }
+.lab-mark { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.lab-mark img { width: 24px; height: 24px; display: block; }
+.lab-mark span { font-weight: 600; font-size: 11.5px; color: #10617b; }
+.lab-mark:hover span { text-decoration: underline; }
+
+/* ---- title-row buttons: EXACT replicas of the Interactive Explorer's
+   "About" (i) and tutorial (?) buttons (#data-explanation-btn / #tourBtn).
+   Scoped under .panel-head so they override the shared tour.css base. ---- */
+/* "i" About button — a 16px grey filled circle with a white italic "i". */
+.panel-head .icon-btn {
+  flex: none; padding: 0; background: transparent; border: none; cursor: pointer;
+  display: inline-flex; align-items: center; line-height: 0;
+}
+.panel-head .icon-btn .info-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #6a7480; color: #fff;
+  font-size: 11px; font-weight: 700; font-style: italic; line-height: 1;
+  transition: background 0.15s;
+}
+.panel-head .icon-btn:hover .info-icon,
+.panel-head .icon-btn[aria-expanded="true"] .info-icon { background: #3b464f; }
+
+/* "?" tutorial button — a 16px blue filled circle (the blue fill comes from the
+   shared tour.css .tour-launch-icon base; we just match the size/colour). */
+.panel-head .tour-launch,
+.panel-head .tour-launch:hover {
+  flex: none; margin: 0; padding: 0; background: none; color: #1877f2; transform: none;
+}
+.panel-head .tour-launch-icon { width: 16px; height: 16px; font-size: 11px; }
+
+/* ---- about panel ---- */
+#about {
+  position: fixed; left: 14px; top: 14px; width: 340px; max-width: calc(100vw - 28px);
+  max-height: calc(100vh - 28px); overflow-y: auto;
+  background: #fff; border: 1px solid #e1e8ec; border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  padding: 18px 20px; z-index: 20;
+}
+#about h3 { margin: 0 0 8px; color: #10617b; font-size: 16px; }
+#about p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: #44525c; }
+#about a { color: #1879d5; }
+#about .map-attribution { font-size: 11px; color: #7a8893; }
+#about .close-btn {
+  position: absolute; top: 8px; right: 10px; background: none; border: none;
+  font-size: 22px; line-height: 1; color: #9aa6ad; cursor: pointer;
+}
+#about .close-btn:hover { color: #1879d5; }
+
+/* ---- info "i" tooltips (mirrors the Explorer) ---- */
+.info-wrap { position: relative; display: inline-flex; vertical-align: middle; margin-left: 5px; }
+.opt-info-btn { padding: 0; background: transparent; border: none; cursor: pointer; display: inline-flex; align-items: center; line-height: 0; }
+.opt-info-btn .info-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: #6a7480; color: #fff; font-size: 10px; font-weight: 700; font-style: italic; line-height: 1;
+  transition: background 0.15s;
+}
+.opt-info-btn:hover .info-icon { background: #3b464f; }
+.info-tip {
+  position: fixed; left: 0; top: 0; width: 230px; max-width: min(70vw, 260px);
+  padding: 8px 10px; background: #3b464f; color: #fff;
+  font-size: 11px; font-weight: 400; font-style: normal; line-height: 1.4; text-align: left;
+  border-radius: 6px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  opacity: 0; visibility: hidden; transform: translateY(-3px);
+  transition: opacity 0.15s, transform 0.15s; z-index: 1000; pointer-events: none;
+}
+.info-tip.show { opacity: 1; visibility: visible; transform: translateY(0); }
+
+/* ---- hover tooltip ---- */
+.sci-tooltip { pointer-events: none; }
+.sci-tooltip .mapboxgl-popup-content { font-family: 'Poppins', sans-serif; padding: 6px 10px; border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); }
+.sci-tooltip .mapboxgl-popup-tip { display: none; }
+.sci-tooltip .tt-name { font-size: 12px; font-weight: 600; color: #3b464f; line-height: 1.2; }
+.sci-tooltip .tt-sub { font-size: 11px; color: #6a7480; margin-top: 1px; }
+
+/* ---- mobile: panel becomes a top sheet ---- */
+@media (max-width: 720px) {
+  #panel {
+    top: 8px; left: 8px; right: 8px; bottom: auto; width: auto;
+    max-height: 70vh;
+  }
+  #about { left: 8px; right: 8px; width: auto; }
+}

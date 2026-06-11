@@ -9,6 +9,7 @@ import { defineConfig } from "vite";
 //   index.html      — landing page / tool chooser
 //   generator.html  — the static Map Generator (canvas-rendered)
 //   explore.html    — the interactive Mapbox explorer
+//   cluster.html    — the Connected Communities clustering tool
 export default defineConfig({
   base: "./",
   build: {
@@ -20,6 +21,7 @@ export default defineConfig({
         main: "index.html",
         generator: "generator.html",
         explore: "explore.html",
+        cluster: "cluster.html",
       },
     },
   },

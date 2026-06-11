@@ -12,7 +12,7 @@ html, body {
 }
 
 .landing {
-  max-width: 980px;
+  max-width: 1140px;
   margin: 0 auto;
   padding: 64px 24px 48px;
   display: flex;
@@ -39,7 +39,7 @@ html, body {
 /* ---- tool cards ---- */
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px;
   margin-bottom: auto;
 }
@@ -84,6 +84,16 @@ html, body {
      keeps the card height unchanged; the image fits inside the padded area). */
   background-origin: content-box;
   padding: 18px 24px;
+}
+/* Connected Communities — a clustered choropleth on a white field, shown
+   "contain" with padding so the whole shape stays in view (like the Generator). */
+.art-cluster {
+  background-color: #ffffff;
+  background-image: url('/img/cluster-card.png');
+  /* Slightly larger than "contain" so the image's white margins overflow the
+     card-art box (overflow:hidden crops them), zooming the map in a touch. */
+  background-size: 75%;
+  background-position: center;
 }
 
 .tool-card-body { padding: 22px 24px 26px; }
@@ -170,6 +180,11 @@ html, body {
 .lab-credit .lab-logo { width: 38px; height: 38px; display: block; }
 .lab-credit strong { color: #10617b; font-weight: 600; }
 .lab-credit:hover strong { text-decoration: underline; }
+
+/* Tablet: drop the 3-up grid to 2 columns before it gets cramped. */
+@media (max-width: 1000px) and (min-width: 721px) {
+  .tool-grid { grid-template-columns: repeat(2, 1fr); }
+}
 
 @media (max-width: 720px) {
   .landing { padding: 40px 18px 32px; }
