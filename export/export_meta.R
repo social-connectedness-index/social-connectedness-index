@@ -124,7 +124,7 @@ export_meta <- function(out_root) {
   # Hardcoded per-group bounds + per-country bboxes from GADM0. The frontend
   # combines these (compute_combined_bounds/update_bounds logic, now in main.js).
   group_bounds <- list(
-    "Europe"           = list(xlim = c(-10, 36),   ylim = c(36, 70)),
+    "Europe"           = list(xlim = c(-11.5, 36), ylim = c(36, 72)),
     "Africa"           = list(xlim = c(-26, 58),   ylim = c(-35, 38)),
     "South Asia"       = list(xlim = c(60, 98),    ylim = c(5, 37)),
     "West Asia"        = list(xlim = c(25, 61),    ylim = c(12, 43)),
@@ -217,7 +217,7 @@ export_meta <- function(out_root) {
   # European origin frames identically whether it picks "Europe" or "Same
   # (sub)continent" — the wider members (RU/UA/IS) are split out above.
   subcontinent_bounds <- list(
-    "Europe"          = list(xlim = c(-10, 36),   ylim = c(36, 70)),
+    "Europe"          = list(xlim = c(-11.5, 36), ylim = c(36, 72)),
     "Africa"          = list(xlim = c(-19, 52),   ylim = c(-35, 38)),
     "North America"   = list(xlim = c(-168, -52), ylim = c(24, 80)),
     "Central America" = list(xlim = c(-118, -59), ylim = c(7, 27)),
