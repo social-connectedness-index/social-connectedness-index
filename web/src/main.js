@@ -8,7 +8,7 @@
 import {
   normalize, autoBreaks, buildBins, interpolatePalette, labelSingle, colorsFor,
   comparisonLogRatios, comparisonBreaks, labelComparison, divergingPalette, colorsForComparison,
-  breaksForScheme,
+  breaksForScheme, quantile,
 } from "./sci.js";
 import { computeBbox, renderMap, renderSvg, naturalHeight } from "./render.js";
 import { encodeMp4, mp4Supported } from "./video.js";
@@ -370,14 +370,45 @@ function originCountry() {
   const id = $("sourceA").value;
   if (!t || !id) return null;
   const nm = namesCache[t.sourceGeo];
-  if (nm && nm[id]) return nm[id][1];
+  const cc = nm && nm[id] ? nm[id][1] : null;
+  if (cc) return cc;
+  // US sub-national source levels (us_county/us_cbsa/us_zcta) don't carry a
+  // country in their names index — they're all in the US — so resolve them
+  // explicitly. Without this, "Same country/subcontinent as origin" can't
+  // resolve and silently falls back to showing every country.
+  if (t.sourceGeo.startsWith("us_")) return "US";
   return t.sourceGeo === "country" ? id : null;
 }
-// All data countries in the same subcontinent as `cc`.
+// Resolve a country to its "(sub)continent" for the origin-relative scope
+// options. Prefer the curated named groups so the result matches the explicit
+// region options exactly — e.g. a North-American origin yields the whole "North
+// America" group (US, Canada, Mexico, Central America, the Caribbean), not just
+// the narrow UN subcontinent. Picks the LARGEST containing group, so a Central
+// American country resolves to the encompassing "North America" rather than the
+// "Central America" subset, and France to "Europe" rather than "South America".
+// Falls back to the UN subcontinent table for countries in no curated group
+// (e.g. Russia, Iceland). Returns { name, codes, box } (name is the display name
+// of the region, box the zoom box — possibly undefined) or null.
+function originRegion(cc) {
+  if (!cc) return null;
+  let best = null;
+  for (const name in groups) {
+    if (name === OPT_ALL || name === "United States") continue;
+    if (groups[name].includes(cc) && (!best || groups[name].length > groups[best].length)) best = name;
+  }
+  if (best) return { name: best, codes: groups[best], box: bounds.groups && bounds.groups[best] };
+  const sub = csub ? csub[cc] : null;
+  if (!sub) return null;
+  return {
+    name: sub,
+    codes: Object.keys(csub).filter((c) => csub[c] === sub),
+    box: bounds.subcontinents && bounds.subcontinents[sub],
+  };
+}
+// All data countries in the same (sub)continent as `cc` (see originRegion).
 function subcontinentMembers(cc) {
-  const sub = cc && csub ? csub[cc] : null;
-  if (!sub) return [];
-  return Object.keys(csub).filter((c) => csub[c] === sub);
+  const r = originRegion(cc);
+  return r ? r.codes : [];
 }
 
 function selectedCountryCodes() {
@@ -425,17 +456,35 @@ function activeFriends(friendGeo, t, codes) {
   return { features: feats, ids: dedupe(feats.map((f) => f.properties.id)) };
 }
 
-// The "Show state borders" overlay. For levels finer than a state (gadm2, US
-// county/ZIP/CBSA) it's a separate coarser layer (gadm1), mirroring the R tool's
-// admin1_borders. For coarser levels (no admin1Geo) we return null and render.js
-// strokes the friend outlines instead. Returns null when borders are off so the
-// heavy gadm1 geometry isn't fetched needlessly.
+// The "Show state borders" overlay — sub-national (GADM1/state) boundaries only.
+// For levels finer than a state (gadm2, US county/ZIP/CBSA) it's a separate
+// coarser gadm1 layer (mirroring the R tool's admin1_borders); when the friend
+// level IS gadm1 (state-to-state), the friend polygons themselves are that layer.
+// Country friend levels have no sub-national borders. Returns null when the box
+// is off so the heavy gadm1 geometry isn't fetched needlessly. Country borders
+// are handled separately (loadCountryFeatures) and are always drawn.
 async function loadBorderFeatures(t, codes, metroZctas, activeFeatures) {
-  if (!$("borders").checked || !t.admin1Geo) return null;
+  if (!$("borders").checked) return null;
   // Metro maps: the metro's own ZIP outlines act as the overlay (R sets
   // admin1_borders_data to the filtered ZIP shapes).
   if (metroZctas) return activeFeatures;
-  const geo = await getGeometry(t.admin1Geo); // gadm1 is not sharded
+  if (t.admin1Geo) {
+    const geo = await getGeometry(t.admin1Geo); // gadm1 is not sharded
+    let codeSet = codes;
+    if (!codeSet) codeSet = t.friendByCountry ? null : new Set(["US"]);
+    return codeSet ? geo.features.filter((f) => codeSet.has(f.properties.country)) : geo.features;
+  }
+  // No separate admin layer: the friend gadm1 polygons ARE the state borders.
+  // Country friend levels have nothing sub-national to toggle.
+  return t.friendGeo === "gadm1" ? activeFeatures : null;
+}
+
+// Country outlines, ALWAYS drawn (independent of the "Show state borders" box) so
+// every map shows national boundaries. Filtered to the countries in view (codes),
+// or the whole world when no country filter is active. country.geojson is small
+// and unsharded, so this is cheap.
+async function loadCountryFeatures(t, codes) {
+  const geo = await getGeometry("country");
   let codeSet = codes;
   if (!codeSet) codeSet = t.friendByCountry ? null : new Set(["US"]);
   return codeSet ? geo.features.filter((f) => codeSet.has(f.properties.country)) : geo.features;
@@ -462,10 +511,12 @@ function setBreaksBox(str) {
   fillingBreaks = false;
 }
 
-// Multipliers of the currently-shown single-map regions, WITHOUT loading
-// geometry: active ids = friend regions in the selected countries (from the
-// light names index, or the metro's ZIPs), intersected with the source's SCI.
-async function previewRelValues() {
+// The source SCI map + the active friend ids for the currently-shown single
+// map, WITHOUT loading geometry: active ids = friend regions in the selected
+// countries (from the light names index, or the metro's ZIPs), intersected with
+// the source's SCI. Null when nothing is selectable (compare mode, no source,
+// or empty selection). Shared by the breaks preview and the refval autofill.
+async function previewActive() {
   const type = currentType();
   const t = manifest.types[type];
   if (!t || compareMode() || !$("sourceA").value) return null;
@@ -482,6 +533,14 @@ async function previewRelValues() {
     );
   }
   if (!activeIds.length) return null;
+  return { sciData, activeIds };
+}
+
+// Multipliers of the currently-shown single-map regions, for the breaks preview.
+async function previewRelValues() {
+  const active = await previewActive();
+  if (!active) return null;
+  const { sciData, activeIds } = active;
   let absRef = null;
   if (refMode() === "absolute") {
     absRef = parseFloat($("refval").value);
@@ -491,6 +550,27 @@ async function previewRelValues() {
   return activeIds.map((id) => rel[id]).filter((v) => v != null);
 }
 
+let refvalAutofillToken = 0;
+// Keep the "Absolute SCI value" field showing the real SCI value at the current
+// reference quantile, so the two modes agree by default and the field is ready
+// when the user switches to absolute mode. Only runs in quantile mode — once the
+// user is in absolute mode the field is theirs to edit (and the quantile input
+// is hidden, so the quantile can only change while we're allowed to autofill).
+async function autofillRefval() {
+  if (!$("refval") || refMode() !== "quantile") return;
+  const token = ++refvalAutofillToken;
+  let active;
+  try {
+    active = await previewActive();
+  } catch {
+    return; // best-effort, like the breaks preview
+  }
+  if (token !== refvalAutofillToken || !active) return; // superseded or nothing to fill
+  const ref = quantile(active.activeIds.map((id) => active.sciData[id]), parseFloat($("refq").value) || 0.25);
+  if (!(ref > 0)) return;
+  $("refval").value = String(Math.round(ref));
+}
+
 let breaksPreviewToken = 0;
 let breaksPreviewTimer = null;
 // Debounced recompute of the breaks box for the active scheme. No-op in compare
@@ -498,6 +578,7 @@ let breaksPreviewTimer = null;
 function refreshBreaksPreview() {
   if (breaksPreviewTimer) clearTimeout(breaksPreviewTimer);
   breaksPreviewTimer = setTimeout(() => {
+    autofillRefval(); // keep the Absolute SCI value in sync with the quantile
     const scheme = breakScheme();
     if (compareMode() || scheme === "custom") return;
     const token = ++breaksPreviewToken;
@@ -541,6 +622,63 @@ function autoTitle() {
     return `Where do people have more friends: ${labelOf($("sourceA"))} or ${labelOf($("sourceB"))}?`;
   }
   return `Where do people in ${sourceLabelText()} have the most friends?`;
+}
+
+// Human-readable name for an ISO2 code (lazy lookup over countries.json).
+let _countryNameMap = null;
+function countryName(code) {
+  if (!code) return null;
+  if (!_countryNameMap) _countryNameMap = Object.fromEntries((countries || []).map((c) => [c.id, c.name]));
+  return _countryNameMap[code] || null;
+}
+// Country names that read naturally with a leading "the" in running text
+// ("Across the United States and the Netherlands").
+const ARTICLE_THE = new Set([
+  "Bahamas", "Central African Republic", "Comoros", "Dominican Republic",
+  "Gambia", "Maldives", "Netherlands", "Philippines", "Solomon Islands",
+  "United Arab Emirates", "United Kingdom", "United States",
+]);
+function countryNameThe(code) {
+  const n = countryName(code);
+  return n && ARTICLE_THE.has(n) ? `the ${n}` : n;
+}
+
+// Oxford-comma join, capped so a huge hand-picked country list can't run away.
+function joinNames(list) {
+  const CAP = 8;
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  if (list.length > CAP) return `${list.slice(0, CAP).join(", ")}, and ${list.length - CAP} more`;
+  return `${list.slice(0, -1).join(", ")}, and ${list[list.length - 1]}`;
+}
+
+// The friend regions the map is shown across, as display names. null => no
+// country filter (worldwide). Mirrors selectionBbox()'s branching: scope options
+// resolve relative to the origin, explicit continent groups use their own name,
+// and individual custom countries map to their country names.
+function selectionNames() {
+  const gsel = selectedGroups();
+  if (gsel.includes(OPT_ALL)) return null;
+  const names = [];
+  const oc = originCountry();
+  for (const g of gsel) {
+    if (g === OPT_SAME_COUNTRY) { const n = countryNameThe(oc); if (n) names.push(n); }
+    else if (g === OPT_SAME_SUBCONT) { const r = originRegion(oc); if (r && r.name) names.push(r.name); }
+    else names.push(g); // an explicit continent group — its value is its label
+  }
+  for (const c of selectedCustom()) { const n = countryNameThe(c); if (n) names.push(n); }
+  return names.length ? names : null;
+}
+
+// Default subtitle: "Across <the regions/countries/metro the map spans>".
+function autoSubtitle() {
+  const cbsa = selectedCbsa();
+  if (cbsa) return `Across the ${cbsa.title} metro area`;
+  const t = typeInfo();
+  // US sub-national friend levels (County / Metro / ZIP) aren't country-filtered.
+  if (t && t.friendGeo && t.friendGeo.startsWith("us_")) return "Across the United States";
+  const names = selectionNames();
+  return names ? `Across ${joinNames(names)}` : "Across the world";
 }
 
 function manualBbox() {
@@ -592,8 +730,8 @@ function selectionBbox() {
     if (g === OPT_ALL) continue; // whole world — no box
     else if (g === OPT_SAME_COUNTRY) { if (oc && bounds.countries[oc]) boxes.push(bounds.countries[oc]); }
     else if (g === OPT_SAME_SUBCONT) {
-      const sub = oc && csub ? csub[oc] : null;
-      if (sub && bounds.subcontinents && bounds.subcontinents[sub]) boxes.push(bounds.subcontinents[sub]);
+      const box = (originRegion(oc) || {}).box;
+      if (box) boxes.push(box);
     } else if (bounds.groups[g]) boxes.push(bounds.groups[g]);
   }
   for (const c of csel) if (bounds.countries[c]) boxes.push(bounds.countries[c]);
@@ -722,6 +860,7 @@ async function generate() {
 
     step("rendering…");
     const borderFeatures = await loadBorderFeatures(t, codes, metroZctas, activeFeatures);
+    const countryFeatures = await loadCountryFeatures(t, codes);
     const highlightId = !compareMode() && $("highlight").checked && t.sourceGeo === t.friendGeo
       ? $("sourceA").value : null;
     // The home-region fill is red by default, but red/orange palettes make a red
@@ -738,8 +877,8 @@ async function generate() {
       // selection box (the latter is the whole-US box for ZIP→ZIP) so the
       // metro-filtered geometry's extent wins.
       bbox: (metroZctas ? null : (manualBbox() || selectionBboxArray())) || computeBbox(friendGeo, active),
-      showBorders: $("borders").checked, borderFeatures, highlightId, highlightColor,
-      title: $("title").value || autoTitle(), subtitle: $("subtitle").value,
+      showBorders: $("borders").checked, borderFeatures, countryFeatures, highlightId, highlightColor,
+      title: $("title").value || autoTitle(), subtitle: $("subtitle").value || autoSubtitle(),
       caption: CAPTION, legend, width: w, height: h,
     };
     // Trim the empty top/bottom letterbox on wide (e.g. world) maps by shrinking

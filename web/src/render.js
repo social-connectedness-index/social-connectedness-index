@@ -194,8 +194,8 @@ export function naturalHeight(opts) {
 function drawScene(g, opts) {
   const {
     friendGeo, colorById, activeIds, naColor = NA_COLOR, bbox,
-    showBorders = true, borderColor = "#555", borderFeatures = null,
-    adminBorderColor = "#595959",
+    showBorders = true, borderFeatures = null, adminBorderColor = "#595959",
+    countryFeatures = null, countryBorderColor = "#333333",
     highlightId = null, highlightColor = "#FF0000",
     title = "", subtitle = "", caption = "", legend,
   } = opts;
@@ -269,20 +269,19 @@ function drawScene(g, opts) {
     if (!active.has(id)) continue;
     g.fill(buildPath(f.geometry), colorById[id] || naColor, true);
   }
-  // Borders. When borderFeatures is provided it's a coarser admin layer
-  // (e.g. state/province = gadm1) — the analogue of the R tool's
-  // "Show state borders" overlay. When null, the friend regions themselves are
-  // the toggled level (country/gadm1), so stroke their outlines instead.
-  if (showBorders) {
+  // State/region (GADM1) internal borders — the analogue of the R tool's
+  // "Show state borders" overlay, toggled by showBorders. borderFeatures is the
+  // coarser admin layer (a separate gadm1 overlay for finer friend levels, or
+  // the friend state polygons themselves for a gadm1 friend level).
+  if (showBorders && borderFeatures) {
     const lw = Math.max(0.4, W / 2600);
-    if (borderFeatures) {
-      for (const f of borderFeatures) g.stroke(buildPath(f.geometry), adminBorderColor, lw);
-    } else {
-      for (const f of friendGeo.features) {
-        if (!active.has(f.properties.id)) continue;
-        g.stroke(buildPath(f.geometry), borderColor, lw);
-      }
-    }
+    for (const f of borderFeatures) g.stroke(buildPath(f.geometry), adminBorderColor, lw);
+  }
+  // Country borders — ALWAYS drawn, and a touch heavier/darker than state lines,
+  // so every map shows national boundaries regardless of the state-border toggle.
+  if (countryFeatures) {
+    const clw = Math.max(0.5, W / 2000);
+    for (const f of countryFeatures) g.stroke(buildPath(f.geometry), countryBorderColor, clw);
   }
   // Highlight source region
   if (highlightId) {
