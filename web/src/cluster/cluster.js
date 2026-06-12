@@ -37,11 +37,11 @@ const FETCH_CONCURRENCY = 8;
 const TOUR_STEPS = [
   {
     title: "Connected Communities",
-    body: "Group regions into communities by how tightly they're linked on Facebook. Here's a quick tour; skip anytime.",
+    body: "Group regions into clusters by how tightly they're linked on Facebook. Here's a quick tour; skip anytime.",
     targets: null,
   },
   { title: "Pick countries", body: "Choose one or more countries (or a whole continent with the quick buttons). All their regions are pooled and clustered together.", targets: ["#countries-field"] },
-  { title: "Choose how many communities", body: "Set the number of communities to split the regions into. Each one gets its own color.", targets: ["#num-clusters"] },
+  { title: "Choose how many clusters", body: "Set the number of clusters to split the regions into. Each one gets its own color.", targets: ["#num-clusters"] },
   { title: "Generate", body: "Click Generate. The tool fetches the connectedness between every pair of selected regions, clusters them, and colors the map.", targets: ["#generate"] },
   { title: "Download", body: "Once a map is generated you can download it.", targets: ["#download"] },
 ];
@@ -303,7 +303,13 @@ function clusterPalette(k) {
 let countriesMeta = [];      // [{id, name}]
 let groupsMeta = {};         // {groupName: [iso2...]}
 let countryNames = {};       // iso2 -> [name, iso2]
+let boundsMeta = null;       // bounds.json: { groups, countries, subcontinents }
 const selectedCountries = new Set();
+// Continent chips the user has applied. Tracked so the map zoom can use the
+// curated continent box from bounds.json instead of the raw geometry extent —
+// e.g. "South America" includes France (its sovereign covers French Guiana), so a
+// geometry/per-country-box union would stretch the frame all the way to Europe.
+const selectedGroups = new Set();
 let lastResult = null;       // { features, ids, colorById, palette, usedK, title, bbox }
 // Caches the K-independent prep (geometry + fetched SCI -> distance matrix) for the
 // current country selection, so changing only the number of communities re-clusters
@@ -390,11 +396,13 @@ function renderGroupChips() {
     btn.addEventListener("click", () => {
       if (btn.dataset.clear) {
         selectedCountries.clear();
+        selectedGroups.clear();
       } else {
         const members = groupsMeta[btn.dataset.group] || [];
         // Only add countries we actually have region data for.
         const known = new Set(countriesMeta.map((c) => c.id));
         members.forEach((cc) => { if (known.has(cc)) selectedCountries.add(cc); });
+        selectedGroups.add(btn.dataset.group); // remembered for the curated zoom box
       }
       syncCountryList();
       updateSelectedSummary();
@@ -452,12 +460,15 @@ function updateSelectedSummary() {
   if (!el) return;
   const ids = [...selectedCountries];
 
-  // Auto-collapse / re-arm based on whether anything is selected.
+  // Auto-collapse / re-arm based on whether anything is selected. Auto-collapse is
+  // MOBILE-ONLY (the panel is tight there); on desktop the picker stays open and is
+  // only collapsed if the user taps the chevron. Matches the ≤720px CSS breakpoint.
+  const isMobile = window.matchMedia("(max-width: 720px)").matches;
   if (!ids.length) {
     setCountriesCollapsed(false);
     countriesAutoCollapsed = false;
     countriesToggledByUser = false;
-  } else if (!countriesAutoCollapsed && !countriesToggledByUser) {
+  } else if (isMobile && !countriesAutoCollapsed && !countriesToggledByUser) {
     setCountriesCollapsed(true);
     countriesAutoCollapsed = true;
   }
@@ -476,7 +487,7 @@ function autoTitle(ids, k) {
   else if (names.length === 2) where = names[0] + " & " + names[1];
   else if (names.length <= 4) where = names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
   else where = names.slice(0, 3).join(", ") + ` & ${names.length - 3} more`;
-  return `Connected Communities — ${where} (${k} communities)`;
+  return `Connected Communities — ${where} (${k} clusters)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -489,7 +500,7 @@ async function generate() {
   if (isNaN(k) || k < 2) k = 2;
 
   $("generate").disabled = true;
-  $("download").disabled = true;
+  $("download").hidden = true; // shown again only once a map is generated
   showSpinner();
 
   const t0 = performance.now();
@@ -611,7 +622,7 @@ async function generate() {
     paintClusters(fc);
 
     const displayIds = displayFeatures.map((f) => f.properties.id);
-    const bbox = computeBbox(fc, displayIds);
+    const bbox = selectionBbox(ids, fc, displayIds);
     fitToBbox(bbox);
 
     const title = autoTitle(ids, usedK);
@@ -619,15 +630,15 @@ async function generate() {
 
     renderLegend(usedK, palette);
     await applyBorders(); // honors the "Show country & state borders" checkbox
-    $("download").disabled = false;
+    $("download").hidden = false;
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    setStatus(`${usedK} communities from ${nRegions.toLocaleString()} regions (${secs}s).`, "ok");
+    setStatus(`${usedK} clusters from ${nRegions.toLocaleString()} regions (${secs}s).`, "ok");
   } catch (e) {
     if (e && e.message === "cancelled") {
       setStatus("Clustering cancelled.", "warn");
     } else {
       console.error("[SCI] generate failed:", e);
-      setStatus("Something went wrong generating the communities. See the console for details.", "warn");
+      setStatus("Something went wrong generating the clusters. See the console for details.", "warn");
     }
   } finally {
     hideSpinner();
@@ -671,6 +682,55 @@ function paintClusters(fc) {
     wireHover();
     layersAdded = true;
   }
+}
+
+// bounds.json box ({xlim:[lo,hi], ylim:[lo,hi]}) -> [minLon, minLat, maxLon, maxLat].
+function boundsBox(box) {
+  if (!box || !box.xlim || !box.ylim) return null;
+  return [box.xlim[0], box.ylim[0], box.xlim[1], box.ylim[1]];
+}
+function unionBox(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+}
+
+// Curated zoom box for the current selection, mirroring the Map Generator's
+// selectionBbox(): use bounds.json's hand-tuned boxes (continent groups +
+// mainland country boxes) instead of the raw geometry extent, which inflates for
+// countries with far-flung overseas territories (France, UK, …) and for
+// continents (e.g. South America pulls in France via French Guiana's sovereign).
+// Falls back to per-country geometry, then the whole-selection geometry.
+function selectionBbox(ids, fc, displayIds) {
+  if (!boundsMeta) return computeBbox(fc, displayIds);
+
+  // Active continent boxes: groups the user applied that still have a member in
+  // the selection (so removing all of a group's countries drops its box).
+  const activeGroups = [...selectedGroups].filter(
+    (g) => (groupsMeta[g] || []).some((cc) => selectedCountries.has(cc))
+  );
+  const coveredByGroup = new Set();
+  let box = null;
+  for (const g of activeGroups) {
+    (groupsMeta[g] || []).forEach((cc) => coveredByGroup.add(cc));
+    box = unionBox(box, boundsBox(boundsMeta.groups && boundsMeta.groups[g]));
+  }
+
+  // Countries chosen on their own (not already framed by a continent box): use the
+  // curated mainland box, else that country's own geometry extent.
+  const byCountry = {};
+  for (const f of fc.features) {
+    const cc = f.properties.country;
+    (byCountry[cc] || (byCountry[cc] = [])).push(f.properties.id);
+  }
+  for (const cc of ids) {
+    if (coveredByGroup.has(cc)) continue;
+    let b = boundsBox(boundsMeta.countries && boundsMeta.countries[cc]);
+    if (!b && byCountry[cc]) b = computeBbox(fc, byCountry[cc]);
+    box = unionBox(box, b);
+  }
+
+  return box || computeBbox(fc, displayIds);
 }
 
 function fitToBbox(bbox) {
@@ -754,7 +814,7 @@ function wireHover() {
     let name = f.properties.name || f.properties.id;
     const cn = countryNameOf(f.properties.country);
     if (cn && cn !== name) name += ", " + cn;
-    const comm = f.properties.cluster != null ? `<div class="tt-sub">Community ${f.properties.cluster + 1}</div>` : "";
+    const comm = f.properties.cluster != null ? `<div class="tt-sub">Cluster ${f.properties.cluster + 1}</div>` : "";
     hoverPopup.setLngLat(e.lngLat).setHTML(`<div class="tt-name">${escapeHtml(name)}</div>${comm}`).addTo(map);
   });
   map.on("mouseleave", FILL_LAYER, () => {
@@ -773,7 +833,7 @@ function renderLegend(usedK, palette) {
   const sw = $("legend-swatches");
   const title = $("legend-title");
   if (!sec || !sw) return;
-  title.textContent = usedK + " communities";
+  title.textContent = usedK + " clusters";
   sw.innerHTML = palette
     .map((c, i) => `<span class="legend-chip"><span class="legend-dot" style="background:${c}"></span>${i + 1}</span>`)
     .join("");
@@ -829,7 +889,7 @@ function downloadBlob(blob, filename) {
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 60000);
 }
 
-function slug(s) { return (s || "communities").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase().slice(0, 60) || "communities"; }
+function slug(s) { return (s || "clusters").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase().slice(0, 60) || "clusters"; }
 
 function download(fmt) {
   if (!lastResult) return;
@@ -860,14 +920,16 @@ function download(fmt) {
 // ---------------------------------------------------------------------------
 async function init() {
   try {
-    const [countries, groups, names] = await Promise.all([
+    const [countries, groups, names, bounds] = await Promise.all([
       getJSON("countries.json"),
       getJSON("groups.json"),
       getJSON("geo/country_names.json"),
+      getJSON("bounds.json").catch(() => null), // optional: zoom falls back to geometry
     ]);
     countriesMeta = (countries || []).slice().sort((a, b) => a.name.localeCompare(b.name));
     groupsMeta = groups || {};
     countryNames = names || {};
+    boundsMeta = bounds;
   } catch (e) {
     console.error("[SCI] failed to load metadata:", e);
     setStatus("Could not load country list.", "warn");

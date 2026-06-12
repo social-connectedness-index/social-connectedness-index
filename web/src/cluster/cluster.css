@@ -56,13 +56,13 @@ body { font-family: 'Poppins', sans-serif; margin: 0; }
 .field-inline .field-label { margin-bottom: 0; }
 .field-inline input[type="number"] { width: 72px; margin-left: auto; }
 
-.search-box, .text-box, input[type="number"] {
+.search-box, input[type="number"] {
   width: 100%; padding: 7px 9px;
   border: 1px solid #cfd9df; border-radius: 6px;
   font-family: inherit; font-size: 13px; color: #2a3942;
 }
 input[type="number"] { width: 110px; }
-.search-box:focus, .text-box:focus, input[type="number"]:focus {
+.search-box:focus, input[type="number"]:focus {
   outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15);
 }
 
@@ -93,7 +93,9 @@ input[type="number"] { width: 110px; }
 .check-row input { margin: 0; accent-color: #1879d5; }
 .check-divider { height: 1px; background: #e3e9ed; margin: 5px 2px; }
 
-.selected-summary { margin-top: 7px; font-size: 11.5px; color: #5a6873; line-height: 1.45; }
+.selected-summary { margin-top: 5px; font-size: 11.5px; color: #5a6873; line-height: 1.4; }
+/* Pull the next field up close under the selection summary. */
+#countries-field { margin-bottom: 4px; }
 
 /* checkbox option row (e.g. "Show country & state borders") */
 .checkbox-row {

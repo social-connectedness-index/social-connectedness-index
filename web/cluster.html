@@ -34,18 +34,18 @@
               aria-controls="panel" aria-label="Collapse panel" title="Collapse panel"><span class="chev" aria-hidden="true">▾</span></button>
     </div>
     <p class="panel-lede">
-      Group sub-national regions into communities by how strongly they're connected
+      Group sub-national regions into clusters by how strongly they're connected
       on Facebook.
     </p>
 
     <!-- Countries ----------------------------------------------------------- -->
     <section class="field" id="countries-field">
-      <label class="field-label countries-label">Countries
+      <label class="field-label countries-label">Regions
         <span class="info-wrap">
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
           </button>
-          <span class="info-tip" role="tooltip">Pick one or more countries. Their regions are pooled together and clustered as one set, so you can see communities that cross national borders.</span>
+          <span class="info-tip" role="tooltip">Pick one or more countries. Their regions are pooled together and clustered as one set, so you can see clusters that cross national borders.</span>
         </span>
         <button id="countries-toggle" class="section-toggle" type="button" aria-expanded="true"
                 aria-controls="countries-body" title="Collapse country picker"
@@ -64,12 +64,12 @@
 
     <!-- Number of clusters (label + input on one row) ----------------------- -->
     <section class="field field-inline">
-      <label class="field-label" for="num-clusters">Number of communities
+      <label class="field-label" for="num-clusters">Number of clusters
         <span class="info-wrap">
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
           </button>
-          <span class="info-tip" role="tooltip">How many groups to split the selected regions into. Each community is drawn in its own color.</span>
+          <span class="info-tip" role="tooltip">How many groups to split the selected regions into. Each cluster is drawn in its own color.</span>
         </span>
       </label>
       <input type="number" id="num-clusters" min="2" max="200" step="1" value="20" />
@@ -84,9 +84,9 @@
     </section>
 
     <div class="panel-actions">
-      <button id="generate" class="btn-primary" type="button">Generate communities</button>
+      <button id="generate" class="btn-primary" type="button">Generate clusters</button>
       <button id="cancel" class="btn-secondary" type="button" hidden>Cancel</button>
-      <button id="download" class="btn-secondary" type="button" disabled>Download image ▾</button>
+      <button id="download" class="btn-secondary" type="button" hidden>Download image ▾</button>
       <div id="download-menu" class="download-menu" hidden>
         <button type="button" data-fmt="png">PNG image</button>
         <button type="button" data-fmt="svg">SVG (vector)</button>
@@ -98,7 +98,7 @@
 
     <!-- Legend -------------------------------------------------------------- -->
     <section id="legend" class="legend" hidden>
-      <div class="legend-title" id="legend-title">Communities</div>
+      <div class="legend-title" id="legend-title">Clusters</div>
       <div class="legend-swatches" id="legend-swatches"></div>
     </section>
 
@@ -108,15 +108,15 @@
   <div id="about" hidden>
     <button type="button" class="close-btn" aria-label="Close">×</button>
     <h3>About Connected Communities</h3>
-    <p>This tool groups sub-national regions into "communities" using the strength of
+    <p>This tool groups sub-national regions into "clusters" using the strength of
        Facebook friendship ties between them. Two regions are treated as <em>close</em>
        when a randomly chosen Facebook user in one is highly likely to be friends with a
        randomly chosen user in the other.</p>
     <p>It uses <strong>hierarchical agglomerative average-linkage clustering</strong>:
        every region starts on its own, the two closest groups are repeatedly merged, and
-       the process stops once the chosen number of communities remain. The distance
+       the process stops once the chosen number of clusters remain. The distance
        between two regions is the inverse of their Social Connectedness Index; no geographic
-       constraint is applied, yet communities usually come out spatially contiguous because
+       constraint is applied, yet clusters usually come out spatially contiguous because
        connectedness falls off with distance.</p>
     <p>More details, including the full data download, are at the
        <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
