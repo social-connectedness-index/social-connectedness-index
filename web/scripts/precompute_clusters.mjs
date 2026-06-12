@@ -29,7 +29,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(__dirname, "..", "public", "data");
 const SCI_TYPE = "gadm2";
 const MIN_REGIONS = 2;
-const MAX_REGIONS = 6000; // mirror cluster.js — bigger selections can't run in-browser
+// Precompute ceiling. This is intentionally ABOVE cluster.js's live-path cap
+// (MAX_REGIONS = 6000): that cap exists because in-browser O(n^3) clustering is too
+// slow past it, but a PRECOMPUTED selection only does an O(n) cutDendrogram in the
+// browser (the precomputed path skips the live-path cap entirely), so we can ship
+// bigger continents. 10000 covers North/South America (6.1k / 8.8k regions) while
+// still excluding "All countries" (~30.7k). Override with PRECOMPUTE_MAX_REGIONS.
+const MAX_REGIONS = Number(process.env.PRECOMPUTE_MAX_REGIONS) || 10000;
 const OUT_DIR = path.join(DATA, "cluster");
 
 const readJSON = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
@@ -95,10 +101,19 @@ function fetchSci(regionIds) {
 const argv = process.argv.slice(2);
 const force = argv.includes("--force");
 const only = argv.filter((s) => s !== "--force").map((s) => s.toUpperCase());
+
+// The app only lets you select countries that are in countries.json (a group chip
+// adds just those members — see renderGroupChips in cluster.js). We MUST build the
+// key and the tree from the same filtered set, or the selection key the browser
+// computes won't match this index and it'll fall back to the slow live path.
+const known = new Set(countries.map((c) => c.id));
+
 let selections = [];
 for (const c of countries) selections.push({ iso: [c.id], file: c.id + ".json", label: c.id });
-for (const [name, members] of Object.entries(groups)) {
-  if (!Array.isArray(members) || members.length < 2) continue; // 0/1-member groups are covered by the country list
+for (const [name, rawMembers] of Object.entries(groups)) {
+  if (!Array.isArray(rawMembers)) continue;
+  const members = rawMembers.filter((m) => known.has(m));
+  if (members.length < 2) continue; // 0/1-member groups are covered by the country list
   selections.push({ iso: members, file: "g-" + slug(name) + ".json", label: name });
 }
 if (only.length) selections = selections.filter((s) => s.iso.length === 1 && only.includes(s.iso[0]));
