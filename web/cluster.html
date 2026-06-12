@@ -40,25 +40,30 @@
 
     <!-- Countries ----------------------------------------------------------- -->
     <section class="field" id="countries-field">
-      <label class="field-label">Countries
+      <label class="field-label countries-label">Countries
         <span class="info-wrap">
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
           </button>
           <span class="info-tip" role="tooltip">Pick one or more countries. Their regions are pooled together and clustered as one set, so you can see communities that cross national borders.</span>
         </span>
+        <button id="countries-toggle" class="section-toggle" type="button" aria-expanded="true"
+                aria-controls="countries-body" title="Collapse country picker"
+                aria-label="Collapse country picker"><span class="chev" aria-hidden="true">▾</span></button>
       </label>
 
-      <div class="group-chips" id="group-chips"></div>
+      <div id="countries-body">
+        <div class="group-chips" id="group-chips"></div>
 
-      <input type="text" id="country-search" class="search-box" placeholder="Search countries…"
-             autocomplete="off" spellcheck="false" aria-label="Search countries" />
-      <div id="country-list" class="checklist" role="group" aria-label="Country list"></div>
+        <input type="text" id="country-search" class="search-box" placeholder="Search countries…"
+               autocomplete="off" spellcheck="false" aria-label="Search countries" />
+        <div id="country-list" class="checklist" role="group" aria-label="Country list"></div>
+      </div>
       <div class="selected-summary" id="selected-summary">No countries selected.</div>
     </section>
 
-    <!-- Number of clusters -------------------------------------------------- -->
-    <section class="field">
+    <!-- Number of clusters (label + input on one row) ----------------------- -->
+    <section class="field field-inline">
       <label class="field-label" for="num-clusters">Number of communities
         <span class="info-wrap">
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
@@ -68,12 +73,6 @@
         </span>
       </label>
       <input type="number" id="num-clusters" min="2" max="200" step="1" value="20" />
-    </section>
-
-    <!-- Title (used on the downloaded image) -------------------------------- -->
-    <section class="field">
-      <label class="field-label" for="map-title">Map title</label>
-      <input type="text" id="map-title" class="text-box" placeholder="Auto" />
     </section>
 
     <!-- Borders ------------------------------------------------------------- -->

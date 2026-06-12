@@ -89,10 +89,11 @@ const LINE_LAYER = "clusters-line";
 const SOURCE_ID = "clusters";
 const NO_DATA_FILL = "#cdd3d8";
 
-// gadm1 (country + state/province) border overlay — the SAME layer the static Map
-// Generator uses for "Show state borders". Stroking gadm1 also yields national
-// outlines (a country's outer state edges form its border), so one layer shows
-// both country and state borders.
+// Country + state/province border overlay, derived from the region (GADM-best)
+// fills so its vertices coincide exactly (geo/border_state.geojson, built by
+// export/make_region_borders.mjs). Stroking these state outlines also yields the
+// national outline (a country's outer state edges form its border), so one layer
+// shows both country and state borders.
 const ADMIN_SOURCE = "admin";
 const ADMIN_LAYER = "admin-borders";
 const ADMIN_BORDER_COLOR = "#595959";
@@ -426,10 +427,41 @@ function renderCountryList() {
 // Re-render the list without losing the search box focus position too jarringly.
 function syncCountryList() { renderCountryList(); }
 
+// Collapse state for the country picker. We auto-collapse it once the user has
+// picked at least one country (so the Generate button comes into view), but only
+// the first time per selection and never after the user has manually toggled it —
+// so manually re-expanding to add more countries sticks. Clearing the selection
+// re-arms the auto behavior.
+let countriesAutoCollapsed = false;
+let countriesToggledByUser = false;
+
+function setCountriesCollapsed(collapsed) {
+  const section = $("countries-field"), btn = $("countries-toggle");
+  if (!section) return;
+  section.classList.toggle("section-collapsed", collapsed);
+  if (btn) {
+    btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    const label = collapsed ? "Expand country picker" : "Collapse country picker";
+    btn.setAttribute("aria-label", label);
+    btn.setAttribute("title", label);
+  }
+}
+
 function updateSelectedSummary() {
   const el = $("selected-summary");
   if (!el) return;
   const ids = [...selectedCountries];
+
+  // Auto-collapse / re-arm based on whether anything is selected.
+  if (!ids.length) {
+    setCountriesCollapsed(false);
+    countriesAutoCollapsed = false;
+    countriesToggledByUser = false;
+  } else if (!countriesAutoCollapsed && !countriesToggledByUser) {
+    setCountriesCollapsed(true);
+    countriesAutoCollapsed = true;
+  }
+
   if (!ids.length) { el.textContent = "No countries selected."; return; }
   const names = ids.map(countryNameOf).sort();
   const shown = names.slice(0, 4).join(", ");
@@ -582,7 +614,7 @@ async function generate() {
     const bbox = computeBbox(fc, displayIds);
     fitToBbox(bbox);
 
-    const title = ($("map-title").value || "").trim() || autoTitle(ids, usedK);
+    const title = autoTitle(ids, usedK);
     lastResult = { features: displayFeatures, ids: displayIds, countryCodes: ids, colorById, palette, usedK, title, bbox, adminFeatures: null };
 
     renderLegend(usedK, palette);
@@ -652,9 +684,14 @@ function fitToBbox(bbox) {
 // ---------------------------------------------------------------------------
 // Country + state (gadm1) border overlay.
 // ---------------------------------------------------------------------------
-let adminAllFC = null; // full gadm1 FeatureCollection, cached after first load
+let adminAllFC = null; // full border FeatureCollection, cached after first load
 async function loadAdminBorders(codeSet) {
-  if (!adminAllFC) adminAllFC = await getJSON("geo/gadm1.geojson");
+  // Region-derived state/province outlines (dissolved from the GADM-best fills, so
+  // they coincide exactly — see export/make_region_borders.mjs). Stroking these
+  // also draws the national outline (a country's outer state edges form its
+  // border), so one file shows both country + state borders, like gadm1 did but
+  // without the glitchy non-overlap against the region fills.
+  if (!adminAllFC) adminAllFC = await getJSON("geo/border_state.geojson");
   return codeSet
     ? adminAllFC.features.filter((f) => codeSet.has(f.properties.country))
     : adminAllFC.features;
@@ -878,6 +915,20 @@ async function init() {
       const label = collapsed ? "Expand panel" : "Collapse panel";
       btn.setAttribute("aria-label", label);
       btn.setAttribute("title", label);
+    });
+  })();
+
+  // Collapse/expand the country picker so the (tall) checklist doesn't push the
+  // Generate button below the fold — especially on mobile. The selected-summary
+  // stays visible when collapsed, so you always see what's picked.
+  (function setupCountriesToggle() {
+    const btn = $("countries-toggle"), section = $("countries-field");
+    if (!btn || !section) return;
+    btn.addEventListener("click", () => {
+      // A manual toggle disables auto-collapse until the selection is cleared, so
+      // re-expanding to add more countries doesn't immediately re-collapse.
+      countriesToggledByUser = true;
+      setCountriesCollapsed(!section.classList.contains("section-collapsed"));
     });
   })();
 

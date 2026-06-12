@@ -604,26 +604,11 @@ map.on("load", async function () {
       beforeId
     );
 
-    // Country (national) outlines, sourced from the country layer. Drawn only in
-    // Region mode (see setActiveLayer) so sub-national regions sit inside visible
-    // national borders; in Country mode the country fills already show them. Added
-    // once, alongside the country level's setup.
-    if (levelKey === "level0" && !map.getLayer("country-outline")) {
-      map.addLayer(
-        {
-          id: "country-outline",
-          type: "line",
-          source: "level0",
-          layout: { visibility: "none", "line-join": "round" },
-          paint: {
-            "line-color": "#7c8893",
-            "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 4, 0.9, 7, 1.6],
-            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.55, 4, 0.85],
-          },
-        },
-        beforeId
-      );
-    }
+    // National + state/province outlines for Region mode are created lazily in
+    // ensureRegionBorders() (not here): they're sourced from region-derived
+    // overlay files (border_country/border_state) so their vertices coincide
+    // exactly with the region fills, rather than the separately-simplified
+    // country.geojson/gadm1.geojson which didn't line up.
 
     wireLevelEvents(levelKey, cfg);
     hideSpinner();
@@ -886,39 +871,67 @@ map.on("load", async function () {
     cb.checked = focusCountry;
   }
 
-  // GADM1 (state/province) borders for Region mode. Loaded lazily from its own
-  // non-sharded geojson — there's no SCI for this layer, it's borders only — and
-  // added once. Prominence/stacking sits between the region borders and the
-  // national country-outline (see setActiveLayer for ordering + visibility).
-  let gadm1BordersReady = false;
-  async function ensureGadm1Borders() {
-    if (gadm1BordersReady) return;
-    let geojson;
+  // National (country) + state/province (GADM1) borders for Region mode. Both are
+  // DERIVED from the region (GADM-best) geometry by dissolving it — see
+  // export/make_region_borders.mjs — so their vertices coincide exactly with the
+  // region fills and don't look glitchy. (The old country.geojson / gadm1.geojson
+  // were simplified separately and didn't overlap the fills.) Loaded lazily, once;
+  // these layers carry no SCI, they're outlines only. Stacking (bottom→top):
+  // region fills, region borders, GADM1 outlines, country outlines.
+  let regionBordersReady = false;
+  async function ensureRegionBorders() {
+    if (regionBordersReady) return;
+    let stateGeo, countryGeo;
     try {
-      geojson = await getJSON("geo/gadm1.geojson");
+      [stateGeo, countryGeo] = await Promise.all([
+        getJSON("geo/border_state.geojson"),
+        getJSON("geo/border_country.geojson"),
+      ]);
     } catch (e) {
-      console.warn("[SCI] gadm1 borders failed to load", e);
-      return; // leave gadm1BordersReady false so a later mode switch can retry
+      console.warn("[SCI] region borders failed to load", e);
+      return; // leave regionBordersReady false so a later mode switch can retry
     }
-    gadm1BordersReady = true;
-    if (map.getLayer("gadm1-outline")) return;
-    if (!map.getSource("gadm1")) map.addSource("gadm1", { type: "geojson", data: geojson });
+    regionBordersReady = true;
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
-    map.addLayer(
-      {
-        id: "gadm1-outline",
-        type: "line",
-        source: "gadm1",
-        layout: { visibility: "none", "line-join": "round" },
-        paint: {
-          "line-color": GADM1_BORDER_COLOR,
-          // Between region borders (0.15–0.85) and country outlines (0.4–1.6).
-          "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.25, 4, 0.65, 7, 1.2],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.45, 4, 0.72],
+    if (!map.getLayer("gadm1-outline")) {
+      if (!map.getSource("border-state")) {
+        map.addSource("border-state", { type: "geojson", data: stateGeo });
+      }
+      map.addLayer(
+        {
+          id: "gadm1-outline",
+          type: "line",
+          source: "border-state",
+          layout: { visibility: "none", "line-join": "round" },
+          paint: {
+            "line-color": GADM1_BORDER_COLOR,
+            // Between region borders (0.15–0.85) and country outlines (0.4–1.6).
+            "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.25, 4, 0.65, 7, 1.2],
+            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.45, 4, 0.72],
+          },
         },
-      },
-      beforeId
-    );
+        beforeId
+      );
+    }
+    if (!map.getLayer("country-outline")) {
+      if (!map.getSource("border-country")) {
+        map.addSource("border-country", { type: "geojson", data: countryGeo });
+      }
+      map.addLayer(
+        {
+          id: "country-outline",
+          type: "line",
+          source: "border-country",
+          layout: { visibility: "none", "line-join": "round" },
+          paint: {
+            "line-color": "#7c8893",
+            "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 4, 0.9, 7, 1.6],
+            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.55, 4, 0.85],
+          },
+        },
+        beforeId
+      );
+    }
   }
 
   // ----- level switcher -----
@@ -936,7 +949,7 @@ map.on("load", async function () {
     // country outlines — so country borders sit on top (most prominent) and GADM1
     // borders sit between regions and countries.
     const showOutline = activeId === "level2";
-    if (showOutline) await ensureGadm1Borders();
+    if (showOutline) await ensureRegionBorders();
     if (map.getLayer("country-outline")) {
       map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");
       if (showOutline) {
