@@ -194,8 +194,9 @@ export function cutDendrogram(merges, n, k) {
 }
 
 // Average-linkage (UPGMA) clustering into k groups — convenience wrapper that
-// builds the full dendrogram then cuts it. Kept for the synchronous fallback
-// (and tests); the app builds the dendrogram once and reuses it across K.
+// builds the full dendrogram then cuts it. The app itself never calls this (it
+// builds the dendrogram once via buildDendrogram and reuses it across K); it's
+// kept as a pure, single-call reference/oracle for tests.
 export function averageLinkage(dist, n, k, onProgress) {
   const merges = buildDendrogram(dist, n, onProgress);
   return cutDendrogram(merges, n, k);
