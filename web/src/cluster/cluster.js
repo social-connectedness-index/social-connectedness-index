@@ -13,7 +13,7 @@
 // cluster to K groups -> colour each region by its community. All client-side.
 
 import { createTour } from "../tour.js";
-import { buildDistanceMatrix, averageLinkage } from "./agglomerative.js";
+import { buildDistanceMatrix, buildDendrogram, cutDendrogram } from "./agglomerative.js";
 import { renderMap, renderSvg, computeBbox, naturalHeight } from "../render.js";
 
 if (!window.SCI_CONFIG) {
@@ -206,6 +206,48 @@ async function loadCountryShard(cc) {
   return fc;
 }
 
+// Build an id -> geometry-feature map for a set of countries (shards are cached).
+async function loadFeatureMap(countryCodes) {
+  const shards = await Promise.all(countryCodes.map(loadCountryShard));
+  const map = {};
+  for (const fc of shards) {
+    for (const f of fc.features || []) {
+      const rid = f.properties && f.properties.id;
+      if (rid && !(rid in map)) map[rid] = f;
+    }
+  }
+  return map;
+}
+
+// Precomputed dendrograms (Layer 2): an offline R/Node step ships a per-selection
+// merge tree for the common selections (each single country + each preset group),
+// keyed by the same `selectionKey` the client uses. When a selection matches, we
+// skip BOTH the connectedness fetch and the O(n^3) clustering — we only load the
+// (tiny) tree and the geometry, then cut at K. index.json maps key -> filename;
+// `undefined` = not yet loaded, `null` = unavailable (older deploy / not built).
+let precompIndex = undefined;
+async function loadPrecomputedIndex() {
+  if (precompIndex !== undefined) return precompIndex;
+  try { precompIndex = await getJSON("cluster/index.json"); }
+  catch { precompIndex = null; }
+  return precompIndex;
+}
+
+// Returns { ids: [regionId...], merges: Int32Array } for `key`, or null if there
+// is no precomputed tree (or it failed to load).
+async function loadPrecomputed(key) {
+  const idx = await loadPrecomputedIndex();
+  if (!idx || !idx[key]) return null;
+  try {
+    const data = await getJSON("cluster/" + idx[key]);
+    if (!data || !Array.isArray(data.ids) || !Array.isArray(data.merges)) return null;
+    return { ids: data.ids, merges: Int32Array.from(data.merges) };
+  } catch (e) {
+    console.warn("[SCI] precomputed dendrogram load failed for", key, e);
+    return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Geometry helpers.
 // ---------------------------------------------------------------------------
@@ -262,11 +304,62 @@ let groupsMeta = {};         // {groupName: [iso2...]}
 let countryNames = {};       // iso2 -> [name, iso2]
 const selectedCountries = new Set();
 let lastResult = null;       // { features, ids, colorById, palette, usedK, title, bbox }
+// Caches the K-independent prep (geometry + fetched SCI -> distance matrix) for the
+// current country selection, so changing only the number of communities re-clusters
+// without re-fetching connectedness. Keyed by the sorted selected country codes.
+let prepCache = null;        // { key, features, regionIds, dist, n }
+const selectionKey = (ids) => [...ids].sort().join(",");
+
+// ---------------------------------------------------------------------------
+// Clustering worker — the O(n^3) average-linkage step runs off the main thread
+// so the page stays responsive on large selections (e.g. Brazil's ~5,500
+// municipalities) and can be cancelled. Falls back to synchronous clustering
+// where Web Workers aren't available.
+// ---------------------------------------------------------------------------
+let clusterWorker = null;
+let cancelClusterReject = null; // reject() of the in-flight clustering, if any
+
+function ensureClusterWorker() {
+  if (!clusterWorker) {
+    clusterWorker = new Worker(new URL("./cluster.worker.js", import.meta.url), { type: "module" });
+  }
+  return clusterWorker;
+}
+
+// Cancel the in-flight clustering: kill the worker (stops the loop immediately)
+// and reject its promise so generate() unwinds cleanly. A fresh worker is made
+// on the next run.
+function cancelClustering() {
+  if (clusterWorker) { clusterWorker.terminate(); clusterWorker = null; }
+  if (cancelClusterReject) { const reject = cancelClusterReject; cancelClusterReject = null; reject(new Error("cancelled")); }
+}
+
+// Build the dendrogram for `dist` (n*n) off-thread, reporting merge progress.
+// This is the one-time O(n^3) step; cutting the returned tree to any K is cheap
+// (cutDendrogram) and happens on the main thread, so changing K never comes here.
+function runDendrogram(dist, n, onProgress) {
+  if (typeof Worker === "undefined") {
+    return Promise.resolve(buildDendrogram(dist, n, onProgress));
+  }
+  return new Promise((resolve, reject) => {
+    cancelClusterReject = reject;
+    const w = ensureClusterWorker();
+    w.onmessage = (e) => {
+      const msg = e.data;
+      if (msg.type === "progress") { if (onProgress) onProgress(msg.done, msg.total); return; }
+      if (msg.type === "result") { cancelClusterReject = null; resolve(new Int32Array(msg.buffer)); }
+    };
+    w.onerror = (err) => { cancelClusterReject = null; reject(err); };
+    const copy = dist.slice(); // own buffer to transfer; keeps `dist` usable here
+    w.postMessage({ type: "dendrogram", dist: copy, n }, [copy.buffer]);
+  });
+}
 
 const $ = (id) => document.getElementById(id);
 const spinner = $("loading-icon");
 const showSpinner = () => { if (spinner) spinner.style.display = "block"; };
 const hideSpinner = () => { if (spinner) spinner.style.display = "none"; };
+const showCancel = (on) => { const b = $("cancel"); if (b) b.hidden = !on; };
 const setStatus = (msg, kind) => {
   const el = $("status");
   if (!el) return;
@@ -366,53 +459,99 @@ async function generate() {
   $("generate").disabled = true;
   $("download").disabled = true;
   showSpinner();
-  setStatus("Loading region geometry…");
 
+  const t0 = performance.now();
   try {
-    // 1) Load geometry shards, collect regions that have SCI data.
-    const idx = await loadGadm2Index();
-    const shards = await Promise.all(ids.map(loadCountryShard));
-    const features = [];
-    const seen = new Set();
-    for (const fc of shards) {
-      for (const f of fc.features || []) {
-        const rid = f.properties && f.properties.id;
-        if (!rid || seen.has(rid)) continue;
-        if (!idx.sources[rid]) continue; // no SCI row -> can't be clustered
-        seen.add(rid);
-        features.push(f);
+    const key = selectionKey(ids);
+
+    // Get the dendrogram for this selection from the cheapest available source:
+    //   (a) in-memory cache (same selection as last time) — instant;
+    //   (b) a precomputed tree shipped for this exact selection — no SCI fetch,
+    //       no clustering, just load the small tree + geometry;
+    //   (c) live: load geometry, fetch connectedness, build the matrix, and run
+    //       the O(n^3) agglomeration once in a worker.
+    // Either way we end up with `features`, `regionIds`, `n`, `merges`, cached so
+    // that changing only K later is an O(n) cut (see below) — no refetch/recompute.
+    if (!prepCache || prepCache.key !== key) {
+      const precomp = await loadPrecomputed(key);
+      let prepared = false;
+
+      if (precomp) {
+        setStatus("Loading regions…");
+        const fmap = await loadFeatureMap(ids);
+        const features = [], regionIds = [];
+        for (const id of precomp.ids) {
+          const f = fmap[id];
+          if (f) { features.push(f); regionIds.push(id); }
+        }
+        // Use the precomputed tree only if its leaves line up with the geometry
+        // we have; otherwise fall through to the live path.
+        if (regionIds.length >= 2 && regionIds.length === precomp.ids.length) {
+          prepCache = { key, features, regionIds, n: regionIds.length, merges: precomp.merges };
+          prepared = true;
+        }
+      }
+
+      if (!prepared) {
+        setStatus("Loading region geometry…");
+        // 1) Load geometry shards, collect regions that have SCI data.
+        const idx = await loadGadm2Index();
+        const shards = await Promise.all(ids.map(loadCountryShard));
+        const features = [];
+        const seen = new Set();
+        for (const fc of shards) {
+          for (const f of fc.features || []) {
+            const rid = f.properties && f.properties.id;
+            if (!rid || seen.has(rid)) continue;
+            if (!idx.sources[rid]) continue; // no SCI row -> can't be clustered
+            seen.add(rid);
+            features.push(f);
+          }
+        }
+        const regionIds = features.map((f) => f.properties.id);
+        const nReg = regionIds.length;
+
+        if (nReg < 2) {
+          setStatus("Not enough regions with data in this selection to cluster.", "warn");
+          return;
+        }
+        if (nReg > MAX_REGIONS) {
+          setStatus(`That's ${nReg.toLocaleString()} regions — too many to cluster in the browser. Pick fewer countries.`, "warn");
+          return;
+        }
+
+        // 2) Fetch each region's SCI row (reduced to in-selection friends).
+        const keepSet = new Set(regionIds);
+        setStatus(`Fetching connectedness for ${nReg.toLocaleString()} regions… 0%`);
+        const { sciBySource } = await fetchSciBatch(regionIds, keepSet, (done, total) => {
+          setStatus(`Fetching connectedness for ${total.toLocaleString()} regions… ${Math.round((done / total) * 100)}%`);
+        });
+
+        // 3) Build the distance matrix, then the dendrogram once (off-thread).
+        const { dist } = buildDistanceMatrix(regionIds, sciBySource);
+        const slow = nReg > SLOW_REGION_WARN;
+        setStatus(slow
+          ? `Clustering ${nReg.toLocaleString()} regions (this may take a while)… 0%`
+          : "Clustering…");
+        showCancel(true);
+        const merges = await runDendrogram(dist, nReg, (done, total) => {
+          const pct = total ? Math.round((done / total) * 100) : 100;
+          setStatus(`Clustering ${nReg.toLocaleString()} regions… ${pct}%`);
+        });
+        showCancel(false);
+        prepCache = { key, features, regionIds, n: nReg, merges };
       }
     }
-    const regionIds = features.map((f) => f.properties.id);
-    const nRegions = regionIds.length;
 
-    if (nRegions < 2) {
-      setStatus("Not enough regions with data in this selection to cluster.", "warn");
-      return;
-    }
-    if (nRegions > MAX_REGIONS) {
-      setStatus(`That's ${nRegions.toLocaleString()} regions — too many to cluster in the browser. Pick fewer countries.`, "warn");
-      return;
-    }
+    const { features, regionIds, n, merges } = prepCache;
+    const nRegions = regionIds.length;
     if (k >= nRegions) { k = nRegions - 1; $("num-clusters").value = k; }
 
-    // 2) Fetch each region's SCI row (reduced to in-selection friends).
-    const keepSet = new Set(regionIds);
-    setStatus(`Fetching connectedness for ${nRegions.toLocaleString()} regions… 0%`);
-    const t0 = performance.now();
-    const { sciBySource } = await fetchSciBatch(regionIds, keepSet, (done, total) => {
-      setStatus(`Fetching connectedness for ${total.toLocaleString()} regions… ${Math.round((done / total) * 100)}%`);
-    });
-
-    // 3) Distance matrix + clustering.
-    if (nRegions > SLOW_REGION_WARN) setStatus(`Clustering ${nRegions.toLocaleString()} regions (this may take a moment)…`);
-    else setStatus("Clustering…");
-    await new Promise((r) => setTimeout(r, 0)); // let the status paint
-    const { dist, n } = buildDistanceMatrix(regionIds, sciBySource);
-    const labels = averageLinkage(dist, n, k);
+    // 4) Cut the dendrogram at K — O(n), so changing only K is instant.
+    const labels = cutDendrogram(merges, n, k);
     const usedK = new Set(labels).size;
 
-    // 4) Colour + paint.
+    // 5) Colour + paint.
     const palette = clusterPalette(usedK);
     // Re-map possibly-sparse labels (0..k-1) to compact 0..usedK-1 in first-seen order.
     const labelOrder = new Map();
@@ -442,10 +581,15 @@ async function generate() {
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
     setStatus(`${usedK} communities from ${nRegions.toLocaleString()} regions (${secs}s).`, "ok");
   } catch (e) {
-    console.error("[SCI] generate failed:", e);
-    setStatus("Something went wrong generating the communities. See the console for details.", "warn");
+    if (e && e.message === "cancelled") {
+      setStatus("Clustering cancelled.", "warn");
+    } else {
+      console.error("[SCI] generate failed:", e);
+      setStatus("Something went wrong generating the communities. See the console for details.", "warn");
+    }
   } finally {
     hideSpinner();
+    showCancel(false);
     $("generate").disabled = false;
   }
 }
@@ -686,6 +830,7 @@ async function init() {
 
   $("country-search").addEventListener("input", renderCountryList);
   $("generate").addEventListener("click", generate);
+  $("cancel").addEventListener("click", cancelClustering);
   // Toggle the country/state border overlay live (re-applies to the last map).
   $("show-borders").addEventListener("change", () => { applyBorders(); });
 

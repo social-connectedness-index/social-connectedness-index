@@ -81,34 +81,42 @@ export function buildDistanceMatrix(ids, sciBySource) {
   return { dist, n };
 }
 
-// Average-linkage (UPGMA) agglomerative clustering.
+// Build the full average-linkage (UPGMA) dendrogram.
 //
 //   dist: Float64Array length n*n, symmetric (as built above)
 //   n:    number of items
-//   k:    desired number of clusters (clamped to 1..n)
 //
-// Returns an Int32Array of length n giving each item's cluster label (0..k-1).
+// Returns an Int32Array `merges` of length 2*(n-1): merge m (0-based) joins the
+// two nodes `merges[2m]` and `merges[2m+1]` into a new node numbered `n+m`. Leaf
+// nodes are 0..n-1; internal nodes are n..2n-2. The merge order is exactly the
+// order the agglomeration would visit, so cutting after the first (n-k) merges
+// (see cutDendrogram) yields the SAME partition as stopping the agglomeration
+// once K clusters remain — but we pay the O(n^3) cost ONCE and then read off any
+// K in O(n). This is what lets the app re-cluster at a new K (and serve the
+// precomputed per-country trees) without redoing the expensive part.
 //
 // Clusters are merged via the Lance–Williams update for the group average:
 //   d(I∪J, M) = (|I|·d(I,M) + |J|·d(J,M)) / (|I| + |J|)
-// Stopping the agglomeration once K clusters remain is equivalent to cutting the
-// full dendrogram at K, so we never build the dendrogram explicitly.
 //
 // Complexity is O(n^3) in the worst case (a full scan for the closest pair each
-// merge). That is instantaneous for the few-hundred-region selections this tool
-// targets; callers should warn/guard above ~1500 regions.
-export function averageLinkage(dist, n, k) {
-  k = Math.max(1, Math.min(k | 0, n));
-  if (n === 0) return new Int32Array(0);
+// merge). The caller runs this in a Web Worker (so the page stays responsive)
+// and passes `onProgress(doneMerges, totalMerges)`, invoked once per merge, to
+// drive a progress indicator.
+export function buildDendrogram(dist, n, onProgress) {
+  if (n <= 1) return new Int32Array(0);
 
   const D = Float64Array.from(dist); // mutable working copy
   const size = new Float64Array(n).fill(1);
   const active = new Uint8Array(n).fill(1);
-  const members = new Array(n);
-  for (let i = 0; i < n; i++) members[i] = [i];
+  // nodeId[i] is the dendrogram node currently represented by active slot i.
+  const nodeId = new Int32Array(n);
+  for (let i = 0; i < n; i++) nodeId[i] = i;
 
+  const merges = new Int32Array(2 * (n - 1));
+  const totalMerges = n - 1;
   let count = n;
-  while (count > k) {
+  let m = 0;
+  while (count > 1) {
     // Closest active pair.
     let bi = -1, bj = -1, bd = Infinity;
     for (let i = 0; i < n; i++) {
@@ -120,32 +128,75 @@ export function averageLinkage(dist, n, k) {
         if (d < bd) { bd = d; bi = i; bj = j; }
       }
     }
-    if (bi < 0) break; // no active pair left (shouldn't happen while count > k)
+    if (bi < 0) break; // no active pair left (shouldn't happen while count > 1)
+
+    // Record the merge (in dendrogram-node space) and create the new node.
+    merges[2 * m] = nodeId[bi];
+    merges[2 * m + 1] = nodeId[bj];
+    nodeId[bi] = n + m;
 
     // Merge bj into bi (Lance–Williams average update against every other cluster).
     const ni = size[bi], nj = size[bj], tot = ni + nj;
-    for (let m = 0; m < n; m++) {
-      if (!active[m] || m === bi || m === bj) continue;
-      const nd = (ni * D[bi * n + m] + nj * D[bj * n + m]) / tot;
-      D[bi * n + m] = nd;
-      D[m * n + bi] = nd;
+    for (let q = 0; q < n; q++) {
+      if (!active[q] || q === bi || q === bj) continue;
+      const nd = (ni * D[bi * n + q] + nj * D[bj * n + q]) / tot;
+      D[bi * n + q] = nd;
+      D[q * n + bi] = nd;
     }
     size[bi] = tot;
-    const mj = members[bj];
-    for (let x = 0; x < mj.length; x++) members[bi].push(mj[x]);
-    members[bj] = null;
     active[bj] = 0;
     count--;
+    m++;
+    if (onProgress) onProgress(m, totalMerges);
   }
 
-  // Read off labels from the surviving clusters.
+  return merges;
+}
+
+// Cut a dendrogram (from buildDendrogram) into k clusters.
+//
+//   merges: Int32Array of length 2*(n-1) as returned by buildDendrogram
+//   n:      number of items (leaves)
+//   k:      desired number of clusters (clamped to 1..n)
+//
+// Returns an Int32Array of length n giving each leaf's cluster label (0..k-1),
+// compacted in first-seen leaf order. O(n) — applies the first (n-k) merges via
+// union-find, which is equivalent to cutting the dendrogram so k clusters remain.
+export function cutDendrogram(merges, n, k) {
+  if (n === 0) return new Int32Array(0);
+  k = Math.max(1, Math.min(k | 0, n));
+
+  const parent = new Int32Array(n);
+  for (let i = 0; i < n; i++) parent[i] = i;
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+
+  // nodeRep[node] is a representative leaf for that dendrogram node.
+  const nodeRep = new Int32Array(2 * n - 1);
+  for (let i = 0; i < n; i++) nodeRep[i] = i;
+
+  const applyCount = n - k; // applying the first (n-k) merges leaves k clusters
+  for (let mi = 0; mi < applyCount; mi++) {
+    const a = merges[2 * mi], b = merges[2 * mi + 1];
+    const ra = find(nodeRep[a]), rb = find(nodeRep[b]);
+    if (ra !== rb) parent[rb] = ra;
+    nodeRep[n + mi] = find(ra);
+  }
+
   const labels = new Int32Array(n).fill(-1);
-  let lab = 0;
+  const remap = new Map();
   for (let i = 0; i < n; i++) {
-    if (!active[i]) continue;
-    const mi = members[i];
-    for (let x = 0; x < mi.length; x++) labels[mi[x]] = lab;
-    lab++;
+    const r = find(i);
+    let c = remap.get(r);
+    if (c === undefined) { c = remap.size; remap.set(r, c); }
+    labels[i] = c;
   }
   return labels;
+}
+
+// Average-linkage (UPGMA) clustering into k groups — convenience wrapper that
+// builds the full dendrogram then cuts it. Kept for the synchronous fallback
+// (and tests); the app builds the dendrogram once and reuses it across K.
+export function averageLinkage(dist, n, k, onProgress) {
+  const merges = buildDendrogram(dist, n, onProgress);
+  return cutDendrogram(merges, n, k);
 }

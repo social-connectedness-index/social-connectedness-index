@@ -6,6 +6,7 @@
   "description": "Static, browser-rendered Social Connectedness Index map maker",
   "scripts": {
     "dev": "vite",
+    "precompute": "node scripts/precompute_clusters.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "vite build && npx wrangler@latest pages deploy dist --project-name social-connectedness"
