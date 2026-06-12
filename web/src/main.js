@@ -260,7 +260,7 @@ async function refreshSources() {
   allSourceOpts = Object.keys(names)
     .filter((id) => sources.has(id))
     .map((id) => ({ id, country: names[id][1], label: sourceLabel(t.sourceGeo, names[id][0], names[id][1]) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => compareLabels(a.label, b.label));
   renderSourceOptions();
   renderSourceOptionsB();
 }
@@ -276,6 +276,17 @@ const fold = (s) =>
     .replace(/[̀-ͯ]/g, "") // drop combining diacritical marks
     .toLowerCase()
     .replace(/[ßøłæœđðþı]/g, (c) => SEARCH_FOLD[c] || c);
+
+// Alphabetical sort that pushes names beginning with a special character
+// (punctuation/symbols — e.g. "?", backticks, quotes) to the BOTTOM of the list.
+// Letters in ANY script and digits count as "normal" (\p{L}/\p{N}), so only true
+// non-alphanumeric leading characters are demoted.
+const startsAlnum = (s) => /^[\p{L}\p{N}]/u.test((s || "").trimStart());
+const compareLabels = (a, b) => {
+  const aa = startsAlnum(a), ba = startsAlnum(b);
+  if (aa !== ba) return aa ? -1 : 1; // alphanumeric first, specials last
+  return a.localeCompare(b);
+};
 
 function optionsHtml(list, prevValue, query) {
   const q = fold((query || "").trim());
@@ -878,7 +889,10 @@ async function generate() {
       // metro-filtered geometry's extent wins.
       bbox: (metroZctas ? null : (manualBbox() || selectionBboxArray())) || computeBbox(friendGeo, active),
       showBorders: $("borders").checked, borderFeatures, countryFeatures, highlightId, highlightColor,
-      title: $("title").value || autoTitle(), subtitle: $("subtitle").value || autoSubtitle(),
+      // Title shows by default (toggle on); subtitle is opt-in (off by default).
+      // When shown, a typed value wins; an empty box falls back to the auto default.
+      title: $("titleOn").checked ? ($("title").value || autoTitle()) : "",
+      subtitle: $("subtitleOn").checked ? ($("subtitle").value || autoSubtitle()) : "",
       caption: CAPTION, legend, width: w, height: h,
     };
     // Trim the empty top/bottom letterbox on wide (e.g. world) maps by shrinking
@@ -1162,6 +1176,8 @@ function reset() {
   $("palette").selectedIndex = 0;
   $("borders").checked = true;
   $("highlight").checked = false;
+  if ($("titleOn")) { $("titleOn").checked = true; $("title").disabled = false; }
+  if ($("subtitleOn")) { $("subtitleOn").checked = false; $("subtitle").disabled = true; }
   $("status").textContent = "";
   lastCanvas = null; lastRender = null;
   $("mapContainer").style.display = "none";
@@ -1284,6 +1300,16 @@ async function init() {
   $("destType").addEventListener("change", onDestChange);
   if ($("destCbsa")) $("destCbsa").addEventListener("change", () => { onCbsaChange(); refreshBreaksPreview(); });
   if ($("searchCbsa")) $("searchCbsa").addEventListener("input", renderCbsaOptions);
+  if ($("titleOn")) {
+    const syncTitle = () => { $("title").disabled = !$("titleOn").checked; };
+    $("titleOn").addEventListener("change", syncTitle);
+    syncTitle();
+  }
+  if ($("subtitleOn")) {
+    const syncSubtitle = () => { $("subtitle").disabled = !$("subtitleOn").checked; };
+    $("subtitleOn").addEventListener("change", syncSubtitle);
+    syncSubtitle();
+  }
   $("group").addEventListener("change", (e) => {
     if (e.target.checked) {
       if (SCOPE_OPTS.includes(e.target.value)) {
@@ -1488,7 +1514,19 @@ async function applyConfig(cfg = {}) {
   if (cfg.borders != null) $("borders").checked = !!cfg.borders;
   if (cfg.highlight != null) $("highlight").checked = !!cfg.highlight;
   if (cfg.title != null) $("title").value = cfg.title;
+  // Title is on by default; an explicit `titleOn` flag can turn it off.
+  if ($("titleOn")) {
+    if (cfg.titleOn != null) $("titleOn").checked = !!cfg.titleOn;
+    $("title").disabled = !$("titleOn").checked;
+  }
+  // A programmatically supplied subtitle (URL param / window.SCI) turns the toggle
+  // on so it renders; an explicit `subtitleOn` flag can also drive it on its own.
   if (cfg.subtitle != null) $("subtitle").value = cfg.subtitle;
+  if ($("subtitleOn")) {
+    if (cfg.subtitleOn != null) $("subtitleOn").checked = !!cfg.subtitleOn;
+    else if (cfg.subtitle != null) $("subtitleOn").checked = true;
+    $("subtitle").disabled = !$("subtitleOn").checked;
+  }
   if (cfg.labelA != null && $("labelA")) $("labelA").value = cfg.labelA;
   if (cfg.labelB != null && $("labelB")) $("labelB").value = cfg.labelB;
   if (cfg.width != null) $("width").value = cfg.width;
@@ -1534,7 +1572,9 @@ function configFromUrl() {
   if (p.has("borders")) cfg.borders = bool("borders", true);
   if (p.has("highlight")) cfg.highlight = bool("highlight", false);
   if (s("title")) cfg.title = s("title");
+  if (p.has("titleOn")) cfg.titleOn = bool("titleOn", true);
   if (s("subtitle")) cfg.subtitle = s("subtitle");
+  if (p.has("subtitleOn")) cfg.subtitleOn = bool("subtitleOn", false);
   if (p.has("width")) cfg.width = num("width");
   if (p.has("height")) cfg.height = num("height");
   if (p.has("dpi")) cfg.dpi = num("dpi");

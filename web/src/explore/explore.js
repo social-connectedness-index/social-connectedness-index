@@ -213,6 +213,11 @@ function activeLegendTickMults() { return isFocusActive() ? FOCUS_LEGEND_TICK_MU
 const DEFAULT_FILL = "#e3e7ea";
 const NO_DATA_FILL = "#cdd3d8";
 const BORDER_COLOR = "#b9c2c9";
+// State/province (GADM1) outlines shown in Region mode. Colour is the midpoint
+// between the faint region borders (#b9c2c9) and the bolder national outlines
+// (#7c8893), so GADM1 reads as more prominent than region borders but less than
+// country borders.
+const GADM1_BORDER_COLOR = "#9aa5ae";
 // The clicked source region is filled in a very dark navy — darker than the top
 // colour bin (#084081) — so it stands out from the choropleth around it.
 const HIGHLIGHT_COLOR = "#04244a";
@@ -254,7 +259,7 @@ let lastSelection = null; // { levelKey, cfg, clickedId, clickedName, clickedCou
 
 // Dynamic colour scale: when on, the reference is recomputed from the regions
 // currently on screen (recalculated on moveend), so coloring adapts to the view.
-let dynamicScale = false;
+let dynamicScale = true;
 
 // ---------------------------------------------------------------------------
 // Fetch helpers.
@@ -881,6 +886,41 @@ map.on("load", async function () {
     cb.checked = focusCountry;
   }
 
+  // GADM1 (state/province) borders for Region mode. Loaded lazily from its own
+  // non-sharded geojson — there's no SCI for this layer, it's borders only — and
+  // added once. Prominence/stacking sits between the region borders and the
+  // national country-outline (see setActiveLayer for ordering + visibility).
+  let gadm1BordersReady = false;
+  async function ensureGadm1Borders() {
+    if (gadm1BordersReady) return;
+    let geojson;
+    try {
+      geojson = await getJSON("geo/gadm1.geojson");
+    } catch (e) {
+      console.warn("[SCI] gadm1 borders failed to load", e);
+      return; // leave gadm1BordersReady false so a later mode switch can retry
+    }
+    gadm1BordersReady = true;
+    if (map.getLayer("gadm1-outline")) return;
+    if (!map.getSource("gadm1")) map.addSource("gadm1", { type: "geojson", data: geojson });
+    const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+    map.addLayer(
+      {
+        id: "gadm1-outline",
+        type: "line",
+        source: "gadm1",
+        layout: { visibility: "none", "line-join": "round" },
+        paint: {
+          "line-color": GADM1_BORDER_COLOR,
+          // Between region borders (0.15–0.85) and country outlines (0.4–1.6).
+          "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.25, 4, 0.65, 7, 1.2],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.45, 4, 0.72],
+        },
+      },
+      beforeId
+    );
+  }
+
   // ----- level switcher -----
   async function setActiveLayer(activeId) {
     await ensureLevel(activeId);
@@ -890,15 +930,24 @@ map.on("load", async function () {
       map.setLayoutProperty(id, "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
     });
-    // National outlines: show only in Region mode, and lift above the region
-    // fills/borders so they read clearly (kept just below the basemap labels).
+    // National + state/province outlines: shown only in Region mode, lifted above
+    // the region fills/borders so they read clearly (kept just below the basemap
+    // labels). Stacking, bottom→top: region fills, region borders, GADM1 outlines,
+    // country outlines — so country borders sit on top (most prominent) and GADM1
+    // borders sit between regions and countries.
+    const showOutline = activeId === "level2";
+    if (showOutline) await ensureGadm1Borders();
     if (map.getLayer("country-outline")) {
-      const showOutline = activeId === "level2";
       map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");
       if (showOutline) {
         const labelLayer = map.getLayer("waterway-label") ? "waterway-label" : undefined;
         try { map.moveLayer("country-outline", labelLayer); } catch (_) {}
       }
+    }
+    if (map.getLayer("gadm1-outline")) {
+      map.setLayoutProperty("gadm1-outline", "visibility", showOutline ? "visible" : "none");
+      // Sit just below the country outline (which was already lifted above).
+      if (showOutline) { try { map.moveLayer("gadm1-outline", "country-outline"); } catch (_) {} }
     }
 
     // Reset the active layer's fill to the has_data-aware default (clears any
@@ -1059,6 +1108,7 @@ map.on("load", async function () {
   (function setupDynamicScale() {
     const cb = document.getElementById("dynamic-scale");
     if (!cb) return;
+    dynamicScale = cb.checked; // keep JS state in sync with the checkbox's default
     cb.addEventListener("change", function () {
       dynamicScale = cb.checked;
       if (lastSelection) applyCurrentScale(lastSelection.levelKey);

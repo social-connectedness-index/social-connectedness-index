@@ -61,14 +61,20 @@
 
       <hr />
       <label>Title (optional)</label>
-      <input id="title" type="text" />
+      <div class="input-with-toggle">
+        <input id="title" type="text" />
+        <label class="check inline-check"><input id="titleOn" type="checkbox" checked /> Show</label>
+      </div>
 
       <hr />
       <details id="advanced">
         <summary>Advanced options</summary>
 
         <label>Subtitle (optional)</label>
-        <input id="subtitle" type="text" />
+        <div class="input-with-toggle">
+          <input id="subtitle" type="text" disabled />
+          <label class="check inline-check"><input id="subtitleOn" type="checkbox" /> Show</label>
+        </div>
 
         <div id="paletteWrap">
           <label>Color palette</label>

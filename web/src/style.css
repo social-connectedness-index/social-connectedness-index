@@ -88,6 +88,11 @@ body { display: flex; height: 100vh; overflow: hidden; }
   outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15);
 }
 #panel select[multiple], #panel select[size] { height: auto; padding: 2px; }
+/* A text input with a small on/off toggle sitting beside it (e.g. the subtitle). */
+.input-with-toggle { display: flex; align-items: center; gap: 10px; }
+.input-with-toggle input[type="text"] { flex: 1; min-width: 0; }
+#panel .input-with-toggle label.inline-check { margin: 0; white-space: nowrap; font-size: 13px; }
+.input-with-toggle input[type="text"]:disabled { background: #f1f4f6; color: #9aa6b0; cursor: not-allowed; }
 hr { border: none; border-top: 1px solid #eef2f4; margin: 12px 0; }
 
 .help-hint { color: #6a7480; font-size: 12px; margin-top: 3px; line-height: 1.35; }
@@ -179,7 +184,13 @@ details > *:not(summary) { margin-top: 4px; }
 #about .close-btn:hover { color: #1879d5; }
 
 /* ---- main / preview ---- */
-#mapWrap { flex: 1; overflow: auto; background: #fff; padding: 20px; }
+/* Flex column with centered items so the generated map (and the download/share
+   actions under it) always sit horizontally centered in the available space.
+   The canvas keeps max-width:100%, so centering never clips/hides its edges. */
+#mapWrap {
+  flex: 1; overflow: auto; background: #fff; padding: 20px;
+  display: flex; flex-direction: column; align-items: center;
+}
 .placeholder {
   text-align: center; padding: 120px 30px; color: #7a8893;
   border: 2px dashed #cfd9df; border-radius: 8px; margin: 0 auto; max-width: 600px;
@@ -201,7 +212,7 @@ details > *:not(summary) { margin-top: 4px; }
 
 /* ---- download + share actions ---- */
 .actions { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
-.action-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.action-group { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .action-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
   color: #6a7480; width: 88px; flex: 0 0 88px;

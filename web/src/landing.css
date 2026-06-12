@@ -78,7 +78,9 @@ html, body {
 .art-generator {
   background-color: #ffffff;
   background-image: url('/img/generator-card.jpg');
-  background-size: contain;
+  /* "contain" would fit the (landscape) photo to the card height; auto 105% zooms
+     it in by 5% (height = 105% of the content box, centered, edges cropped). */
+  background-size: auto 120%;
   /* Inset the photo so it has breathing room on the white field (border-box
      keeps the card height unchanged; the image fits inside the padded area). */
   background-origin: content-box;
@@ -155,7 +157,6 @@ html, body {
 
 /* ---- footer ---- */
 .landing-foot {
-  margin-top: auto;
   padding-top: 20px;
   text-align: center;
   font-size: 14px;
