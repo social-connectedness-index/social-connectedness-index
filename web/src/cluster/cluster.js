@@ -470,8 +470,10 @@ async function generate() {
     //       no clustering, just load the small tree + geometry;
     //   (c) live: load geometry, fetch connectedness, build the matrix, and run
     //       the O(n^3) agglomeration once in a worker.
-    // Either way we end up with `features`, `regionIds`, `n`, `merges`, cached so
-    // that changing only K later is an O(n) cut (see below) — no refetch/recompute.
+    // Every selected region is DRAWN (`displayFeatures`); only those with SCI data
+    // (`clusterFeatures` / `regionIds`) are clustered — the rest are painted grey,
+    // matching the Explorer's out-of-sample regions. We cache both so that changing
+    // only K later is an O(n) cut (see below) — no refetch/recompute.
     if (!prepCache || prepCache.key !== key) {
       const precomp = await loadPrecomputed(key);
       let prepared = false;
@@ -479,36 +481,42 @@ async function generate() {
       if (precomp) {
         setStatus("Loading regions…");
         const fmap = await loadFeatureMap(ids);
-        const features = [], regionIds = [];
+        const clusterFeatures = [], regionIds = [];
         for (const id of precomp.ids) {
           const f = fmap[id];
-          if (f) { features.push(f); regionIds.push(id); }
+          if (f) { clusterFeatures.push(f); regionIds.push(id); }
         }
         // Use the precomputed tree only if its leaves line up with the geometry
         // we have; otherwise fall through to the live path.
         if (regionIds.length >= 2 && regionIds.length === precomp.ids.length) {
-          prepCache = { key, features, regionIds, n: regionIds.length, merges: precomp.merges };
+          const displayFeatures = Object.values(fmap); // every region, incl. no-data
+          prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: regionIds.length, merges: precomp.merges };
           prepared = true;
         }
       }
 
       if (!prepared) {
         setStatus("Loading region geometry…");
-        // 1) Load geometry shards, collect regions that have SCI data.
+        // 1) Load geometry shards; keep every region for display, and separately
+        //    collect the ones with SCI data (the only ones we can cluster).
         const idx = await loadGadm2Index();
         const shards = await Promise.all(ids.map(loadCountryShard));
-        const features = [];
+        const displayFeatures = [];
+        const clusterFeatures = [];
+        const regionIds = [];
         const seen = new Set();
         for (const fc of shards) {
           for (const f of fc.features || []) {
             const rid = f.properties && f.properties.id;
             if (!rid || seen.has(rid)) continue;
-            if (!idx.sources[rid]) continue; // no SCI row -> can't be clustered
             seen.add(rid);
-            features.push(f);
+            displayFeatures.push(f);
+            if (idx.sources[rid]) { // has an SCI row -> clusterable
+              clusterFeatures.push(f);
+              regionIds.push(rid);
+            }
           }
         }
-        const regionIds = features.map((f) => f.properties.id);
         const nReg = regionIds.length;
 
         if (nReg < 2) {
@@ -539,11 +547,11 @@ async function generate() {
           setStatus(`Clustering ${nReg.toLocaleString()} regions… ${pct}%`);
         });
         showCancel(false);
-        prepCache = { key, features, regionIds, n: nReg, merges };
+        prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: nReg, merges };
       }
     }
 
-    const { features, regionIds, n, merges } = prepCache;
+    const { displayFeatures, clusterFeatures, regionIds, n, merges } = prepCache;
     const nRegions = regionIds.length;
     if (k >= nRegions) { k = nRegions - 1; $("num-clusters").value = k; }
 
@@ -551,12 +559,13 @@ async function generate() {
     const labels = cutDendrogram(merges, n, k);
     const usedK = new Set(labels).size;
 
-    // 5) Colour + paint.
+    // 5) Colour + paint. Only clustered regions get a clusterColor; the rest fall
+    //    through to NO_DATA_FILL grey (see the fill layer's coalesce in paintClusters).
     const palette = clusterPalette(usedK);
     // Re-map possibly-sparse labels (0..k-1) to compact 0..usedK-1 in first-seen order.
     const labelOrder = new Map();
     const colorById = {};
-    features.forEach((f, i) => {
+    clusterFeatures.forEach((f, i) => {
       const lab = labels[i];
       if (!labelOrder.has(lab)) labelOrder.set(lab, labelOrder.size);
       const ci = labelOrder.get(lab);
@@ -566,14 +575,15 @@ async function generate() {
       colorById[f.properties.id] = color;
     });
 
-    const fc = { type: "FeatureCollection", features };
+    const fc = { type: "FeatureCollection", features: displayFeatures };
     paintClusters(fc);
 
-    const bbox = computeBbox(fc, regionIds);
+    const displayIds = displayFeatures.map((f) => f.properties.id);
+    const bbox = computeBbox(fc, displayIds);
     fitToBbox(bbox);
 
     const title = ($("map-title").value || "").trim() || autoTitle(ids, usedK);
-    lastResult = { features, ids: regionIds, countryCodes: ids, colorById, palette, usedK, title, bbox, adminFeatures: null };
+    lastResult = { features: displayFeatures, ids: displayIds, countryCodes: ids, colorById, palette, usedK, title, bbox, adminFeatures: null };
 
     renderLegend(usedK, palette);
     await applyBorders(); // honors the "Show country & state borders" checkbox
@@ -745,6 +755,9 @@ function buildRenderOpts(width) {
     friendGeo: fc,
     colorById: r.colorById,
     activeIds: r.ids,
+    // Regions without SCI data get this grey, matching the interactive map's
+    // NO_DATA_FILL (and the Explorer's out-of-sample regions).
+    naColor: NO_DATA_FILL,
     bbox: r.bbox,
     showBorders: true,
     borderFeatures: r.features, // thin white outline on every region (always shown)
