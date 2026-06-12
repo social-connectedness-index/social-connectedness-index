@@ -43,10 +43,10 @@ body { font-family: 'Poppins', sans-serif; margin: 0; }
 
 .panel-head { display: flex; align-items: center; justify-content: flex-start; gap: 7px; }
 .panel-head h1 { margin: 0; font-size: 17px; line-height: 1; color: #10617b; }
-.panel-lede { margin: 6px 0 14px; font-size: 12.5px; line-height: 1.5; color: #4a5862; }
+.panel-lede { margin: 6px 0 12px; font-size: 12.5px; line-height: 1.45; color: #4a5862; }
 
 /* ---- fields ---- */
-.field { margin-bottom: 14px; }
+.field { margin-bottom: 11px; }
 .field-label {
   display: block; font-size: 13px; font-weight: 600; color: #2a3942; margin-bottom: 6px;
 }
@@ -75,7 +75,7 @@ input[type="number"] { width: 110px; }
 /* country checklist */
 .checklist {
   margin-top: 8px;
-  max-height: 220px; overflow-y: auto;
+  max-height: 180px; overflow-y: auto;
   border: 1px solid #e3e9ed; border-radius: 6px;
   padding: 4px;
 }
@@ -129,7 +129,7 @@ input[type="number"] { width: 110px; }
 
 /* ---- legend ---- */
 .legend {
-  margin: 4px 0 12px; padding: 8px 10px;
+  margin: 4px 0 0; padding: 8px 10px;
   background: #f7fafb; border: 1px solid #e3e9ed; border-radius: 6px;
 }
 .legend-title { font-size: 12.5px; font-weight: 600; color: #2a3942; margin-bottom: 6px; }
@@ -137,17 +137,16 @@ input[type="number"] { width: 110px; }
 .legend-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #4a5862; }
 .legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0, 0, 0, 0.12); }
 
-/* ---- footer ---- */
-.panel-foot {
-  margin-top: auto; padding-top: 12px;
-  display: flex; align-items: center; justify-content: space-between;
-  border-top: 1px solid #eef2f4;
+/* ---- Social Capital Lab credit (inside the About box, matching the Explorer) ---- */
+.lab-mark {
+  display: flex; align-items: center; gap: 9px;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid #e7ebee;
+  text-decoration: none; color: #4a5862;
+  font-family: 'Poppins', sans-serif; font-size: 12px;
 }
-.link-btn { background: none; border: none; padding: 0; cursor: pointer; font: inherit; font-size: 12px; color: #1879d5; }
-.link-btn:hover { text-decoration: underline; }
-.lab-mark { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
-.lab-mark img { width: 24px; height: 24px; display: block; }
-.lab-mark span { font-weight: 600; font-size: 11.5px; color: #10617b; }
+.lab-mark img { width: 28px; height: 28px; display: block; }
+.lab-mark span { font-weight: 600; color: #10617b; }
 .lab-mark:hover span { text-decoration: underline; }
 
 /* ---- title-row buttons: EXACT replicas of the Interactive Explorer's
@@ -175,6 +174,19 @@ input[type="number"] { width: 110px; }
   flex: none; margin: 0; padding: 0; background: none; color: #1877f2; transform: none;
 }
 .panel-head .tour-launch-icon { width: 16px; height: 16px; font-size: 11px; }
+
+/* ---- collapse toggle (mobile only; hidden on desktop) ---- */
+.panel-toggle {
+  display: none;
+  flex: none; margin-left: auto; padding: 2px;
+  background: none; border: none; cursor: pointer; line-height: 0; color: #6a7480;
+}
+.panel-toggle .chev {
+  display: inline-block; font-size: 14px; transition: transform 0.18s ease;
+}
+/* Expanded → chevron points up (tap to collapse); collapsed → points down. */
+#panel:not(.collapsed) .panel-toggle .chev { transform: rotate(180deg); }
+.panel-toggle:hover { color: #3b464f; }
 
 /* ---- about panel ---- */
 #about {
@@ -221,11 +233,18 @@ input[type="number"] { width: 110px; }
 .sci-tooltip .tt-name { font-size: 12px; font-weight: 600; color: #3b464f; line-height: 1.2; }
 .sci-tooltip .tt-sub { font-size: 11px; color: #6a7480; margin-top: 1px; }
 
-/* ---- mobile: panel becomes a top sheet ---- */
+/* ---- mobile: panel becomes a collapsible top sheet ---- */
 @media (max-width: 720px) {
   #panel {
     top: 8px; left: 8px; right: 8px; bottom: auto; width: auto;
     max-height: 70vh;
   }
+  /* Show the collapse toggle and shrink the whole sheet to just its header. */
+  .panel-toggle { display: inline-flex; }
+  #panel.collapsed {
+    max-height: none;
+    overflow: hidden;
+  }
+  #panel.collapsed > :not(.tool-nav):not(.panel-head) { display: none; }
   #about { left: 8px; right: 8px; width: auto; }
 }

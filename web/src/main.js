@@ -1345,6 +1345,17 @@ async function init() {
   $("reset").addEventListener("click", reset);
   if ($("tourBtn")) $("tourBtn").addEventListener("click", tour.start);
 
+  // About panel toggle (mirrors the Explorer/Cluster "i" button).
+  (function setupAbout() {
+    const btn = $("about-btn"), panel = $("about");
+    if (!btn || !panel) return;
+    const sync = () => btn.setAttribute("aria-expanded", panel.hidden ? "false" : "true");
+    btn.addEventListener("click", () => { panel.hidden = !panel.hidden; sync(); });
+    const close = panel.querySelector(".close-btn");
+    if (close) close.addEventListener("click", () => { panel.hidden = true; sync(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") { panel.hidden = true; sync(); } });
+  })();
+
   // Shareable / agent-driven deep links: when the URL carries recognized params
   // (?origin=…&source=…&download=png), apply them — otherwise this is a normal
   // visit and nothing here changes the experience. A deep link also skips the

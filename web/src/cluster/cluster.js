@@ -710,6 +710,19 @@ async function init() {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") { panel.hidden = true; sync(); } });
   })();
 
+  // Collapse/expand the control panel (mobile — frees up the map).
+  (function setupPanelToggle() {
+    const btn = $("panel-toggle"), panel = $("panel");
+    if (!btn || !panel) return;
+    btn.addEventListener("click", () => {
+      const collapsed = panel.classList.toggle("collapsed");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      const label = collapsed ? "Expand panel" : "Collapse panel";
+      btn.setAttribute("aria-label", label);
+      btn.setAttribute("title", label);
+    });
+  })();
+
   // Per-option "i" info tooltips (hover/focus; click pins on touch).
   setupOptionInfo();
 

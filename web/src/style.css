@@ -1,8 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;400;600;700&display=swap');
+
 * { box-sizing: border-box; }
 html, body {
   margin: 0; height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #212529;
+  font-family: 'Poppins', sans-serif;
+  color: #2a3942;
 }
 body { display: flex; height: 100vh; overflow: hidden; }
 
@@ -11,32 +13,56 @@ body { display: flex; height: 100vh; overflow: hidden; }
   width: 340px; flex: 0 0 340px;
   padding: 16px 18px;
   overflow-y: auto;
-  background: #f8f9fa;
-  border-right: 1px solid #e9ecef;
+  background: #f7fafb;
+  border-right: 1px solid #e1e8ec;
 }
 /* cross-tool nav at the top of the sidebar (← All tools / Interactive Explorer →) */
 .tool-nav {
   display: flex; justify-content: space-between; align-items: center;
   margin: 0 0 12px; font-size: 12.5px;
 }
-.tool-nav a { text-decoration: none; color: #1879d5; font-weight: 500; }
+.tool-nav a { text-decoration: none; color: #1879d5; font-weight: 600; }
 .tool-nav a:hover { text-decoration: underline; }
-.tool-nav .tool-nav-home { color: #6c757d; }
+.tool-nav .tool-nav-home { color: #6a7480; }
 
-#panel h1 { font-size: 18px; margin: 0 0 6px; color: #212529; }
-#panel h1 .muted { display: block; margin-top: 2px; color: #6c757d; font-size: 13px; font-weight: normal; }
+#panel h1 { font-size: 17px; margin: 0 0 6px; color: #10617b; }
+#panel h1 .muted { display: block; margin-top: 2px; color: #6a7480; font-size: 13px; font-weight: normal; }
+
+/* ---- title-row "i" / "?" buttons — same icon-only style as the Interactive
+   Explorer + Cluster tools: small circles sitting after the title. ---- */
+.panel-head { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 6px; }
+.panel-head h1 { flex: 0 1 auto; margin-bottom: 0; }
+.panel-head .icon-btn {
+  flex: none; padding: 0; background: transparent; border: none; cursor: pointer;
+  display: inline-flex; align-items: center; line-height: 0; margin-top: 5px;
+}
+.panel-head .icon-btn .info-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #6a7480; color: #fff;
+  font-size: 11px; font-weight: 700; font-style: italic; line-height: 1;
+  transition: background 0.15s;
+}
+.panel-head .icon-btn:hover .info-icon,
+.panel-head .icon-btn[aria-expanded="true"] .info-icon { background: #3b464f; }
+/* "?" tutorial button — neutralize the shared tour.css base so it's icon-only. */
+.panel-head .tour-launch,
+.panel-head .tour-launch:hover {
+  flex: none; margin: 5px 0 0; padding: 0; background: none; color: #1877f2; transform: none;
+}
+.panel-head .tour-launch-icon { width: 16px; height: 16px; font-size: 11px; }
 
 .section-label {
-  font-weight: 600; color: #212529; margin-bottom: 4px;
+  font-weight: 600; color: #2a3942; margin-bottom: 4px;
   font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;
 }
 #panel label {
-  display: block; font-size: 13px; margin: 10px 0 3px; color: #495057;
+  display: block; font-size: 13px; margin: 8px 0 3px; color: #4a5862;
 }
 
 /* segmented Single region / Compare two regions toggle (mirrors the Shiny app) */
 .mode-toggle {
-  display: flex; background: #e9ecef; border-radius: 8px; padding: 3px; margin: 4px 0 0;
+  display: flex; background: #eef2f4; border-radius: 8px; padding: 3px; margin: 4px 0 0;
 }
 #panel .mode-toggle label {
   /* position:relative confines the absolutely-positioned hidden radio to THIS
@@ -45,23 +71,26 @@ body { display: flex; height: 100vh; overflow: hidden; }
      reveal it — a flicker, worst when the toggle is low in Advanced options. */
   position: relative;
   flex: 1; margin: 0; padding: 7px 10px; text-align: center;
-  border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500;
-  color: #495057; transition: all 0.15s ease;
+  border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
+  color: #4a5862; transition: all 0.15s ease;
 }
-#panel .mode-toggle label:hover { color: #212529; }
+#panel .mode-toggle label:hover { color: #2a3942; }
 .mode-toggle input { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 #panel .mode-toggle label:has(input:checked) {
-  background: #fff; color: #212529; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  background: #fff; color: #2a3942; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 #panel label.check { display: flex; align-items: center; gap: 7px; margin: 10px 0; }
 #panel select, #panel input[type="text"], #panel input[type="number"] {
-  width: 100%; padding: 7px 8px; border: 1px solid #ced4da; border-radius: 6px;
-  font-size: 13px; background: #fff; color: #212529;
+  width: 100%; padding: 7px 9px; border: 1px solid #cfd9df; border-radius: 6px;
+  font-family: inherit; font-size: 13px; background: #fff; color: #2a3942;
+}
+#panel select:focus, #panel input[type="text"]:focus, #panel input[type="number"]:focus {
+  outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15);
 }
 #panel select[multiple], #panel select[size] { height: auto; padding: 2px; }
-hr { border: none; border-top: 1px solid #e9ecef; margin: 14px 0; }
+hr { border: none; border-top: 1px solid #eef2f4; margin: 12px 0; }
 
-.help-hint { color: #6c757d; font-size: 12px; margin-top: 3px; line-height: 1.35; }
+.help-hint { color: #6a7480; font-size: 12px; margin-top: 3px; line-height: 1.35; }
 #searchA, #searchB { margin-bottom: 5px; }
 
 /* Source-region picker: a custom always-visible scrollable list, replacing a
@@ -69,32 +98,32 @@ hr { border: none; border-top: 1px solid #e9ecef; margin: 14px 0; }
    on mobile, so typing in the search box filters options you can't see; this
    list stays inline and filters live as you type, matching the desktop feel. */
 .listbox {
-  border: 1px solid #ced4da; border-radius: 6px; background: #fff;
+  border: 1px solid #cfd9df; border-radius: 6px; background: #fff;
   height: 120px; overflow-y: auto; padding: 3px; -webkit-overflow-scrolling: touch;
 }
 #panel .listbox .opt {
-  padding: 6px 7px; font-size: 13px; color: #212529; cursor: pointer;
+  padding: 6px 7px; font-size: 13px; color: #2a3942; cursor: pointer;
   border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-#panel .listbox .opt:hover { background: #f1f3f5; }
+#panel .listbox .opt:hover { background: #f1f6f8; }
 #panel .listbox .opt.sel { background: #1879d5; color: #fff; }
 #panel .listbox .opt.sel:hover { background: #1568b8; }
 #countrySearch { margin-top: 8px; margin-bottom: 5px; }
 
 /* click-to-toggle checkbox lists (region groups + individual countries) */
 .checklist {
-  border: 1px solid #ced4da; border-radius: 6px; background: #fff;
+  border: 1px solid #cfd9df; border-radius: 6px; background: #fff;
   max-height: 120px; overflow-y: auto; padding: 3px;
 }
 #panel .checklist label.chk {
   display: flex; align-items: center; gap: 8px; margin: 0;
-  padding: 4px 7px; font-size: 13px; color: #212529;
+  padding: 4px 7px; font-size: 13px; color: #2a3942;
   cursor: pointer; border-radius: 4px;
 }
-#panel .checklist label.chk:hover { background: #f1f3f5; }
-.checklist input[type="checkbox"] { width: auto; margin: 0; flex: 0 0 auto; }
+#panel .checklist label.chk:hover { background: #f1f6f8; }
+.checklist input[type="checkbox"] { width: auto; margin: 0; flex: 0 0 auto; accent-color: #1879d5; }
 /* thin separator between the dynamic options and the explicit continent list */
-.checklist .chk-divider { height: 1px; background: #e9ecef; margin: 4px 6px; }
+.checklist .chk-divider { height: 1px; background: #e3e9ed; margin: 4px 6px; }
 
 .grid2, .grid3 { display: grid; gap: 8px; }
 .grid2 { grid-template-columns: 1fr 1fr; }
@@ -102,61 +131,89 @@ hr { border: none; border-top: 1px solid #e9ecef; margin: 14px 0; }
 .grid2 label, .grid3 label { margin-top: 8px; }
 
 details { margin-top: 4px; }
-details summary { cursor: pointer; font-weight: bold; color: #495057; }
+details summary { cursor: pointer; font-weight: 600; color: #2a3942; }
 details > *:not(summary) { margin-top: 4px; }
 
 /* ---- buttons ---- */
-.btn-row { display: flex; gap: 8px; margin: 15px 0; }
+.btn-row { display: flex; gap: 8px; margin: 12px 0 0; }
 .btn-row button {
-  font-size: 15px; padding: 11px; border-radius: 6px; cursor: pointer; border: 1px solid transparent;
+  font-family: inherit; font-weight: 600; font-size: 14px;
+  padding: 9px 12px; border-radius: 7px; cursor: pointer; border: 1px solid transparent;
 }
-.btn-generate { flex: 1; background: #0d6efd; color: #fff; border-color: #0d6efd; font-weight: 600; }
-.btn-generate:hover { background: #0b5ed7; }
-.btn-reset { background: #fff; color: #495057; border-color: #ced4da; }
-.btn-reset:hover { background: #f1f3f5; }
+.btn-generate { flex: 1; background: #10617b; color: #fff; border-color: #10617b; }
+.btn-generate:hover { background: #0d4f64; border-color: #0d4f64; }
+.btn-reset { background: #fff; color: #10617b; border-color: #b9d0da; }
+.btn-reset:hover { background: #eef5f8; }
 
 #status { font-size: 12px; color: #c0392b; min-height: 16px; margin-top: 8px; }
-.foot { font-size: 11px; color: #adb5bd; margin-top: 14px; }
-.foot a { color: #6c757d; }
+#status:empty { margin-top: 0; min-height: 0; }
+/* Social Capital Lab credit (inside the About box, matching the Explorer). */
 .lab-mark {
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 22px; padding-top: 16px;
-  border-top: 1px solid #edf0f2;
-  text-decoration: none;
-  font-size: 11px; color: #6c757d;
+  display: flex; align-items: center; gap: 9px;
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid #e7ebee;
+  text-decoration: none; color: #4a5862;
+  font-family: 'Poppins', sans-serif; font-size: 12px;
 }
-.lab-mark img { width: 24px; height: 24px; display: block; }
+.lab-mark img { width: 28px; height: 28px; display: block; }
 .lab-mark span { font-weight: 600; color: #10617b; }
 .lab-mark:hover span { text-decoration: underline; }
+
+/* ---- about box (matches the Cluster + Explorer about panels) ---- */
+#about {
+  position: fixed; left: 14px; top: 14px; width: 340px; max-width: calc(100vw - 28px);
+  max-height: calc(100vh - 28px); overflow-y: auto;
+  background: #fff; border: 1px solid #e1e8ec; border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  padding: 18px 20px; z-index: 20;
+}
+#about[hidden] { display: none; }
+#about h3 { margin: 0 0 8px; padding-right: 24px; color: #10617b; font-size: 16px; }
+#about p { margin: 0 0 10px; font-size: 12.5px; line-height: 1.5; color: #44525c; }
+#about p:last-child { margin-bottom: 0; }
+#about a { color: #1879d5; }
+#about .close-btn {
+  position: absolute; top: 8px; right: 10px; background: none; border: none;
+  font-size: 22px; line-height: 1; color: #9aa6ad; cursor: pointer;
+}
+#about .close-btn:hover { color: #1879d5; }
 
 /* ---- main / preview ---- */
 #mapWrap { flex: 1; overflow: auto; background: #fff; padding: 20px; }
 .placeholder {
-  text-align: center; padding: 120px 30px; color: #adb5bd;
-  border: 2px dashed #dee2e6; border-radius: 8px; margin: 0 auto; max-width: 600px;
+  text-align: center; padding: 120px 30px; color: #7a8893;
+  border: 2px dashed #cfd9df; border-radius: 8px; margin: 0 auto; max-width: 600px;
 }
 .placeholder h4 { margin: 0 0 8px; font-weight: 600; }
 .map-container {
-  border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;
+  border: 1px solid #e1e8ec; border-radius: 8px; overflow: hidden;
   background: #fff; display: inline-block; max-width: 100%;
 }
-.map-container canvas { max-width: 100%; height: auto; display: block; }
+.map-container canvas { max-width: 100%; width: auto; height: auto; display: block; }
+/* Desktop: keep the whole map + the download/share actions visible at once — cap
+   the rendered map height so it never grows tall enough to push the buttons below
+   the fold. max-width + max-height with auto sizing scales the canvas to "contain"
+   while preserving its aspect ratio. The reserve (~160px) covers the #mapWrap
+   padding, the actions row, and its top margin. Mobile is intentionally scrollable. */
+@media (min-width: 769px) {
+  .map-container canvas { max-height: calc(100vh - 160px); }
+}
 
 /* ---- download + share actions ---- */
 .actions { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
 .action-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .action-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
-  color: #6c757d; width: 88px; flex: 0 0 88px;
+  color: #6a7480; width: 88px; flex: 0 0 88px;
 }
 .btn-cluster { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 .dl-btn {
-  font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px;
-  cursor: pointer; border: 1px solid #ced4da; background: #fff; color: #343a40;
+  font-family: inherit; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px;
+  cursor: pointer; border: 1px solid #cfd9df; background: #fff; color: #2a3942;
   transition: background 0.12s, border-color 0.12s;
 }
-.dl-btn:hover { background: #f1f3f5; border-color: #adb5bd; }
+.dl-btn:hover { background: #f1f6f8; border-color: #b9d0da; }
 
 .share-btn {
   width: 38px; height: 38px; border-radius: 50%; border: none; cursor: pointer;
@@ -165,6 +222,7 @@ details > *:not(summary) { margin-top: 4px; }
 }
 .share-btn svg { width: 19px; height: 19px; fill: currentColor; display: block; }
 .share-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+/* Platform brand colours — intentionally each service's own colour, not the SCI palette. */
 .s-facebook  { background: #1877f2; }
 .s-x         { background: #000000; }
 .s-linkedin  { background: #0a66c2; }
@@ -202,7 +260,8 @@ details > *:not(summary) { margin-top: 4px; }
   body { flex-direction: column; height: auto; min-height: 100vh; overflow: auto; }
   #panel {
     width: 100%; flex: none; height: auto; overflow-y: visible;
-    border-right: none; border-bottom: 1px solid #e9ecef;
+    border-right: none; border-bottom: 1px solid #e1e8ec;
   }
   #mapWrap { flex: none; overflow: visible; padding: 16px; }
+  #about { left: 8px; right: 8px; width: auto; }
 }

@@ -13,10 +13,13 @@
       <div class="tool-nav">
         <a href="./index.html" class="tool-nav-home">← All tools</a>
       </div>
-      <h1>Social Connectedness Index <span class="muted">Map Generator</span></h1>
-      <button id="tourBtn" class="tour-launch" type="button" title="Replay the tutorial">
-        <span class="tour-launch-icon" aria-hidden="true">?</span> Show tutorial
-      </button>
+      <div class="panel-head">
+        <h1>Social Connectedness Index <span class="muted">Map Generator</span></h1>
+        <button id="about-btn" class="icon-btn" type="button" aria-expanded="false" aria-controls="about"
+                title="About this tool" aria-label="About this tool"><span class="info-icon" aria-hidden="true">i</span></button>
+        <button id="tourBtn" class="tour-launch" type="button" title="Show the tutorial"
+                aria-label="Show the tutorial"><span class="tour-launch-icon" aria-hidden="true">?</span></button>
+      </div>
 
       <div class="section-label">Map configuration</div>
       <div id="mapModeToggle" class="mode-toggle">
@@ -164,15 +167,28 @@
       </div>
 
       <div id="status"></div>
-      <p class="foot">
-        Data: Social Connectedness Index ·
-        <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">HDX</a>
-      </p>
+    </aside>
+
+    <!-- About panel (toggled by the "i" button; styled to match the other tools). -->
+    <div id="about" hidden>
+      <button type="button" class="close-btn" aria-label="Close">×</button>
+      <h3>About the Map Generator</h3>
+      <p>The <strong>Social Connectedness Index</strong> (SCI) measures the relative
+         probability that two locations are connected by a Facebook friendship: if the
+         SCI between A and B is twice the SCI between A and C, a Facebook user in A is
+         about twice as likely to be friends with someone in B as with someone in C.</p>
+      <p>This tool builds publication-quality SCI maps. Pick a home region, choose the
+         geography shown across the map, and the colors reveal how strongly every place
+         is connected to your home region. The advanced options fine-tune the palette,
+         legend breaks, borders, and framing — then download the result as a PNG, JPG,
+         SVG, or MP4.</p>
+      <p>More details, including the full data download, are at the
+         <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
       <a class="lab-mark" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener" title="Social Capital Lab">
         <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" />
         <span>Social Capital Lab</span>
       </a>
-    </aside>
+    </div>
 
     <main id="mapWrap">
       <div id="placeholder" class="placeholder">
