@@ -242,7 +242,7 @@ const LEVELS = {
   },
 };
 
-let gSel = "level0";
+let gSel = "level2";
 
 // "Focus country" mode: when on, the choropleth is restricted to
 // regions within the selected source's own country, recoloured on the within-
@@ -915,9 +915,11 @@ map.on("load", async function () {
   // Globe projection only (the Flat toggle was removed).
   try { map.setProjection("globe"); } catch (e) { console.warn("[SCI] setProjection failed:", e); }
 
-  // Initial level (countries), then wire the controls.
+  // Initial level: Region (default). Ensure level0 first so the country source +
+  // country-outline layer exist (Region mode draws national borders on top), then
+  // make the Region layer active.
   await ensureLevel("level0");
-  setActiveLayer("level0");
+  setActiveLayer("level2");
 
   document.querySelectorAll(".button-container button").forEach(function (button) {
     button.addEventListener("click", async function () {

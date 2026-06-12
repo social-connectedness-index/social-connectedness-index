@@ -753,6 +753,6 @@ function setupOptionInfo() {
 }
 
 map.on("load", () => {
-  try { map.setProjection("mercator"); } catch (_) {}
+  try { map.setProjection("globe"); } catch (_) {}
   init();
 });

@@ -41,7 +41,6 @@ html, body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
-  margin-bottom: auto;
 }
 
 .tool-card {
@@ -156,7 +155,8 @@ html, body {
 
 /* ---- footer ---- */
 .landing-foot {
-  margin-top: 20px;
+  margin-top: auto;
+  padding-top: 20px;
   text-align: center;
   font-size: 14px;
   color: #4a5862;
