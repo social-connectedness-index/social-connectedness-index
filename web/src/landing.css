@@ -86,14 +86,14 @@ html, body {
   background-origin: content-box;
   padding: 18px 24px;
 }
-/* Connected Communities — a clustered choropleth on a white field, shown
-   "contain" with padding so the whole shape stays in view (like the Generator). */
+/* Connected Communities — a clustered subcontinent on a white field. Sized by
+   HEIGHT (like the Generator) so the crop stays consistent across desktop/mobile
+   card widths; 105% overflows the box just enough to trim the image's white
+   margins while keeping the whole clustered map in view. */
 .art-cluster {
   background-color: #ffffff;
   background-image: url('/img/cluster-card.png');
-  /* Slightly larger than "contain" so the image's white margins overflow the
-     card-art box (overflow:hidden crops them), zooming the map in a touch. */
-  background-size: 75%;
+  background-size: auto 105%;
   background-position: center;
 }
 

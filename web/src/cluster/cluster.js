@@ -469,6 +469,15 @@ function countryNameOf(iso2) {
   return (e && e[0]) || iso2;
 }
 
+// "Region, Country" for a clicked/hovered feature's properties (drops the country
+// when it's redundant). Used by the click status line and the hover tooltip.
+function regionLabel(props) {
+  let name = props.name || props.id;
+  const cn = countryNameOf(props.country);
+  if (cn && cn !== name) name += ", " + cn;
+  return name;
+}
+
 // ---------------------------------------------------------------------------
 // Country picker UI.
 // ---------------------------------------------------------------------------
@@ -592,7 +601,6 @@ async function generate() {
   setAnimControls("hidden"); // no animation controls until a map exists
   showSpinner();
 
-  const t0 = performance.now();
   try {
     const key = selectionKey(ids);
 
@@ -703,8 +711,7 @@ async function generate() {
     await applyBorders(); // country borders always; checkbox toggles the state/province overlay
     $("download").hidden = false;
     setAnimControls("idle"); // map ready → offer the Animate button
-    const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    setStatus(`${res.usedK} clusters from ${nRegions.toLocaleString()} regions (${secs}s).`, "ok");
+    setStatus("");
   } catch (e) {
     if (e && e.message === "cancelled") {
       setStatus("Clustering cancelled.", "warn");
@@ -789,7 +796,7 @@ function applyClusterCount(k) {
 // you see exactly which clusters break off, and where.
 // ---------------------------------------------------------------------------
 const ANIM_MAX_K = 30;
-const ANIM_STEP_MS = 650;
+const ANIM_STEP_MS = 1300;
 let animating = false; // the K-sweep loop is active
 let paused = false;    // ...but currently frozen on a frame
 
@@ -861,8 +868,10 @@ async function startAnimation() {
 // clean (basemap-free) portrait frame — same look as the still reel — and held for
 // ANIM_REEL_HOLD_S, with a longer hold on the final frame. computeClusterColors is
 // pure, so this doesn't disturb the live map; only the colour + title vary per frame.
-const ANIM_REEL_HOLD_S = 0.5;
-const ANIM_REEL_LAST_HOLD_S = 1.6;
+// Per-frame hold is derived from ANIM_STEP_MS so the exported reel always plays at the
+// same speed as the on-screen sweep; the final frame lingers a bit longer.
+const ANIM_REEL_HOLD_S = ANIM_STEP_MS / 1000;
+const ANIM_REEL_LAST_HOLD_S = ANIM_REEL_HOLD_S * 2;
 async function downloadAnimationReel() {
   if (!prepCache || !lastResult) return;
   if (!mp4Supported()) { setStatus("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/SVG.", "warn"); return; }
@@ -1181,9 +1190,7 @@ function wireHover() {
     if (hoveredId !== null) map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: false });
     hoveredId = f.id;
     map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: true });
-    let name = f.properties.name || f.properties.id;
-    const cn = countryNameOf(f.properties.country);
-    if (cn && cn !== name) name += ", " + cn;
+    const name = regionLabel(f.properties);
     const comm = f.properties.cluster != null ? `<div class="tt-sub">Cluster ${f.properties.cluster + 1}</div>` : "";
     if (supportsHover()) {
       hoverPopup.setLngLat(e.lngLat).setHTML(`<div class="tt-name">${escapeHtml(name)}</div>${comm}`).addTo(map);
@@ -1195,18 +1202,23 @@ function wireHover() {
     hoveredId = null;
     hoverPopup.remove();
   });
-  // Click a region → highlight its whole cluster (click it again to clear). A
-  // click on a no-data region or empty map clears the highlight.
+  // Click a region → highlight its whole cluster (click it again to clear) and
+  // show the clicked region's name (so users can tell which place is grouped with
+  // which, esp. on touch where there's no hover). A click on a no-data region or
+  // empty map clears the highlight and the name.
   map.on("click", FILL_LAYER, (e) => {
     if (!e.features.length) return;
-    const ci = e.features[0].properties.cluster;
-    if (ci == null) { highlightCluster(null); return; }
-    highlightCluster(selectedCluster === ci ? null : ci);
+    const f = e.features[0];
+    const ci = f.properties.cluster;
+    if (ci == null) { highlightCluster(null); setStatus(""); return; }
+    const deselect = selectedCluster === ci;
+    highlightCluster(deselect ? null : ci);
+    setStatus(deselect ? "" : `${regionLabel(f.properties)} — Cluster ${ci + 1}`);
   });
   map.on("click", (e) => {
     if (!map.getLayer(FILL_LAYER)) return;
     const hits = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
-    if (!hits.length) highlightCluster(null);
+    if (!hits.length) { highlightCluster(null); setStatus(""); }
   });
 }
 
@@ -1239,7 +1251,7 @@ function buildRenderOpts(width) {
     title: r.title,
     subtitle: "",
     // Exactly the Map Generator's caption (src/main.js CAPTION).
-    caption: "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab",
+    caption: "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab · social-connectedness.org",
     // No colour-scale legend on the clustered image (communities are categorical).
     legend: null,
     // Larger title + caption than the Generator's defaults.

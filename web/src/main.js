@@ -72,7 +72,7 @@ const base = import.meta.env.BASE_URL;
 const dataUrl = (p) => `${base}data/${p}`;
 const $ = (id) => document.getElementById(id);
 
-const CAPTION = "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab";
+const CAPTION = "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab · social-connectedness.org";
 const SHARE_URL = "https://social-connectedness.org/";
 const MAX_OPTIONS = 1500; // cap rendered <option>s for huge levels (us_zcta)
 // Palettes whose colors clash with a red home-region highlight (use black instead).
