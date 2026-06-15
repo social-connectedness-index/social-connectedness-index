@@ -78,29 +78,30 @@
     <!-- Borders ------------------------------------------------------------- -->
     <section class="field">
       <label class="checkbox-row">
-        <input type="checkbox" id="show-borders" checked />
-        <span>Show country &amp; state borders</span>
+        <input type="checkbox" id="show-borders" />
+        <span>Show state &amp; province borders</span>
       </label>
     </section>
 
     <div class="panel-actions">
       <button id="generate" class="btn-primary" type="button">Generate clusters</button>
       <button id="cancel" class="btn-secondary" type="button" hidden>Cancel</button>
-      <button id="download" class="btn-secondary" type="button" hidden>Download image ▾</button>
+      <button id="animate" class="btn-secondary" type="button" hidden>▶ Animate 1→30</button>
+      <div id="anim-controls" class="anim-controls" hidden>
+        <button id="anim-pause" class="btn-secondary" type="button">⏸ Pause</button>
+        <button id="anim-stop" class="btn-secondary" type="button">■ Stop</button>
+      </div>
+      <button id="download" class="btn-secondary" type="button" hidden>Download ▾</button>
       <div id="download-menu" class="download-menu" hidden>
         <button type="button" data-fmt="png">PNG image</button>
         <button type="button" data-fmt="svg">SVG (vector)</button>
+        <button type="button" data-fmt="mp4">MP4 (reel, 9:16)</button>
+        <button type="button" data-fmt="mp4anim">MP4 animation (1→30)</button>
         <button type="button" data-fmt="map">Current map view (PNG)</button>
       </div>
     </div>
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
-
-    <!-- Legend -------------------------------------------------------------- -->
-    <section id="legend" class="legend" hidden>
-      <div class="legend-title" id="legend-title">Clusters</div>
-      <div class="legend-swatches" id="legend-swatches"></div>
-    </section>
 
   </aside>
 
@@ -112,12 +113,13 @@
        Facebook friendship ties between them. Two regions are treated as <em>close</em>
        when a randomly chosen Facebook user in one is highly likely to be friends with a
        randomly chosen user in the other.</p>
-    <p>It uses <strong>hierarchical agglomerative average-linkage clustering</strong>:
-       every region starts on its own, the two closest groups are repeatedly merged, and
-       the process stops once the chosen number of clusters remain. The distance
-       between two regions is the inverse of their Social Connectedness Index; no geographic
-       constraint is applied, yet clusters usually come out spatially contiguous because
-       connectedness falls off with distance.</p>
+    <p>It uses <strong>hierarchical agglomerative clustering</strong> (Ward's method):
+       every region starts on its own and the two groups whose merger keeps clusters most
+       compact are joined repeatedly, until the chosen number of clusters remain. The
+       distance between two regions is the inverse of their Social Connectedness Index. No
+       geographic constraint is applied — clusters are usually contiguous because
+       connectedness falls off with distance, but a genuinely strong long-distance tie
+       (e.g. migration links) can put non-adjacent regions in the same cluster.</p>
     <p>More details, including the full data download, are at the
        <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
     <p class="map-attribution">Basemap © <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">Mapbox</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · <a href="https://www.mapbox.com/map-feedback/" target="_blank" rel="noopener">Improve this map</a></p>

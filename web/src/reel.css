@@ -1,0 +1,26 @@
+/* reel.css — inline MP4 result overlay, shared by every SCI tool that exports a
+   9:16 reel (imported by reel.js). On iOS the finished video is shown here so the
+   user can press-and-hold to "Save to Photos". */
+.video-result {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; padding: 16px;
+}
+.video-result video {
+  max-width: 100%; max-height: 62vh;
+  border-radius: 8px; background: #000;
+}
+.video-result p {
+  margin: 0; max-width: 340px; text-align: center;
+  color: #fff; font-size: 14px; line-height: 1.4;
+}
+.video-result-actions { display: flex; gap: 10px; }
+.video-result-btn {
+  font-family: inherit; font-weight: 600; cursor: pointer;
+  padding: 10px 22px; font-size: 15px; border-radius: 8px;
+  border: 1px solid #cfd9df; background: #fff; color: #2a3942;
+  transition: background 0.12s, border-color 0.12s;
+}
+.video-result-btn:hover { background: #f1f6f8; border-color: #b9d0da; }

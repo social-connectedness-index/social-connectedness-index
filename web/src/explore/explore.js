@@ -121,6 +121,12 @@ map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
 
 let hoveredStateId = null;
 
+// Only show the follow-the-cursor name/SCI tooltip on devices with a real hover
+// pointer (a mouse). On touch-primary devices it would pop up on every tap, which
+// is just noise — there the click already selects the region. Evaluated live so a
+// hybrid laptop using its trackpad still gets it.
+const supportsHover = () => !window.matchMedia || window.matchMedia("(hover: hover)").matches;
+
 // Hover tooltip: region name (always) + its SCI to the selected source (once a
 // region has been clicked). pointer-events:none (CSS) so it never blocks hover.
 const hoverPopup = new mapboxgl.Popup({
@@ -671,8 +677,11 @@ map.on("load", async function () {
         hoveredStateId = null;
       }
       // Tooltip follows the cursor; shown for every region (name always, SCI
-      // once a source is selected).
-      hoverPopup.setLngLat(e.lngLat).setHTML(hoverTooltipHtml(hovered, levelKey)).addTo(map);
+      // once a source is selected) — but only with a real hover pointer (skip on
+      // touch, where it would fire on every tap).
+      if (supportsHover()) {
+        hoverPopup.setLngLat(e.lngLat).setHTML(hoverTooltipHtml(hovered, levelKey)).addTo(map);
+      }
     });
 
     map.on("mouseleave", levelKey, function () {

@@ -11,7 +11,8 @@ import {
   breaksForScheme, quantile,
 } from "./sci.js";
 import { computeBbox, renderMap, renderSvg, naturalHeight } from "./render.js";
-import { encodeMp4, mp4Supported } from "./video.js";
+import { buildReelCanvas, deliverVideo, mp4Supported } from "./reel.js";
+import { encodeMp4 } from "./video.js";
 import { downloadSvg } from "./export_vector.js";
 import { createTour } from "./tour.js";
 
@@ -947,118 +948,10 @@ const canvasBlob = (canvas, type, quality) =>
   new Promise((resolve) => canvas.toBlob(resolve, type, quality));
 
 // ---- video (Instagram Reel / TikTok) --------------------------------------
-// Compose a 1080x1920 (9:16) portrait frame for the MP4. We re-render the scene
-// at reel width (supersampled 2x for crisp text/borders after downscale) and size
-// the canvas to the map's NATURAL height, so there's no internal letterbox: tall
-// maps fill the whole frame, wide maps fill the full width and are centered with
-// only the unavoidable geometric top/bottom margin (no extra padding).
-const REEL_W = 1080, REEL_H = 1920;
-function buildReelCanvas() {
-  // Supersample on desktop for crisp text/edges. NOT on iOS: rendering the whole
-  // choropleth onto a 2160x3840 canvas pushed iOS Safari past its per-tab memory
-  // limit, which silently reloaded the page mid-encode. 1x stays within budget
-  // there (the 1080-wide frame is still plenty sharp on a phone screen).
-  const SS = isIOS() ? 1 : 2; // supersample factor — render big, downscale for clean edges
-  const w = REEL_W * SS;
-  // Height that leaves no empty band, clamped to the reel height so tall/narrow
-  // maps fill the frame instead of overflowing.
-  const h = Math.min(REEL_H * SS, naturalHeight({ ...lastRender, width: w }));
-  const src = renderMap({ ...lastRender, width: w, height: h });
-
-  const frame = document.createElement("canvas");
-  frame.width = REEL_W;
-  frame.height = REEL_H;
-  const ctx = frame.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, REEL_W, REEL_H);
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  const s = Math.min(REEL_W / src.width, REEL_H / src.height);
-  const dw = src.width * s, dh = src.height * s;
-  ctx.drawImage(src, (REEL_W - dw) / 2, (REEL_H - dh) / 2, dw, dh);
-  return frame;
-}
-
-// iPadOS reports itself as "MacIntel" but has a touch screen — catch it too.
-const isIOS = () =>
-  /iP(hone|od|ad)/.test(navigator.userAgent) ||
-  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-
-// Hand the encoded video to the user.
-//
-// iOS Safari is the hard case: it ignores <a download> for blob URLs, AND the
-// multi-second encode expires the tap's transient activation that
-// navigator.share() requires — so both earlier approaches (direct download, then
-// an automatic Web-Share) silently failed on iPhone. Instead we show the finished
-// video INLINE: the user can press-and-hold it to "Save to Photos" (which needs
-// neither <a download> nor a live gesture), or tap Share (a fresh gesture, which
-// navigator.share accepts). Desktop/Android keep the share-sheet-or-download path.
-async function deliverVideo(blob, filename) {
-  const file = new File([blob], filename, { type: "video/mp4" });
-  if (isIOS()) {
-    showVideoResult(file, blob);
-    return;
-  }
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file] });
-      $("status").textContent = "";
-      return;
-    } catch (e) {
-      if (e.name === "AbortError") { $("status").textContent = ""; return; }
-      // otherwise fall through to a direct download
-    }
-  }
-  downloadBlob(blob, filename);
-  $("status").textContent = "";
-}
-
-// Inline video result overlay (used on iOS). Plays the encoded MP4 in a real
-// <video>; press-and-hold offers "Save to Photos" with no API and no live
-// gesture needed, and the Share button is itself a fresh gesture for
-// navigator.share. Also doubles as visible confirmation the encode succeeded.
-function showVideoResult(file, blob) {
-  $("status").textContent = "";
-  const url = URL.createObjectURL(blob);
-
-  const overlay = document.createElement("div");
-  overlay.className = "video-result";
-  const cleanup = () => { overlay.remove(); setTimeout(() => URL.revokeObjectURL(url), 60_000); };
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) cleanup(); });
-
-  const video = document.createElement("video");
-  video.src = url;
-  video.controls = true;
-  video.loop = true;
-  video.muted = true;
-  video.autoplay = true;
-  video.setAttribute("playsinline", ""); // play in place rather than forcing fullscreen
-  video.playsInline = true;
-
-  const hint = document.createElement("p");
-  hint.textContent = "Press and hold the video, then “Save to Photos.” Or tap Share below.";
-
-  const row = document.createElement("div");
-  row.className = "video-result-actions";
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    const share = document.createElement("button");
-    share.className = "dl-btn";
-    share.textContent = "Share";
-    share.addEventListener("click", async () => {
-      try { await navigator.share({ files: [file] }); }
-      catch (e) { /* dismissed or unsupported — the press-and-hold path still works */ }
-    });
-    row.appendChild(share);
-  }
-  const done = document.createElement("button");
-  done.className = "dl-btn";
-  done.textContent = "Done";
-  done.addEventListener("click", cleanup);
-  row.appendChild(done);
-
-  overlay.append(video, hint, row);
-  document.body.appendChild(overlay);
-}
+// The 9:16 MP4 reel composition + delivery (incl. the iOS inline-save overlay)
+// lives in the shared src/reel.js so the Generator and the Clustering app produce
+// the identical portrait video format. buildReelCanvas takes render.js options;
+// here we pass `lastRender`.
 
 const slug = () => (sourceLabelText().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "sci_map");
 
@@ -1073,9 +966,10 @@ async function download(fmt) {
       downloadSvg(lastRender, `${slug()}.svg`);
     } else if (fmt === "mp4") {
       if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/JPG.");
-      $("status").textContent = "Encoding MP4… this can take a few seconds.";
-      const blob = await encodeMp4(buildReelCanvas(), { seconds: 10, fps: 30 });
-      await deliverVideo(blob, `${slug()}.mp4`);
+      const setStatus = (m) => { $("status").textContent = m; };
+      setStatus("Encoding MP4… this can take a few seconds.");
+      const blob = await encodeMp4(buildReelCanvas(lastRender), { seconds: 10, fps: 30 });
+      await deliverVideo(blob, `${slug()}.mp4`, { setStatus });
     }
   } catch (e) {
     showError(e);
@@ -1604,7 +1498,7 @@ async function sciToBlob(fmt = "png") {
   if (fmt === "svg") return new Blob([renderSvg(lastRender)], { type: "image/svg+xml" });
   if (fmt === "mp4") {
     if (!mp4Supported()) throw new Error("MP4 needs WebCodecs (Chrome/Edge/Safari 17+); may be unavailable headless.");
-    return encodeMp4(buildReelCanvas(), { seconds: 10, fps: 30 });
+    return encodeMp4(buildReelCanvas(lastRender), { seconds: 10, fps: 30 });
   }
   throw new Error("Unknown format: " + fmt);
 }

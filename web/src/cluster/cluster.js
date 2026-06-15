@@ -1,20 +1,22 @@
 // Connected Communities — a third SCI tool that groups sub-national regions into
-// communities by the strength of Facebook friendship ties between them, using the
-// hierarchical agglomerative average-linkage clustering of Bailey et al. (2018).
+// communities by the strength of Facebook friendship ties between them, with
+// hierarchical agglomerative clustering (Ward linkage by default — see
+// agglomerative.js; the method's lineage is Bailey et al. 2018).
 //
 // It reuses the Interactive Explorer's data plumbing (the shared R-exported
 // ./data/ assets: GADM-best "Region" geometry sharded by country, and the
 // range-indexed worldwide region->region SCI) and Mapbox basemap setup, plus the
-// Map Generator's static renderer (render.js) for the downloadable image.
+// Map Generator's static renderer (render.js) for the downloadable image/MP4.
 //
 // Flow: pick countries + a number of communities K -> load those countries'
 // region geometry -> range-fetch each region's SCI row (kept to just the
-// in-selection friends) -> build a 1/SCI distance matrix -> average-linkage
+// in-selection friends) -> build a 1/SCI distance matrix -> Ward-linkage
 // cluster to K groups -> colour each region by its community. All client-side.
 
 import { createTour } from "../tour.js";
 import { buildDistanceMatrix, buildDendrogram, cutDendrogram } from "./agglomerative.js";
 import { renderMap, renderSvg, computeBbox, naturalHeight } from "../render.js";
+import { downloadReel, downloadReelAnimation, mp4Supported } from "../reel.js";
 
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that cluster.html loads config.js before cluster.js.");
@@ -86,17 +88,31 @@ map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
 
 const FILL_LAYER = "clusters-fill";
 const LINE_LAYER = "clusters-line";
+// Click-to-highlight: a white casing under a dark line, both filtered to the
+// clicked cluster, so a whole cluster (incl. its non-contiguous pieces) lights up.
+const HI_CASE_LAYER = "cluster-hi-case";
+const HI_LINE_LAYER = "cluster-hi-line";
+// Softer than the country borders on purpose — the dimming of the other clusters
+// already carries the "this is the cluster" signal, so the per-region outline only
+// needs to be a gentle accent (otherwise internal region borders read too strongly).
+const HI_LINE_COLOR = "#3a4048";
 const SOURCE_ID = "clusters";
 const NO_DATA_FILL = "#cdd3d8";
 
-// Country + state/province border overlay, derived from the region (GADM-best)
-// fills so its vertices coincide exactly (geo/border_state.geojson, built by
-// export/make_region_borders.mjs). Stroking these state outlines also yields the
-// national outline (a country's outer state edges form its border), so one layer
-// shows both country and state borders.
+// State/province border overlay — OPTIONAL, toggled by #show-borders (off by
+// default). Derived from the region (GADM-best) fills so its vertices coincide
+// exactly (geo/border_state.geojson, built by export/make_region_borders.mjs).
+// The always-on, prominent national outline is the separate COUNTRY layer below.
 const ADMIN_SOURCE = "admin";
 const ADMIN_LAYER = "admin-borders";
 const ADMIN_BORDER_COLOR = "#595959";
+
+// Country-only outlines (geo/border_country.geojson, also region-derived). Drawn
+// as their own layer on TOP of the state borders, darker and thicker, so national
+// boundaries read clearly against internal state/province divisions.
+const COUNTRY_SOURCE = "country-borders";
+const COUNTRY_LAYER = "country-borders";
+const COUNTRY_BORDER_COLOR = "#1f2937";
 
 // ---------------------------------------------------------------------------
 // Fetch helpers (shared shape with explore.js).
@@ -296,6 +312,80 @@ function clusterPalette(k) {
   }
   return out;
 }
+function hexToRgb(hex) {
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+
+// ---------------------------------------------------------------------------
+// Max-contrast colouring — make neighbouring clusters look as different as
+// possible so it's clear where one cluster ends and the next begins.
+// ---------------------------------------------------------------------------
+function forEachVertex(geom, cb) {
+  if (!geom) return;
+  const c = geom.coordinates;
+  if (geom.type === "Polygon") {
+    for (const ring of c) for (const p of ring) cb(p[0], p[1]);
+  } else if (geom.type === "MultiPolygon") {
+    for (const poly of c) for (const ring of poly) for (const p of ring) cb(p[0], p[1]);
+  }
+}
+
+// Region adjacency via shared boundary vertices. The region fills are simplified
+// with shared topology, so neighbouring regions share exact vertices. Returns a
+// Set of "lo,hi" index-pair strings into the features array. Computed once per
+// selection (cached on prepCache) — it doesn't change with K.
+function buildAdjacency(features) {
+  const PREC = 1e5; // ~1 m grid; far finer than the geometry simplification
+  const lastAt = new Map(); // vertex key -> last feature index that touched it
+  const edges = new Set();
+  for (let i = 0; i < features.length; i++) {
+    forEachVertex(features[i].geometry, (x, y) => {
+      const key = Math.round(x * PREC) + "," + Math.round(y * PREC);
+      const prev = lastAt.get(key);
+      if (prev !== undefined && prev !== i) edges.add(prev < i ? prev + "," + i : i + "," + prev);
+      lastAt.set(key, i);
+    });
+  }
+  return edges;
+}
+
+// Greedy assignment of the K palette colours to the K clusters so that, for every
+// pair of spatially-adjacent clusters, the colours are as far apart as possible.
+// Returns ci -> palette index (a permutation). Most-constrained clusters first;
+// each picks the unused colour that maximises the minimum contrast to its already
+// coloured neighbours (or, before any neighbour is coloured, to all colours used
+// so far, to spread globally). Contrast is a cheap perceptual-weighted RGB metric.
+function assignContrastColors(usedK, clusterAdj, palette) {
+  const rgb = palette.map(hexToRgb);
+  const dist2 = (i, j) => {
+    const dr = rgb[i][0] - rgb[j][0], dg = rgb[i][1] - rgb[j][1], db = rgb[i][2] - rgb[j][2];
+    return 2 * dr * dr + 4 * dg * dg + 3 * db * db; // redmean-ish weighting
+  };
+  const order = Array.from({ length: usedK }, (_, i) => i)
+    .sort((a, b) => clusterAdj[b].size - clusterAdj[a].size);
+  const colorOf = new Array(usedK).fill(-1); // cluster ci -> palette index
+  const used = new Array(usedK).fill(false);
+  const usedList = [];
+  for (const c of order) {
+    const refs = [];
+    for (const nb of clusterAdj[c]) if (colorOf[nb] !== -1) refs.push(colorOf[nb]);
+    const against = refs.length ? refs : usedList; // spread globally until a neighbour is set
+    let best = -1, bestScore = -Infinity;
+    for (let p = 0; p < usedK; p++) {
+      if (used[p]) continue;
+      let score;
+      if (against.length === 0) score = -p; // very first pick: lowest palette index
+      else {
+        let mn = Infinity;
+        for (const q of against) { const d = dist2(p, q); if (d < mn) mn = d; }
+        score = mn;
+      }
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    colorOf[c] = best; used[best] = true; usedList.push(best);
+  }
+  return colorOf;
+}
 
 // ---------------------------------------------------------------------------
 // State.
@@ -310,7 +400,7 @@ const selectedCountries = new Set();
 // e.g. "South America" includes France (its sovereign covers French Guiana), so a
 // geometry/per-country-box union would stretch the frame all the way to Europe.
 const selectedGroups = new Set();
-let lastResult = null;       // { features, ids, colorById, palette, usedK, title, bbox }
+let lastResult = null;       // { features, ids, countryCodes, colorById, usedK, title, bbox, adminFeatures, countryBorderFeatures }
 // Caches the K-independent prep (geometry + fetched SCI -> distance matrix) for the
 // current country selection, so changing only the number of communities re-clusters
 // without re-fetching connectedness. Keyed by the sorted selected country codes.
@@ -318,7 +408,7 @@ let prepCache = null;        // { key, features, regionIds, dist, n }
 const selectionKey = (ids) => [...ids].sort().join(",");
 
 // ---------------------------------------------------------------------------
-// Clustering worker — the O(n^3) average-linkage step runs off the main thread
+// Clustering worker — the O(n^3) agglomeration (Ward) runs off the main thread
 // so the page stays responsive on large selections (e.g. Brazil's ~5,500
 // municipalities) and can be cancelled. Falls back to synchronous clustering
 // where Web Workers aren't available.
@@ -480,14 +570,10 @@ function updateSelectedSummary() {
     shown + (names.length > 4 ? `, +${names.length - 4} more` : "");
 }
 
-function autoTitle(ids, k) {
-  const names = ids.map(countryNameOf).sort();
-  let where;
-  if (names.length === 1) where = names[0];
-  else if (names.length === 2) where = names[0] + " & " + names[1];
-  else if (names.length <= 4) where = names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
-  else where = names.slice(0, 3).join(", ") + ` & ${names.length - 3} more`;
-  return `Connected Communities — ${where} (${k} clusters)`;
+function autoTitle(k) {
+  // Just the cluster count — the countries are obvious from the map itself, and
+  // listing them all made for a long, cramped title on the downloaded image/reel.
+  return `Connected Communities — ${k} clusters`;
 }
 
 // ---------------------------------------------------------------------------
@@ -499,8 +585,11 @@ async function generate() {
   let k = parseInt($("num-clusters").value, 10);
   if (isNaN(k) || k < 2) k = 2;
 
+  stopAnimation(); // a new generate cancels any running K-sweep
+  $("num-clusters").disabled = false;
   $("generate").disabled = true;
   $("download").hidden = true; // shown again only once a map is generated
+  setAnimControls("hidden"); // no animation controls until a map exists
   showSpinner();
 
   const t0 = performance.now();
@@ -594,45 +683,28 @@ async function generate() {
       }
     }
 
-    const { displayFeatures, clusterFeatures, regionIds, n, merges } = prepCache;
-    const nRegions = regionIds.length;
+    const nRegions = prepCache.regionIds.length;
     if (k >= nRegions) { k = nRegions - 1; $("num-clusters").value = k; }
 
-    // 4) Cut the dendrogram at K — O(n), so changing only K is instant.
-    const labels = cutDendrogram(merges, n, k);
-    const usedK = new Set(labels).size;
+    // 4+5) Cut the dendrogram at K, colour (max-contrast) and paint — the cheap
+    //      O(n) path, shared with the animation (applyClusterCount).
+    const res = applyClusterCount(k);
 
-    // 5) Colour + paint. Only clustered regions get a clusterColor; the rest fall
-    //    through to NO_DATA_FILL grey (see the fill layer's coalesce in paintClusters).
-    const palette = clusterPalette(usedK);
-    // Re-map possibly-sparse labels (0..k-1) to compact 0..usedK-1 in first-seen order.
-    const labelOrder = new Map();
-    const colorById = {};
-    clusterFeatures.forEach((f, i) => {
-      const lab = labels[i];
-      if (!labelOrder.has(lab)) labelOrder.set(lab, labelOrder.size);
-      const ci = labelOrder.get(lab);
-      const color = palette[ci % palette.length];
-      f.properties.cluster = ci;
-      f.properties.clusterColor = color;
-      colorById[f.properties.id] = color;
-    });
-
-    const fc = { type: "FeatureCollection", features: displayFeatures };
-    paintClusters(fc);
-
-    const displayIds = displayFeatures.map((f) => f.properties.id);
-    const bbox = selectionBbox(ids, fc, displayIds);
+    const fc = { type: "FeatureCollection", features: res.displayFeatures };
+    const bbox = selectionBbox(ids, fc, res.displayIds);
     fitToBbox(bbox);
 
-    const title = autoTitle(ids, usedK);
-    lastResult = { features: displayFeatures, ids: displayIds, countryCodes: ids, colorById, palette, usedK, title, bbox, adminFeatures: null };
+    lastResult = {
+      features: res.displayFeatures, ids: res.displayIds, countryCodes: ids,
+      colorById: res.colorById, usedK: res.usedK,
+      title: res.title, bbox, adminFeatures: null,
+    };
 
-    renderLegend(usedK, palette);
-    await applyBorders(); // honors the "Show country & state borders" checkbox
+    await applyBorders(); // country borders always; checkbox toggles the state/province overlay
     $("download").hidden = false;
+    setAnimControls("idle"); // map ready → offer the Animate button
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    setStatus(`${usedK} clusters from ${nRegions.toLocaleString()} regions (${secs}s).`, "ok");
+    setStatus(`${res.usedK} clusters from ${nRegions.toLocaleString()} regions (${secs}s).`, "ok");
   } catch (e) {
     if (e && e.message === "cancelled") {
       setStatus("Clustering cancelled.", "warn");
@@ -644,6 +716,180 @@ async function generate() {
     hideSpinner();
     showCancel(false);
     $("generate").disabled = false;
+  }
+}
+
+// Cut the cached dendrogram at k and compute the max-contrast colouring — a PURE
+// O(n) step that touches neither the live map nor the feature properties, so it's
+// safe to call repeatedly (e.g. to pre-render every K for the animation export).
+// Returns { colorById, clusterById, usedK }. Assumes prepCache is populated.
+function computeClusterColors(k) {
+  const { clusterFeatures, n, merges } = prepCache;
+
+  const labels = cutDendrogram(merges, n, k);
+  const usedK = new Set(labels).size;
+
+  const palette = clusterPalette(usedK);
+  // Re-map possibly-sparse labels (0..k-1) to compact 0..usedK-1 in first-seen order.
+  const labelOrder = new Map();
+  const ciByRegion = new Int32Array(clusterFeatures.length);
+  clusterFeatures.forEach((f, i) => {
+    const lab = labels[i];
+    if (!labelOrder.has(lab)) labelOrder.set(lab, labelOrder.size);
+    ciByRegion[i] = labelOrder.get(lab);
+  });
+
+  // Max-contrast colouring: derive cluster adjacency (from cached region adjacency
+  // + this K's labels) and assign palette colours so neighbours look different.
+  if (!prepCache.adjEdges) prepCache.adjEdges = buildAdjacency(clusterFeatures);
+  const clusterAdj = Array.from({ length: usedK }, () => new Set());
+  for (const e of prepCache.adjEdges) {
+    const sep = e.indexOf(",");
+    const a = ciByRegion[+e.slice(0, sep)];
+    const b = ciByRegion[+e.slice(sep + 1)];
+    if (a !== b) { clusterAdj[a].add(b); clusterAdj[b].add(a); }
+  }
+  const paletteOf = assignContrastColors(usedK, clusterAdj, palette); // ci -> palette idx
+
+  const colorById = {};
+  const clusterById = {};
+  clusterFeatures.forEach((f, i) => {
+    const ci = ciByRegion[i];
+    colorById[f.properties.id] = palette[paletteOf[ci]];
+    clusterById[f.properties.id] = ci;
+  });
+  return { colorById, clusterById, usedK };
+}
+
+// Cut at k, re-colour and repaint the LIVE map — the cheap O(n) path used by both
+// generate() and the animation. Returns the colour data so the caller can update
+// lastResult; does NOT move the camera or touch the border overlays (those don't
+// change with k). Only clustered regions get a clusterColor; the rest fall through
+// to NO_DATA_FILL grey (see the fill layer's coalesce in paintClusters).
+function applyClusterCount(k) {
+  const { displayFeatures, clusterFeatures } = prepCache;
+  const cc = computeClusterColors(k);
+  clusterFeatures.forEach((f) => {
+    const id = f.properties.id;
+    f.properties.cluster = cc.clusterById[id];
+    f.properties.clusterColor = cc.colorById[id];
+  });
+
+  paintClusters({ type: "FeatureCollection", features: displayFeatures });
+  highlightCluster(null); // clear any prior click-highlight (cluster ids change with K)
+
+  const displayIds = displayFeatures.map((f) => f.properties.id);
+  return { displayFeatures, displayIds, colorById: cc.colorById, usedK: cc.usedK, title: autoTitle(cc.usedK) };
+}
+
+// ---------------------------------------------------------------------------
+// Animation — sweep K from 1 up to ANIM_MAX_K so you can watch clusters split,
+// one merge undone at a time. Cheap: each step is just an O(n) dendrogram cut +
+// recolour (no refetch, no recompute, no camera move). The camera stays put so
+// you see exactly which clusters break off, and where.
+// ---------------------------------------------------------------------------
+const ANIM_MAX_K = 30;
+const ANIM_STEP_MS = 650;
+let animating = false; // the K-sweep loop is active
+let paused = false;    // ...but currently frozen on a frame
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// The animation controls have three UI states:
+//   "idle"    — a single "▶ Animate 1→30" button (a map exists, not animating)
+//   "running" — "Pause"/"Play" + "Stop" side by side (animating)
+//   "hidden"  — none shown (no map yet, e.g. while generating)
+function setAnimControls(state) {
+  const a = $("animate"), ctl = $("anim-controls"), pause = $("anim-pause");
+  if (!a || !ctl) return;
+  a.hidden = state !== "idle";
+  a.textContent = "▶ Animate 1→" + ANIM_MAX_K; // single source of truth for the count
+  ctl.hidden = state !== "running";
+  if (state === "running" && pause) pause.textContent = paused ? "▶ Play" : "⏸ Pause";
+}
+
+// Stop: end the sweep and return to the single Animate button (map stays on the
+// current frame). Also used as a "reset" by generate() and the animation export.
+function stopAnimation() {
+  animating = false;
+  paused = false;
+  $("num-clusters").disabled = false;
+  setAnimControls("idle");
+}
+
+// Pause toggles between freezing on the current frame and resuming.
+function togglePause() {
+  if (!animating) return;
+  paused = !paused;
+  setAnimControls("running");
+  if (paused && lastResult) setStatus(`Paused — ${lastResult.usedK} ${lastResult.usedK === 1 ? "cluster" : "clusters"}`);
+}
+
+async function startAnimation() {
+  if (animating || !prepCache || !lastResult) return;
+  const maxK = Math.min(ANIM_MAX_K, prepCache.regionIds.length - 1);
+  if (maxK < 1) return;
+
+  animating = true;
+  paused = false;
+  setAnimControls("running");
+  $("num-clusters").disabled = true;
+  try {
+    for (let k = 1; k <= maxK; k++) {
+      if (!animating) break;
+      // Hold on the current frame while paused (Stop sets animating=false to release).
+      while (paused && animating) await sleep(120);
+      if (!animating) break;
+      const res = applyClusterCount(k);
+      Object.assign(lastResult, {
+        colorById: res.colorById, usedK: res.usedK, title: res.title,
+      });
+      $("num-clusters").value = res.usedK;
+      setStatus(`Animating… ${res.usedK} ${res.usedK === 1 ? "cluster" : "clusters"}`);
+      // Inter-frame wait, sliced so Pause/Stop respond quickly (not after the last frame).
+      if (k < maxK) {
+        for (let t = 0; t < ANIM_STEP_MS && animating && !paused; t += 60) await sleep(60);
+      }
+    }
+    if (animating) setStatus(`${lastResult.usedK} clusters (animation complete).`, "ok");
+  } finally {
+    stopAnimation();
+  }
+}
+
+// Export the K-sweep (1 → ANIM_MAX_K) as a 9:16 MP4 reel. Each K is rendered to a
+// clean (basemap-free) portrait frame — same look as the still reel — and held for
+// ANIM_REEL_HOLD_S, with a longer hold on the final frame. computeClusterColors is
+// pure, so this doesn't disturb the live map; only the colour + title vary per frame.
+const ANIM_REEL_HOLD_S = 0.5;
+const ANIM_REEL_LAST_HOLD_S = 1.6;
+async function downloadAnimationReel() {
+  if (!prepCache || !lastResult) return;
+  if (!mp4Supported()) { setStatus("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/SVG.", "warn"); return; }
+  const maxK = Math.min(ANIM_MAX_K, prepCache.regionIds.length - 1);
+  if (maxK < 1) return;
+
+  stopAnimation(); // don't run the live sweep and the export at once
+  try {
+    setStatus("Preparing animation frames…");
+    // Base render opts (features, bbox, borders, caption…) — only colour + title
+    // vary per frame, so shallow-clone the base and swap those two fields.
+    const baseOpts = buildRenderOpts(1080);
+    const frames = [];
+    for (let k = 1; k <= maxK; k++) {
+      const cc = computeClusterColors(k);
+      frames.push({
+        renderOpts: { ...baseOpts, colorById: cc.colorById, title: autoTitle(cc.usedK) },
+        seconds: k === maxK ? ANIM_REEL_LAST_HOLD_S : ANIM_REEL_HOLD_S,
+      });
+      // Yield so the "Preparing…" status can paint on slower devices.
+      if (k % 5 === 0) await sleep(0);
+    }
+    const name = slug(lastResult.title) + "_animation";
+    await downloadReelAnimation(frames, name + ".mp4", { setStatus });
+  } catch (e) {
+    console.error("[SCI] animation export failed:", e);
+    setStatus(e && e.message ? e.message : "Could not export the animation. See the console.", "warn");
   }
 }
 
@@ -676,6 +922,34 @@ function paintClusters(fc) {
       paint: {
         "line-color": "#ffffff",
         "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.3, 5, 0.7, 8, 1.2],
+        "line-opacity": 0.9,
+      },
+    }, beforeId);
+    // Click-highlight layers: hidden (filter matches no feature) until a cluster
+    // is clicked, then filtered to that cluster. A white casing under a dark line
+    // makes the highlighted cluster's outline pop on top of any fill colour.
+    const HI_NONE = ["==", ["get", "cluster"], -1];
+    map.addLayer({
+      id: HI_CASE_LAYER,
+      type: "line",
+      source: SOURCE_ID,
+      layout: { "line-join": "round", "line-cap": "round" },
+      filter: HI_NONE,
+      paint: {
+        "line-color": "#ffffff",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 2, 5, 3.2, 8, 4.5],
+        "line-opacity": 0.85,
+      },
+    }, beforeId);
+    map.addLayer({
+      id: HI_LINE_LAYER,
+      type: "line",
+      source: SOURCE_ID,
+      layout: { "line-join": "round", "line-cap": "round" },
+      filter: HI_NONE,
+      paint: {
+        "line-color": HI_LINE_COLOR,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.7, 5, 1.2, 8, 1.8],
         "line-opacity": 0.9,
       },
     }, beforeId);
@@ -733,66 +1007,126 @@ function selectionBbox(ids, fc, displayIds) {
   return box || computeBbox(fc, displayIds);
 }
 
+// Desktop: the control panel floats over the left edge (left 14 + width 320), so
+// offset the camera left by roughly its width + gap and centre the globe/map in
+// the clear area to its right. Mobile: the panel is a bottom sheet — no offset.
+function mapLeftPad() {
+  return window.matchMedia("(min-width: 721px)").matches ? 350 : 0;
+}
+
+// Keep the resting camera centred in the visible (panel-free) area. setPadding
+// shifts the projection centre for the initial globe and all manual pans/zooms.
+function applyMapOffset() {
+  try { map.setPadding({ left: mapLeftPad(), top: 0, right: 0, bottom: 0 }); } catch (_) {}
+}
+
 function fitToBbox(bbox) {
   if (!bbox) return;
   const [minLon, minLat, maxLon, maxLat] = bbox;
   try {
-    map.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 40, duration: 900, maxZoom: 8 });
+    map.fitBounds([[minLon, minLat], [maxLon, maxLat]], {
+      // Reserve room for the panel on the left so the map frames in the clear area.
+      padding: { top: 40, right: 40, bottom: 40, left: 40 + mapLeftPad() },
+      duration: 900,
+      maxZoom: 8,
+    });
   } catch (e) { console.warn("[SCI] fitBounds failed:", e); }
 }
 
 // ---------------------------------------------------------------------------
-// Country + state (gadm1) border overlay.
+// Border overlays — an always-on prominent country layer plus an optional
+// (checkbox) state/province layer. Both are region-derived (dissolved from the
+// GADM-best fills) so their vertices coincide exactly with the cluster fills.
 // ---------------------------------------------------------------------------
-let adminAllFC = null; // full border FeatureCollection, cached after first load
+let adminAllFC = null; // full state-border FeatureCollection, cached after first load
 async function loadAdminBorders(codeSet) {
   // Region-derived state/province outlines (dissolved from the GADM-best fills, so
   // they coincide exactly — see export/make_region_borders.mjs). Stroking these
-  // also draws the national outline (a country's outer state edges form its
-  // border), so one file shows both country + state borders, like gadm1 did but
-  // without the glitchy non-overlap against the region fills.
+  // also yields the national outline (a country's outer state edges form its
+  // border), without the glitchy non-overlap against the region fills.
   if (!adminAllFC) adminAllFC = await getJSON("geo/border_state.geojson");
   return codeSet
     ? adminAllFC.features.filter((f) => codeSet.has(f.properties.country))
     : adminAllFC.features;
 }
 
-// Show/hide the gadm1 overlay for the current selection, honoring the checkbox.
-// Stores the features on lastResult so the downloaded image matches the map.
+let countryAllFC = null; // full country-border FeatureCollection, cached after first load
+async function loadCountryBorders(codeSet) {
+  // Country-only outlines (dissolved from the region fills like the state file, but
+  // collapsing every region of a country into one boundary). See
+  // export/make_region_borders.mjs → geo/border_country.geojson.
+  if (!countryAllFC) countryAllFC = await getJSON("geo/border_country.geojson");
+  return codeSet
+    ? countryAllFC.features.filter((f) => codeSet.has(f.properties.country))
+    : countryAllFC.features;
+}
+
+// Country borders are ALWAYS drawn; the checkbox only toggles the finer
+// state/province overlay. Stores the features on lastResult so the downloaded
+// image matches the map.
 async function applyBorders() {
   if (!lastResult) return;
-  const on = $("show-borders").checked;
-  if (!on) {
-    if (map.getLayer(ADMIN_LAYER)) map.setLayoutProperty(ADMIN_LAYER, "visibility", "none");
-    lastResult.adminFeatures = null;
-    return;
-  }
+  const showState = $("show-borders").checked;
   showSpinner();
   try {
-    const feats = await loadAdminBorders(new Set(lastResult.countryCodes));
-    lastResult.adminFeatures = feats;
-    const fc = { type: "FeatureCollection", features: feats };
-    if (!map.getSource(ADMIN_SOURCE)) {
-      map.addSource(ADMIN_SOURCE, { type: "geojson", data: fc });
-    } else {
-      map.getSource(ADMIN_SOURCE).setData(fc);
-    }
+    const codeSet = new Set(lastResult.countryCodes);
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
-    if (!map.getLayer(ADMIN_LAYER)) {
+
+    // --- State/province borders (optional, subtle, underneath) ---------------
+    if (showState) {
+      const feats = await loadAdminBorders(codeSet);
+      lastResult.adminFeatures = feats;
+      const fc = { type: "FeatureCollection", features: feats };
+      if (!map.getSource(ADMIN_SOURCE)) {
+        map.addSource(ADMIN_SOURCE, { type: "geojson", data: fc });
+      } else {
+        map.getSource(ADMIN_SOURCE).setData(fc);
+      }
+      if (!map.getLayer(ADMIN_LAYER)) {
+        map.addLayer({
+          id: ADMIN_LAYER,
+          type: "line",
+          source: ADMIN_SOURCE,
+          layout: { "line-join": "round" },
+          paint: {
+            "line-color": ADMIN_BORDER_COLOR,
+            "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.4, 5, 0.9, 8, 1.6],
+            "line-opacity": 0.85,
+          },
+        }, beforeId);
+      } else {
+        map.setLayoutProperty(ADMIN_LAYER, "visibility", "visible");
+        try { map.moveLayer(ADMIN_LAYER, beforeId); } catch (_) {} // keep above the cluster fills
+      }
+    } else {
+      if (map.getLayer(ADMIN_LAYER)) map.setLayoutProperty(ADMIN_LAYER, "visibility", "none");
+      lastResult.adminFeatures = null;
+    }
+
+    // --- Country borders (always shown, darker + thicker, on top) ------------
+    const countryFeats = await loadCountryBorders(codeSet);
+    lastResult.countryBorderFeatures = countryFeats;
+    const countryFc = { type: "FeatureCollection", features: countryFeats };
+    if (!map.getSource(COUNTRY_SOURCE)) {
+      map.addSource(COUNTRY_SOURCE, { type: "geojson", data: countryFc });
+    } else {
+      map.getSource(COUNTRY_SOURCE).setData(countryFc);
+    }
+    if (!map.getLayer(COUNTRY_LAYER)) {
       map.addLayer({
-        id: ADMIN_LAYER,
+        id: COUNTRY_LAYER,
         type: "line",
-        source: ADMIN_SOURCE,
-        layout: { "line-join": "round" },
+        source: COUNTRY_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
         paint: {
-          "line-color": ADMIN_BORDER_COLOR,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.4, 5, 0.9, 8, 1.6],
-          "line-opacity": 0.85,
+          "line-color": COUNTRY_BORDER_COLOR,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 2, 1.2, 5, 2.4, 8, 3.8],
+          "line-opacity": 0.95,
         },
       }, beforeId);
     } else {
-      map.setLayoutProperty(ADMIN_LAYER, "visibility", "visible");
-      try { map.moveLayer(ADMIN_LAYER, beforeId); } catch (_) {} // keep above the cluster fills
+      map.setLayoutProperty(COUNTRY_LAYER, "visibility", "visible");
+      try { map.moveLayer(COUNTRY_LAYER, beforeId); } catch (_) {} // keep on top of state borders
     }
   } catch (e) {
     console.warn("[SCI] border overlay failed:", e);
@@ -803,11 +1137,38 @@ async function applyBorders() {
 
 let hoveredId = null;
 const hoverPopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: "sci-tooltip", offset: 10, maxWidth: "240px" });
+// Only show the follow-the-cursor name tooltip with a real hover pointer (a mouse).
+// On touch it would pop up on every tap, which is just noise — the tap already
+// highlights the cluster. Evaluated live so a hybrid laptop's trackpad still gets it.
+const supportsHover = () => !window.matchMedia || window.matchMedia("(hover: hover)").matches;
+
+// Click-to-highlight a whole cluster. Dims the other clusters and outlines the
+// selected one (incl. its non-contiguous parts) so users can see its full extent.
+// Passing null clears the highlight. This is a temporary, interaction-only state —
+// it isn't baked into the generated/downloaded image.
+let selectedCluster = null;
+function highlightCluster(ci) {
+  selectedCluster = ci;
+  if (!map.getLayer(FILL_LAYER)) return;
+  const hasSel = ci != null;
+  // Brighten the selected cluster, fade the rest (fall back to the hover default
+  // when nothing is selected so hover still works).
+  map.setPaintProperty(FILL_LAYER, "fill-opacity", hasSel
+    ? ["case", ["==", ["get", "cluster"], ci], 0.95, 0.32]
+    : ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.82]);
+  const filter = ["==", ["get", "cluster"], hasSel ? ci : -1];
+  for (const id of [HI_CASE_LAYER, HI_LINE_LAYER]) {
+    if (!map.getLayer(id)) continue;
+    map.setFilter(id, filter);
+    if (hasSel) { try { map.moveLayer(id); } catch (_) {} } // bring the outline to the very top
+  }
+}
+
 function wireHover() {
   map.on("mousemove", FILL_LAYER, (e) => {
     if (!e.features.length) return;
     const f = e.features[0];
-    map.getCanvas().style.cursor = "default";
+    map.getCanvas().style.cursor = f.properties.cluster != null ? "pointer" : "default";
     if (hoveredId !== null) map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: false });
     hoveredId = f.id;
     map.setFeatureState({ source: SOURCE_ID, id: hoveredId }, { hover: true });
@@ -815,7 +1176,9 @@ function wireHover() {
     const cn = countryNameOf(f.properties.country);
     if (cn && cn !== name) name += ", " + cn;
     const comm = f.properties.cluster != null ? `<div class="tt-sub">Cluster ${f.properties.cluster + 1}</div>` : "";
-    hoverPopup.setLngLat(e.lngLat).setHTML(`<div class="tt-name">${escapeHtml(name)}</div>${comm}`).addTo(map);
+    if (supportsHover()) {
+      hoverPopup.setLngLat(e.lngLat).setHTML(`<div class="tt-name">${escapeHtml(name)}</div>${comm}`).addTo(map);
+    }
   });
   map.on("mouseleave", FILL_LAYER, () => {
     map.getCanvas().style.cursor = "";
@@ -823,21 +1186,19 @@ function wireHover() {
     hoveredId = null;
     hoverPopup.remove();
   });
-}
-
-// ---------------------------------------------------------------------------
-// Legend.
-// ---------------------------------------------------------------------------
-function renderLegend(usedK, palette) {
-  const sec = $("legend");
-  const sw = $("legend-swatches");
-  const title = $("legend-title");
-  if (!sec || !sw) return;
-  title.textContent = usedK + " clusters";
-  sw.innerHTML = palette
-    .map((c, i) => `<span class="legend-chip"><span class="legend-dot" style="background:${c}"></span>${i + 1}</span>`)
-    .join("");
-  sec.hidden = false;
+  // Click a region → highlight its whole cluster (click it again to clear). A
+  // click on a no-data region or empty map clears the highlight.
+  map.on("click", FILL_LAYER, (e) => {
+    if (!e.features.length) return;
+    const ci = e.features[0].properties.cluster;
+    if (ci == null) { highlightCluster(null); return; }
+    highlightCluster(selectedCluster === ci ? null : ci);
+  });
+  map.on("click", (e) => {
+    if (!map.getLayer(FILL_LAYER)) return;
+    const hits = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
+    if (!hits.length) highlightCluster(null);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -859,10 +1220,13 @@ function buildRenderOpts(width) {
     showBorders: true,
     borderFeatures: r.features, // thin white outline on every region (always shown)
     adminBorderColor: "#ffffff",
-    // gadm1 country + state borders overlay (when the checkbox is on); render.js
-    // always strokes countryFeatures when present, above the region outlines.
+    // Optional state/province overlay (only set when the checkbox is on); render.js
+    // strokes countryFeatures when present, above the white region outlines.
     countryFeatures: r.adminFeatures || null,
     countryBorderColor: ADMIN_BORDER_COLOR,
+    // Strong, prominent national outlines drawn on top (matches the live map).
+    strongBorderFeatures: r.countryBorderFeatures || null,
+    strongBorderColor: COUNTRY_BORDER_COLOR,
     title: r.title,
     subtitle: "",
     // Exactly the Map Generator's caption (src/main.js CAPTION).
@@ -891,13 +1255,26 @@ function downloadBlob(blob, filename) {
 
 function slug(s) { return (s || "clusters").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase().slice(0, 60) || "clusters"; }
 
-function download(fmt) {
+async function download(fmt) {
   if (!lastResult) return;
   const name = slug(lastResult.title);
   try {
     if (fmt === "map") {
       // Whatever is currently on screen (includes the basemap).
       map.getCanvas().toBlob((blob) => { if (blob) downloadBlob(blob, name + "_view.png"); }, "image/png");
+      return;
+    }
+    if (fmt === "mp4") {
+      // 9:16 reel for Instagram/TikTok — same format as the Map Generator, from
+      // the same clean (basemap-free) static render. buildReelCanvas re-renders at
+      // reel width, so the passed-in width here is just a placeholder.
+      if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/SVG.");
+      await downloadReel(buildRenderOpts(1080), name + ".mp4", { setStatus });
+      return;
+    }
+    if (fmt === "mp4anim") {
+      // Animated 9:16 reel sweeping K from 1 → 30 (the K-sweep animation, as video).
+      await downloadAnimationReel();
       return;
     }
     const W = 2400;
@@ -911,7 +1288,7 @@ function download(fmt) {
     }
   } catch (e) {
     console.error("[SCI] download failed:", e);
-    setStatus("Could not produce the image. See the console.", "warn");
+    setStatus(e && e.message ? e.message : "Could not produce the download. See the console.", "warn");
   }
 }
 
@@ -943,7 +1320,10 @@ async function init() {
   $("country-search").addEventListener("input", renderCountryList);
   $("generate").addEventListener("click", generate);
   $("cancel").addEventListener("click", cancelClustering);
-  // Toggle the country/state border overlay live (re-applies to the last map).
+  $("animate").addEventListener("click", startAnimation);
+  $("anim-pause").addEventListener("click", togglePause);
+  $("anim-stop").addEventListener("click", stopAnimation);
+  // Toggle the optional state/province overlay live (re-applies to the last map).
   $("show-borders").addEventListener("change", () => { applyBorders(); });
 
   // Download split-button menu.
@@ -1038,5 +1418,9 @@ function setupOptionInfo() {
 
 map.on("load", () => {
   try { map.setProjection("globe"); } catch (_) {}
+  applyMapOffset(); // centre the globe in the clear area beside the panel (desktop)
   init();
 });
+
+// Re-centre when the viewport crosses the mobile/desktop breakpoint or resizes.
+window.addEventListener("resize", applyMapOffset);

@@ -1,7 +1,7 @@
-// agglomerative.js — Hierarchical agglomerative *average-linkage* clustering
-// (UPGMA), the exact method used to build the "Connected Communities" maps in
-// Bailey, Cao, Kuchler, Stroebel & Wong (2018, JEP) — see their replication
-// file cluster_county.do and the online Appendix ("Connected Communities").
+// agglomerative.js — Hierarchical agglomerative clustering of regions by social
+// connectedness. The lineage is Bailey, Cao, Kuchler, Stroebel & Wong (2018, JEP)
+// "Connected Communities" (replication file cluster_county.do, online Appendix),
+// which used average linkage (UPGMA).
 //
 // The recipe, translated to the modern public SCI data:
 //   • distance(i,j) = 1 / scaled_sci(i,j)
@@ -13,9 +13,22 @@
 //       both are present), normalise all finite distances by the max so they live
 //       in (0, 1], and set unknown pairs to 1 (the maximum distance) — matching
 //       cluster_county.do's `replace ... = 1 if ... == .`.
-//   • agglomerate with average linkage until exactly K clusters remain.
+//   • agglomerate until exactly K clusters remain.
+//
+// LINKAGE (2026-06-14): the default is now **Ward** (Ward.D), not average. Average
+// linkage is acutely sensitive to outliers: on real data it produces ONE giant
+// cluster holding the bulk of regions plus a handful of tiny fragments peeled off
+// for socially-unusual places (e.g. the US at K=5 = one 83%-of-the-country blob,
+// Las Vegas grouped with Hawaii/American Samoa, a Northeast+Virgin-Islands+Florida
+// shard). Ward minimises the within-cluster spread of each merge, giving balanced,
+// regionally coherent clusters and absorbing outliers instead of isolating them.
+// It's the same O(n^3) agglomeration — only the Lance–Williams update differs — so
+// nothing else about the pipeline (worker, K-cut, precompute) changes. `linkage`
+// is still a parameter ("ward" | "average" | "complete") so average remains
+// available as the paper-faithful reference (see averageLinkage).
 //
 // Both functions are pure (no DOM, no fetch) so they can be unit-tested in Node.
+const DEFAULT_LINKAGE = "ward";
 
 // Build a symmetric, normalised distance matrix from pairwise SCI.
 //
@@ -81,7 +94,7 @@ export function buildDistanceMatrix(ids, sciBySource) {
   return { dist, n };
 }
 
-// Build the full average-linkage (UPGMA) dendrogram.
+// Build the full agglomerative dendrogram for the chosen `linkage` (Ward default).
 //
 //   dist: Float64Array length n*n, symmetric (as built above)
 //   n:    number of items
@@ -95,14 +108,19 @@ export function buildDistanceMatrix(ids, sciBySource) {
 // K in O(n). This is what lets the app re-cluster at a new K (and serve the
 // precomputed per-country trees) without redoing the expensive part.
 //
-// Clusters are merged via the Lance–Williams update for the group average:
-//   d(I∪J, M) = (|I|·d(I,M) + |J|·d(J,M)) / (|I| + |J|)
+// Clusters are merged via the Lance–Williams update for the chosen `linkage`,
+// where I, J are the merging clusters, M any other cluster, and d(I,J) the
+// distance at which I,J merge:
+//   ward (default): d(I∪J,M) = ((|I|+|M|)·d(I,M) + (|J|+|M|)·d(J,M) − |M|·d(I,J))
+//                              / (|I|+|J|+|M|)
+//   average (UPGMA): d(I∪J,M) = (|I|·d(I,M) + |J|·d(J,M)) / (|I|+|J|)
+//   complete:        d(I∪J,M) = max(d(I,M), d(J,M))
 //
 // Complexity is O(n^3) in the worst case (a full scan for the closest pair each
-// merge). The caller runs this in a Web Worker (so the page stays responsive)
-// and passes `onProgress(doneMerges, totalMerges)`, invoked once per merge, to
-// drive a progress indicator.
-export function buildDendrogram(dist, n, onProgress) {
+// merge), the same for every linkage. The caller runs this in a Web Worker (so
+// the page stays responsive) and passes `onProgress(doneMerges, totalMerges)`,
+// invoked once per merge, to drive a progress indicator.
+export function buildDendrogram(dist, n, onProgress, linkage = DEFAULT_LINKAGE) {
   if (n <= 1) return new Int32Array(0);
 
   const D = Float64Array.from(dist); // mutable working copy
@@ -135,11 +153,16 @@ export function buildDendrogram(dist, n, onProgress) {
     merges[2 * m + 1] = nodeId[bj];
     nodeId[bi] = n + m;
 
-    // Merge bj into bi (Lance–Williams average update against every other cluster).
-    const ni = size[bi], nj = size[bj], tot = ni + nj;
+    // Merge bj into bi (Lance–Williams update against every other cluster). bd is
+    // d(bi,bj) — the distance at which they merge — needed by the Ward update.
+    const ni = size[bi], nj = size[bj], tot = ni + nj, dij = bd;
     for (let q = 0; q < n; q++) {
       if (!active[q] || q === bi || q === bj) continue;
-      const nd = (ni * D[bi * n + q] + nj * D[bj * n + q]) / tot;
+      const dik = D[bi * n + q], djk = D[bj * n + q], nk = size[q];
+      let nd;
+      if (linkage === "ward") nd = ((ni + nk) * dik + (nj + nk) * djk - nk * dij) / (tot + nk);
+      else if (linkage === "complete") nd = dik > djk ? dik : djk;
+      else nd = (ni * dik + nj * djk) / tot; // average (UPGMA)
       D[bi * n + q] = nd;
       D[q * n + bi] = nd;
     }
@@ -195,9 +218,10 @@ export function cutDendrogram(merges, n, k) {
 
 // Average-linkage (UPGMA) clustering into k groups — convenience wrapper that
 // builds the full dendrogram then cuts it. The app itself never calls this (it
-// builds the dendrogram once via buildDendrogram and reuses it across K); it's
-// kept as a pure, single-call reference/oracle for tests.
+// builds the dendrogram once via buildDendrogram — now Ward by default — and
+// reuses it across K); this is kept as a pure, single-call reference/oracle for
+// the paper-faithful average-linkage method (explicitly pinned to "average").
 export function averageLinkage(dist, n, k, onProgress) {
-  const merges = buildDendrogram(dist, n, onProgress);
+  const merges = buildDendrogram(dist, n, onProgress, "average");
   return cutDendrogram(merges, n, k);
 }

@@ -1,7 +1,10 @@
-// video.js — Encode an already-composed frame canvas into a short MP4 (a still
-// image held for `seconds`, e.g. a 9:16 reel built by buildReelCanvas in main.js).
-// Uses the browser WebCodecs API + mp4-muxer. Falls back with a clear message
-// where unsupported.
+// video.js — Encode canvas frames into a short MP4 using the browser WebCodecs API
+// + mp4-muxer. Two entry points share one encoder pipeline (so the iOS-critical
+// codec/AVCC config lives in exactly one place):
+//   encodeMp4(canvas, …)            — a single still held for `seconds` (reels).
+//   encodeMp4Provider(count, …)     — an animated sequence: each segment's canvas
+//                                     is built lazily and held for its duration.
+// Falls back with a clear message where unsupported.
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";
 
 export function mp4Supported() {
@@ -13,54 +16,54 @@ export function mp4Supported() {
 // back so older/odd devices that only do Baseline keep working.
 const CODECS = ["avc1.640028", "avc1.4d0028", "avc1.420028"];
 
-// Encode `frameCanvas` (any size; coerced to even dimensions for H.264) as a
-// still video of `seconds` at `fps`. Returns a Blob (video/mp4).
-export async function encodeMp4(frameCanvas, { seconds = 10, fps = 30, bitrate = 6_000_000 } = {}) {
-  if (!mp4Supported()) {
-    throw new Error("MP4 export needs a browser with WebCodecs (Chrome, Edge, or Safari 17+). Try PNG or JPG.");
-  }
+const even = (n) => (n % 2 === 0 ? n : n - 1);
 
-  // H.264 requires even width/height. Redraw onto an even-sized canvas if needed.
-  const W = even(frameCanvas.width);
-  const H = even(frameCanvas.height);
-  let frame = frameCanvas;
-  if (W !== frameCanvas.width || H !== frameCanvas.height) {
-    frame = document.createElement("canvas");
-    frame.width = W;
-    frame.height = H;
-    const fx = frame.getContext("2d");
-    fx.fillStyle = "#ffffff";
-    fx.fillRect(0, 0, W, H);
-    fx.drawImage(frameCanvas, 0, 0);
-  }
-
-  // Pick a codec this device can actually encode. Some devices (notably mobile
-  // Safari) expose VideoEncoder but only support a subset of H.264 configs.
-  // NOTE: `avc: { format: "avc" }` forces AVCC (length-prefixed) output — mp4-muxer
-  // needs that. Without it Safari emits Annex B and produces a corrupt/empty file
-  // that "downloads" but won't play. This is the key fix for MP4 on iPhone.
+// Resolve an H.264 encoder config this device actually supports for WxH. Some
+// devices (notably mobile Safari) expose VideoEncoder but only a subset of configs.
+// NOTE: `avc: { format: "avc" }` forces AVCC (length-prefixed) output — mp4-muxer
+// needs that. Without it Safari emits Annex B and produces a corrupt/empty file
+// that "downloads" but won't play. This is the key fix for MP4 on iPhone.
+async function resolveConfig(W, H, fps, bitrate) {
   const base = { width: W, height: H, bitrate, framerate: fps, avc: { format: "avc" } };
-  let config = null;
   if (typeof VideoEncoder.isConfigSupported === "function") {
     for (const codec of CODECS) {
       const cfg = { ...base, codec };
       const support = await VideoEncoder.isConfigSupported(cfg).catch(() => null);
-      if (support && support.supported) { config = support.config || cfg; break; }
+      if (support && support.supported) return support.config || cfg;
     }
-    if (!config) {
-      throw new Error("This device can't encode MP4 video. Try downloading PNG or JPG instead.");
-    }
-  } else {
-    config = { ...base, codec: CODECS[0] };
+    throw new Error("This device can't encode MP4 video. Try downloading PNG or SVG instead.");
   }
+  return { ...base, codec: CODECS[0] };
+}
+
+// Coerce a canvas to exactly WxH (even dims, white background) if it isn't already.
+function toExactCanvas(canvas, W, H) {
+  if (canvas.width === W && canvas.height === H) return canvas;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const fx = c.getContext("2d");
+  fx.fillStyle = "#ffffff";
+  fx.fillRect(0, 0, W, H);
+  fx.drawImage(canvas, 0, 0);
+  return c;
+}
+
+// Core pipeline. `produce(emit)` must call `await emit(canvas)` once per OUTPUT
+// frame, in order. Returns a Blob (video/mp4).
+async function encodeSequence(W0, H0, { fps, bitrate }, produce) {
+  if (!mp4Supported()) {
+    throw new Error("MP4 export needs a browser with WebCodecs (Chrome, Edge, or Safari 17+). Try PNG or SVG.");
+  }
+  const W = even(W0), H = even(H0);
+  const config = await resolveConfig(W, H, fps, bitrate);
 
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
     video: { codec: "avc", width: W, height: H },
     fastStart: "in-memory",
   });
-  // Capture an async encoder error so it rejects this call rather than silently
-  // yielding an empty/corrupt buffer (which then "downloads" as a broken file).
+  // Capture an async encoder error so it rejects rather than silently yielding an
+  // empty/corrupt buffer (which then "downloads" as a broken file).
   let encoderError = null;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
@@ -68,27 +71,53 @@ export async function encodeMp4(frameCanvas, { seconds = 10, fps = 30, bitrate =
   });
   encoder.configure(config);
 
-  const total = Math.max(1, Math.round(seconds * fps));
-  for (let i = 0; i < total; i++) {
-    if (encoderError) break;
-    const vf = new VideoFrame(frame, { timestamp: (i * 1e6) / fps, duration: 1e6 / fps });
+  let i = 0;
+  const emit = async (canvas) => {
+    if (encoderError) return;
+    const src = toExactCanvas(canvas, W, H);
+    const vf = new VideoFrame(src, { timestamp: (i * 1e6) / fps, duration: 1e6 / fps });
     encoder.encode(vf, { keyFrame: i % fps === 0 });
     vf.close();
-    // Backpressure: without this, all `total` frames are queued in one tight
-    // loop and the encoder's in-flight surfaces pile up. On iOS Safari that
-    // exceeds the strict per-tab memory budget and the OS silently kills and
-    // reloads the page mid-encode (the "it just reloads from scratch" bug).
-    // Wait for the encoder to drain to a few pending frames before queueing more.
+    i++;
+    // Backpressure: without this, frames queue in one tight loop and the encoder's
+    // in-flight surfaces pile up. On iOS Safari that exceeds the per-tab memory
+    // budget and the OS silently kills/reloads the page mid-encode. Drain first.
     while (encoder.encodeQueueSize > 4 && !encoderError) {
       await new Promise((r) => setTimeout(r, 8));
     }
-  }
+  };
+
+  await produce(emit);
   await encoder.flush();
   if (encoderError) {
-    throw new Error("MP4 encoding failed on this device. Try downloading PNG or JPG instead.");
+    throw new Error("MP4 encoding failed on this device. Try downloading PNG or SVG instead.");
   }
   muxer.finalize();
   return new Blob([muxer.target.buffer], { type: "video/mp4" });
 }
 
-const even = (n) => (n % 2 === 0 ? n : n - 1);
+// Encode `frameCanvas` as a still video of `seconds` at `fps`. Returns a Blob.
+export async function encodeMp4(frameCanvas, { seconds = 10, fps = 30, bitrate = 6_000_000 } = {}) {
+  const total = Math.max(1, Math.round(seconds * fps));
+  return encodeSequence(frameCanvas.width, frameCanvas.height, { fps, bitrate }, async (emit) => {
+    for (let f = 0; f < total; f++) await emit(frameCanvas);
+  });
+}
+
+// Encode an animated sequence of `count` segments. `getCanvas(i)` returns (or
+// promises) the canvas for segment i — built LAZILY right before its frames and
+// not retained afterwards, so memory stays bounded (important on iOS). `getSeconds(i)`
+// is how long to hold segment i. `onSegment(i)` (optional) reports progress. All
+// segment canvases should share the first canvas's dimensions.
+export async function encodeMp4Provider(count, getCanvas, getSeconds, { fps = 30, bitrate = 6_000_000, onSegment } = {}) {
+  if (!count) throw new Error("Nothing to encode.");
+  const first = await getCanvas(0);
+  return encodeSequence(first.width, first.height, { fps, bitrate }, async (emit) => {
+    for (let s = 0; s < count; s++) {
+      const canvas = s === 0 ? first : await getCanvas(s);
+      const frames = Math.max(1, Math.round((getSeconds(s) || 1 / fps) * fps));
+      for (let f = 0; f < frames; f++) await emit(canvas);
+      if (onSegment) onSegment(s);
+    }
+  });
+}

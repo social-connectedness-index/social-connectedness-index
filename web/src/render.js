@@ -199,6 +199,7 @@ function drawScene(g, opts) {
     friendGeo, colorById, activeIds, naColor = NA_COLOR, bbox,
     showBorders = true, borderFeatures = null, adminBorderColor = "#595959",
     countryFeatures = null, countryBorderColor = "#333333",
+    strongBorderFeatures = null, strongBorderColor = "#1f2937",
     highlightId = null, highlightColor = "#FF0000",
     title = "", subtitle = "", caption = "", legend,
   } = opts;
@@ -285,6 +286,13 @@ function drawScene(g, opts) {
   if (countryFeatures) {
     const clw = Math.max(0.5, W / 2000);
     for (const f of countryFeatures) g.stroke(buildPath(f.geometry), countryBorderColor, clw);
+  }
+  // Strong national outlines — an optional extra-prominent layer drawn last (on
+  // top), darker and noticeably thicker. Used by the clustering tool so country
+  // boundaries read clearly against the internal state/province divisions.
+  if (strongBorderFeatures) {
+    const slw = Math.max(1.1, W / 900);
+    for (const f of strongBorderFeatures) g.stroke(buildPath(f.geometry), strongBorderColor, slw);
   }
   // Highlight source region
   if (highlightId) {

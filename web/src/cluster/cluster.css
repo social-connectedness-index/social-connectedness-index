@@ -117,6 +117,10 @@ input[type="number"] { width: 110px; }
 .btn-secondary:hover:not(:disabled) { background: #eef5f8; }
 .btn-secondary:disabled { color: #aab8c0; border-color: #dde6ea; cursor: default; }
 
+/* Pause + Stop sit side-by-side while the animation runs. */
+.anim-controls { display: flex; gap: 8px; }
+.anim-controls .btn-secondary { flex: 1; }
+
 .download-menu {
   position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
   background: #fff; border: 1px solid #d7e0e5; border-radius: 7px;
@@ -133,16 +137,6 @@ input[type="number"] { width: 110px; }
 .status { font-size: 12px; line-height: 1.45; color: #4a5862; min-height: 16px; margin-bottom: 8px; }
 .status-ok { color: #1d7a4d; }
 .status-warn { color: #b3541e; }
-
-/* ---- legend ---- */
-.legend {
-  margin: 4px 0 0; padding: 8px 10px;
-  background: #f7fafb; border: 1px solid #e3e9ed; border-radius: 6px;
-}
-.legend-title { font-size: 12.5px; font-weight: 600; color: #2a3942; margin-bottom: 6px; }
-.legend-swatches { display: flex; flex-wrap: wrap; gap: 5px 8px; }
-.legend-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #4a5862; }
-.legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0, 0, 0, 0.12); }
 
 /* ---- Social Capital Lab credit (inside the About box, matching the Explorer) ---- */
 .lab-mark {
@@ -188,11 +182,11 @@ input[type="number"] { width: 110px; }
   flex: none; margin-left: auto;
   /* Generous tap target so it's easy to hit on mobile (this button only shows
      there). */
-  width: 38px; height: 38px; align-items: center; justify-content: center;
+  width: 42px; height: 42px; align-items: center; justify-content: center;
   background: none; border: none; cursor: pointer; line-height: 0; color: #3b464f;
 }
 .panel-toggle .chev {
-  display: inline-block; font-size: 24px; transition: transform 0.18s ease;
+  display: inline-block; font-size: 28px; transition: transform 0.18s ease;
 }
 /* Expanded → chevron points up (tap to collapse); collapsed → points down. */
 #panel:not(.collapsed) .panel-toggle .chev { transform: rotate(180deg); }
@@ -203,11 +197,11 @@ input[type="number"] { width: 110px; }
 .section-toggle {
   flex: none; margin-left: auto;
   /* Comfortable tap target. */
-  width: 30px; height: 26px; display: inline-flex;
+  width: 38px; height: 38px; display: inline-flex;
   align-items: center; justify-content: center;
   background: none; border: none; cursor: pointer; line-height: 0; color: #6a7480;
 }
-.section-toggle .chev { display: inline-block; font-size: 18px; transition: transform 0.18s ease; }
+.section-toggle .chev { display: inline-block; font-size: 24px; transition: transform 0.18s ease; }
 /* Expanded → chevron up (tap to collapse); collapsed → down. */
 #countries-field:not(.section-collapsed) .section-toggle .chev { transform: rotate(180deg); }
 .section-toggle:hover { color: #3b464f; }

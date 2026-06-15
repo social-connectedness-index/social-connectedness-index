@@ -1,5 +1,6 @@
-// precompute_clusters.mjs — offline precompute of average-linkage dendrograms for
-// the Connected Communities tool's common selections (each single country + each
+// precompute_clusters.mjs — offline precompute of clustering dendrograms (Ward by
+// default — see agglomerative.js) for the Connected Communities tool's common
+// selections (each single country + each
 // multi-country preset group). Shipping the tree lets the browser skip BOTH the
 // connectedness fetch and the O(n^3) clustering: it just loads the (small) tree +
 // geometry and cuts it at the chosen K.

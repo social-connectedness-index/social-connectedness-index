@@ -1,4 +1,5 @@
-// cluster.worker.js — builds the average-linkage dendrogram off the main thread
+// cluster.worker.js — builds the clustering dendrogram (Ward by default, see
+// agglomerative.js) off the main thread
 // so the page stays responsive (and the tab isn't killed) on large selections
 // such as Brazil's ~5,500 municipalities, and so the run can be cancelled by
 // terminating the worker. The expensive O(n^3) agglomeration runs here exactly
