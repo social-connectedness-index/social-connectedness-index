@@ -1160,7 +1160,16 @@ function highlightCluster(ci) {
   for (const id of [HI_CASE_LAYER, HI_LINE_LAYER]) {
     if (!map.getLayer(id)) continue;
     map.setFilter(id, filter);
-    if (hasSel) { try { map.moveLayer(id); } catch (_) {} } // bring the outline to the very top
+  }
+  if (hasSel) {
+    // Bring the outline above the cluster fills, but keep it BELOW the country/
+    // state border overlays so those borders stay visible inside the highlighted
+    // cluster (the thick white casing would otherwise paint over them).
+    const visible = (id) => map.getLayer(id) && map.getLayoutProperty(id, "visibility") !== "none";
+    const below = visible(ADMIN_LAYER) ? ADMIN_LAYER : (map.getLayer(COUNTRY_LAYER) ? COUNTRY_LAYER : undefined);
+    for (const id of [HI_CASE_LAYER, HI_LINE_LAYER]) {
+      if (map.getLayer(id)) { try { map.moveLayer(id, below); } catch (_) {} }
+    }
   }
 }
 

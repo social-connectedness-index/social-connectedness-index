@@ -118,7 +118,7 @@ input[type="number"] { width: 110px; }
 .btn-secondary:disabled { color: #aab8c0; border-color: #dde6ea; cursor: default; }
 
 /* Pause + Stop sit side-by-side while the animation runs. */
-.anim-controls { display: flex; gap: 8px; }
+.anim-controls:not([hidden]) { display: flex; gap: 8px; }
 .anim-controls .btn-secondary { flex: 1; }
 
 .download-menu {
