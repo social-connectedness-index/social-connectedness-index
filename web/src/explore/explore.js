@@ -93,25 +93,6 @@ const forceNoBasemap =
   !!window.SCI_CONFIG.DISABLE_BASEMAP ||
   sessionStorage.getItem(NO_BASEMAP_SESSION_KEY) === "1";
 
-// tolerance:0 disables Mapbox's per-tile GeoJSON simplification so the region
-// fills and the derived border overlays stay pixel-aligned when zoomed in (see
-// the perf round). But it also forces the FULL-resolution ~34k-region world to
-// be tessellated in full. On desktop that's fine; on memory-constrained mobile
-// browsers — notably iOS Safari, whose WebContent process is killed when it
-// overruns — it blows the memory budget: the tab crashes, auto-reloads, crashes
-// again, and the browser shows "A problem repeatedly occurred". On those devices
-// we fall back to Mapbox's default simplification (undefined → 0.375), trading a
-// little border drift when zoomed deep for a map that actually loads. Detected by
-// low reported memory (Chromium) or a coarse primary pointer (phones/tablets;
-// touch laptops still report a fine primary pointer and keep the crisp borders).
-const IS_LOW_MEMORY_DEVICE =
-  (typeof navigator !== "undefined" &&
-    ((navigator.deviceMemory && navigator.deviceMemory <= 4) ||
-      (typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(pointer: coarse)").matches)));
-const GEO_TOLERANCE = IS_LOW_MEMORY_DEVICE ? undefined : 0;
-
 const map = new mapboxgl.Map({
   attributionControl: false,
   container: "map",
@@ -607,44 +588,34 @@ map.on("load", async function () {
   try { countryNames = await getJSON("geo/country_names.json"); } catch (e) { countryNames = {}; }
 
   // --- generic level setup (lazy: built on first activation) ---
-  // Cache the in-flight setup PROMISE per level (not just a "done" flag): concurrent
-  // callers — e.g. setActiveLayer("level2") and runStartupLocation()'s
-  // ensureLevel(gSel) — must all await the SAME load, so the geometry is actually
-  // ready (cfg.geojson set) before anyone uses it. A bare boolean flag flipped true
-  // before the await let the second caller skip ahead and find cfg.geojson undefined,
-  // which made startup fall back to flying to New York without selecting it.
-  const levelSetup = {};
+  const setupDone = {};
 
-  function ensureLevel(levelKey) {
-    if (levelSetup[levelKey]) return levelSetup[levelKey];
-    levelSetup[levelKey] = (async () => {
-      const cfg = LEVELS[levelKey];
+  async function ensureLevel(levelKey) {
+    if (setupDone[levelKey]) return;
+    setupDone[levelKey] = true;
+    const cfg = LEVELS[levelKey];
 
-      showSpinner();
-      let geojson, sources;
-      try {
-        [geojson, sources] = await Promise.all([loadGeometry(cfg), loadSources(cfg)]);
-      } catch (e) {
-        console.error("[SCI] failed to set up", levelKey, e);
-        levelSetup[levelKey] = null; // allow retry
-        hideSpinner();
-        return;
-      }
+    showSpinner();
+    let geojson, sources;
+    try {
+      [geojson, sources] = await Promise.all([loadGeometry(cfg), loadSources(cfg)]);
+    } catch (e) {
+      console.error("[SCI] failed to set up", levelKey, e);
+      setupDone[levelKey] = false; // allow retry
+      hideSpinner();
+      return;
+    }
 
-      geojson.features = geojson.features.map(function (d, i) {
-      d.id = i + 1; // numeric id for feature-state (hover + per-selection SCI colour)
+    geojson.features = geojson.features.map(function (d, i) {
+      d.id = i + 1; // numeric id for feature-state (hover)
       const key = d.properties.id;
       d.properties.has_data = sources ? sources.has(key) : true;
+      d.properties.sci = null;
       return d;
     });
     cfg.geojson = geojson;
 
-    // tolerance:0 disables Mapbox's per-tile GeoJSON simplification (default 0.375).
-    // The geometry is already simplified at export (keep=0.2); letting Mapbox simplify
-    // the fill source independently of the border-overlay sources made shared edges
-    // land on different vertices, so borders drifted off the fills when zoomed in.
-    // GEO_TOLERANCE relaxes this back to the default on mobile to avoid OOM crashes.
-    map.addSource(levelKey, { type: "geojson", data: geojson, tolerance: GEO_TOLERANCE });
+    map.addSource(levelKey, { type: "geojson", data: geojson });
 
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     map.addLayer(
@@ -689,8 +660,6 @@ map.on("load", async function () {
 
     wireLevelEvents(levelKey, cfg);
     hideSpinner();
-    })();
-    return levelSetup[levelKey];
   }
 
   // Select a region (from a map click OR the search box): fetch its SCI, recolour
@@ -779,20 +748,16 @@ map.on("load", async function () {
     document.getElementById("legend").style.display = "block";
     document.getElementById("title").innerText = selectionLabel(sel);
 
-    // Push the fill value onto EVERY feature via feature-state (so multi-feature
-    // regions all colour), and collect each id's SCI only ONCE for the colour
-    // reference — in focus mode, only for regions within the source's own country.
-    // feature-state (not properties + setData) keeps the geometry uploaded once:
-    // recolouring ~34k regions no longer re-parses/re-tessellates the whole world
-    // on every click, which was the main source of click jank. The paint expression
-    // reads ["feature-state","sci"] to match.
+    // Stamp the fill value on EVERY feature (so multi-feature regions all
+    // colour), and collect each id's SCI only ONCE for the colour reference —
+    // in focus mode, only for regions within the source's own country.
     let clickedSci = null;
     const sciList = [];
     const seenIds = new Set();
     geojson.features.forEach(function (f) {
       const id = f.properties.id;
       const v = sci[id];
-      map.setFeatureState({ source: levelKey, id: f.id }, { sci: v === undefined ? null : v });
+      f.properties.sci = v === undefined ? null : v;
       if (v === undefined) return;
       if (id === clickedId) clickedSci = v;
       if (focus && f.properties.country !== clickedCountry) return;
@@ -811,10 +776,9 @@ map.on("load", async function () {
     }
     sel.globalRefSci = refSci; // fixed-scale reference (whole friend distribution)
 
-    // No setData(): the colours were already pushed via feature-state above, so the
-    // map just needs the scale expression (re)applied — no geometry re-tessellation.
+    map.getSource(levelKey).setData(geojson);
     applyCurrentScale(levelKey); // paints with the fixed or visible-area reference
-    // In dynamic mode, refine the visible-area reference once the map has settled.
+    // In dynamic mode, refine once the freshly-set data has actually rendered.
     if (dynamicScale) map.once("idle", () => applyCurrentScale(levelKey));
 
     updateLegend();
@@ -840,16 +804,14 @@ map.on("load", async function () {
     const cfg = sel.cfg;
     const focus = focusCountry && cfg.canFocus && !!sel.clickedCountry;
     const thresholds = (focus ? FOCUS_BREAK_MULTIPLIERS : BREAK_MULTIPLIERS).map((m) => m * refSci);
-    const step = ["step", ["coalesce", ["feature-state", "sci"], 0], BIN_COLORS[0]];
+    const step = ["step", ["coalesce", ["get", "sci"], 0], BIN_COLORS[0]];
     for (let i = 0; i < thresholds.length; i++) step.push(thresholds[i], BIN_COLORS[i + 1]);
     const fillColor = ["case",
       // Clicked source region: very dark navy, on top of everything else.
       ["==", ["get", "id"], sel.clickedId], HIGHLIGHT_COLOR,
       ["==", ["get", "has_data"], false], NO_DATA_FILL];
     if (focus) fillColor.push(["!=", ["get", "country"], sel.clickedCountry], DEFAULT_FILL);
-    // Default arm: the SCI step ramp (every feature has a feature-state sci set during
-    // renderSelection, so this matches the old "has sci → step" behaviour exactly).
-    fillColor.push(step);
+    fillColor.push(["has", "sci"], step, DEFAULT_FILL);
     map.setPaintProperty(levelKey, "fill-color", fillColor);
     sel.refSci = refSci;
   }
@@ -984,7 +946,7 @@ map.on("load", async function () {
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     if (!map.getLayer("gadm1-outline")) {
       if (!map.getSource("border-state")) {
-        map.addSource("border-state", { type: "geojson", data: stateGeo, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
+        map.addSource("border-state", { type: "geojson", data: stateGeo });
       }
       map.addLayer(
         {
@@ -1004,7 +966,7 @@ map.on("load", async function () {
     }
     if (!map.getLayer("country-outline")) {
       if (!map.getSource("border-country")) {
-        map.addSource("border-country", { type: "geojson", data: countryGeo, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
+        map.addSource("border-country", { type: "geojson", data: countryGeo });
       }
       map.addLayer(
         {

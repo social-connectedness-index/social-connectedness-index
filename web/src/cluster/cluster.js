@@ -64,24 +64,6 @@ const forceNoBasemap =
   !!window.SCI_CONFIG.DISABLE_BASEMAP ||
   sessionStorage.getItem(NO_BASEMAP_SESSION_KEY) === "1";
 
-// tolerance:0 disables Mapbox's per-tile GeoJSON simplification so the region
-// fills and the derived admin/country border overlays stay pixel-aligned when
-// zoomed in. But it forces the full-resolution geometry to be tessellated in
-// full, which on memory-constrained mobile browsers — notably iOS Safari, whose
-// WebContent process is killed when it overruns — can OOM-crash the tab (it
-// reloads, crashes again, and shows "A problem repeatedly occurred"). The Cluster
-// tool only loads the selected countries' regions, so the risk is lower than the
-// Explorer's whole-world layer, but we apply the same guard for consistency: keep
-// tolerance:0 on desktop, fall back to Mapbox's default (undefined → 0.375) on
-// touch/low-memory devices. Mirrors GEO_TOLERANCE in explore.js.
-const IS_LOW_MEMORY_DEVICE =
-  (typeof navigator !== "undefined" &&
-    ((navigator.deviceMemory && navigator.deviceMemory <= 4) ||
-      (typeof window !== "undefined" &&
-        window.matchMedia &&
-        window.matchMedia("(pointer: coarse)").matches)));
-const GEO_TOLERANCE = IS_LOW_MEMORY_DEVICE ? undefined : 0;
-
 const map = new mapboxgl.Map({
   attributionControl: false,
   container: "map",
@@ -104,16 +86,6 @@ if (!forceNoBasemap) {
   });
 }
 map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
-
-// The panel is built before the basemap finishes loading (so it's interactive
-// immediately), but painting clusters needs the map style ready. Generate awaits
-// this before its first paint — a no-op in the normal case where the user has
-// picked countries and clicked Generate well after the basemap arrived.
-let mapReady = false;
-function whenMapReady() {
-  if (mapReady || (map.isStyleLoaded && map.isStyleLoaded())) return Promise.resolve();
-  return new Promise((resolve) => map.once("load", resolve));
-}
 
 const FILL_LAYER = "clusters-fill";
 const LINE_LAYER = "clusters-line";
@@ -375,15 +347,6 @@ function clusterPalette(k) {
 }
 function hexToRgb(hex) {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
-}
-// Blend a hex colour toward white by `t` (0 = unchanged, 1 = white). Used to fade
-// the non-focused clusters during the split animation so they keep their own hue
-// but recede into the background — mirroring the Explorer's out-of-focus look —
-// rather than being flattened to a single flat grey.
-function fadeHex(hex, t) {
-  const [r, g, b] = hexToRgb(hex);
-  const h = (c) => Math.round(c + (255 - c) * t).toString(16).padStart(2, "0");
-  return "#" + h(r) + h(g) + h(b);
 }
 
 // ---------------------------------------------------------------------------
@@ -732,7 +695,6 @@ async function generate() {
   $("download").hidden = true; // shown again only once a map is generated
   setAnimControls("hidden"); // no animation controls until a map exists
   showSpinner();
-  await whenMapReady(); // the panel may be ready before the basemap; don't paint early
 
   try {
     const key = selectionKey(ids);
@@ -937,11 +899,9 @@ function applyClusterCount(k) {
 // one merge undone at a time. buildAnimationSequence precomputes the whole sweep
 // from RAW dendrogram cuts (so every step is exactly one clean split) with stable,
 // contrast-aware colours. Each step plays a three-phase choreography to make the
-// split easy to follow: focus (fade everything but the splitting community so it
-// keeps its colour yet recedes), split (reveal the two halves, a new boundary
-// appears), restore (all back in full colour at K+1). Per-frame recolouring is done
-// via feature-state, so the geometry is uploaded once and never re-tessellated mid
-// sweep. During the sweep country borders are hidden and the dynamic
+// split easy to follow: focus (grey everything but the splitting community),
+// split (reveal the two halves, a new boundary appears), restore (all back in
+// colour at K+1). During the sweep country borders are hidden and the dynamic
 // cluster-boundary overlay is shown instead. The camera stays put throughout.
 // The same sequence drives the MP4 export (downloadAnimationReel).
 // ---------------------------------------------------------------------------
@@ -982,13 +942,10 @@ function togglePause() {
 }
 
 // Per-phase timing for the "focus → split → restore" choreography (ms).
-const ANIM_FOCUS_MS = 1000; // splitting cluster kept in colour, the rest faded back
-const ANIM_SPLIT_MS = 1400; // the split revealed (rest still faded)
+const ANIM_FOCUS_MS = 1000; // splitting cluster kept in colour, the rest greyed
+const ANIM_SPLIT_MS = 1400; // the split revealed (rest still grey)
 const ANIM_REST_MS = 1100;  // all clusters back in colour
-// How far non-focused clusters fade toward white during a split. They keep their
-// own hue but become light/out-of-focus, so the eye is drawn to the cluster that's
-// splitting rather than to a flat grey backdrop.
-const ANIM_FADE = 0.8;
+const ANIM_GREY = "#d4d9dd"; // backgrounded (non-focused) clusters during a split
 
 // Precompute a stable, easy-to-follow animation sequence. We use RAW dendrogram
 // cuts (no fragment absorption) so each K→K+1 step is EXACTLY one cluster splitting
@@ -1065,7 +1022,7 @@ function buildAnimationSequence(maxK) {
 
     // Degenerate step (no community actually split — e.g. distance ties): carry the
     // frame forward unchanged and mark it as "no split" so the player skips it
-    // rather than fading the whole map for a phase with nothing to show.
+    // rather than greying the whole map for a phase with nothing to show.
     if (splitPrev < 0) {
       colorsAt[k + 1] = colorsAt[k];
       labelsAt[k + 1] = nextLabels;
@@ -1100,9 +1057,6 @@ function buildAnimationSequence(maxK) {
 
 // Paint one animation frame: set each clustered region's colour (and optionally its
 // cluster label, so click-to-highlight keeps working after the animation stops).
-// This re-sets the whole GeoJSON source (re-tessellating geometry), so it's used
-// only to (re)build the source and to bake the final frame — NOT per animation
-// frame. Use setFrameColors() for the smooth per-frame recolouring.
 function paintAnimFrame(colorArr, labelArr) {
   const { displayFeatures, clusterFeatures } = prepCache;
   clusterFeatures.forEach((f, i) => {
@@ -1110,28 +1064,6 @@ function paintAnimFrame(colorArr, labelArr) {
     if (labelArr) f.properties.cluster = labelArr[i];
   });
   paintClusters({ type: "FeatureCollection", features: displayFeatures });
-}
-
-// Fast per-frame recolour: drive each region's colour via feature-state instead of
-// re-setting the source. The geometry is already uploaded, so this only changes a
-// colour value per feature — no re-parse, no re-tessellation, no flicker. Falls back
-// to a full repaint if the source hasn't been built yet (ids aren't assigned until
-// the first paintClusters). Pairs with the "fillColor" feature-state in fill-color.
-function setFrameColors(colorArr) {
-  if (!map.getSource(SOURCE_ID)) { paintAnimFrame(colorArr, null); return; }
-  const { clusterFeatures } = prepCache;
-  clusterFeatures.forEach((f, i) => {
-    map.setFeatureState({ source: SOURCE_ID, id: f.id }, { fillColor: colorArr[i] });
-  });
-}
-
-// Clear the per-frame feature-state colours so the static `clusterColor` property
-// (baked by paintAnimFrame) drives the fill again. Called once the animation ends.
-function clearFrameColors() {
-  if (!map.getSource(SOURCE_ID)) return;
-  prepCache.clusterFeatures.forEach((f) => {
-    map.removeFeatureState({ source: SOURCE_ID, id: f.id }, "fillColor");
-  });
 }
 
 // id -> colour map for lastResult (downloads/state) from a per-region colour array.
@@ -1142,17 +1074,16 @@ function animColorById(colorArr) {
 }
 
 // id -> colour map for ONE animation phase. With `keepIdx` (a list of region
-// indices), only those regions take their full colour from `colorArr` and the rest
-// keep their own colour faded toward white (the focus/split phases); without it,
-// every region takes its full `colorArr` colour (the fully-coloured "restore"
-// phase). Shared by the on-screen animation and the MP4 export so both look
-// identical.
+// indices), only those regions take their colour from `colorArr` and the rest are
+// greyed (the focus/split phases); without it, every region takes `colorArr` (the
+// fully-coloured "restore" phase). Shared by the on-screen animation and the MP4
+// export so both look identical.
 function phaseColorById(colorArr, keepIdx) {
   const { clusterFeatures } = prepCache;
   const m = {};
   if (keepIdx) {
     const keep = new Set(keepIdx);
-    clusterFeatures.forEach((f, i) => { m[f.properties.id] = keep.has(i) ? colorArr[i] : fadeHex(colorArr[i], ANIM_FADE); });
+    clusterFeatures.forEach((f, i) => { m[f.properties.id] = keep.has(i) ? colorArr[i] : ANIM_GREY; });
   } else {
     clusterFeatures.forEach((f, i) => { m[f.properties.id] = colorArr[i]; });
   }
@@ -1164,7 +1095,7 @@ function phaseColorById(colorArr, keepIdx) {
 // region (thin) < cluster (medium) < country (thick).
 function setClusterBorders(fc) {
   if (!map.getSource(CLUSTER_BORDER_SOURCE)) {
-    map.addSource(CLUSTER_BORDER_SOURCE, { type: "geojson", data: fc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
+    map.addSource(CLUSTER_BORDER_SOURCE, { type: "geojson", data: fc });
   } else {
     map.getSource(CLUSTER_BORDER_SOURCE).setData(fc);
   }
@@ -1222,10 +1153,10 @@ async function startAnimation() {
   // During the animation: hide country borders, show cluster boundaries instead.
   setCountryBordersVisible(false);
 
-  let shownK = 1; // last FULLY-COLOURED K painted (so Stop never leaves a faded frame)
+  let shownK = 1; // last FULLY-COLOURED K painted (so Stop never leaves a grey frame)
   const plural = (k) => (k === 1 ? "cluster" : "clusters");
   const showColoured = (k) => {
-    setFrameColors(seq.colorsAt[k]);
+    paintAnimFrame(seq.colorsAt[k], seq.labelsAt[k]);
     setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k], null));
     lastResult.colorById = animColorById(seq.colorsAt[k]);
     lastResult.usedK = k;
@@ -1247,20 +1178,20 @@ async function startAnimation() {
       const before = seq.colorsAt[k];   // splitting cluster all one colour
       const after = seq.colorsAt[k + 1]; // splitting cluster now two colours
 
-      // Phase 1 — focus: fade everything except the cluster about to split (each
-      // region keeps its own hue but lightens), and draw just that cluster's outline.
-      const focus = before.map((c) => fadeHex(c, ANIM_FADE));
+      // Phase 1 — focus: grey everything except the cluster about to split, and
+      // draw just that cluster's outline.
+      const focus = new Array(before.length).fill(ANIM_GREY);
       for (const i of splitIdx) focus[i] = before[i];
-      setFrameColors(focus);
+      paintAnimFrame(focus, null);
       setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k], splitSet));
       setStatus(`Splitting into ${k + 1}…`);
       if (!(await animSleep(ANIM_FOCUS_MS))) return;
 
-      // Phase 2 — split: reveal the split inside the focused cluster (rest faded);
+      // Phase 2 — split: reveal the split inside the focused cluster (rest grey);
       // the new dividing boundary appears.
-      const split = after.map((c) => fadeHex(c, ANIM_FADE));
+      const split = new Array(after.length).fill(ANIM_GREY);
       for (const i of splitIdx) split[i] = after[i];
-      setFrameColors(split);
+      paintAnimFrame(split, null);
       setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k + 1], splitSet));
       if (!(await animSleep(ANIM_SPLIT_MS))) return;
 
@@ -1271,9 +1202,7 @@ async function startAnimation() {
     }
     setStatus(`${maxK} ${plural(maxK)} (animation complete).`, "ok");
   } finally {
-    // Always leave the map on a fully-coloured frame, never a faded split frame.
-    // Bake the final colours+labels into the source, then drop the per-frame
-    // feature-state so the static `clusterColor` (and click-highlight) drive the map.
+    // Always leave the map on a fully-coloured frame, never a greyed split frame.
     if (seq.colorsAt[shownK]) {
       paintAnimFrame(seq.colorsAt[shownK], seq.labelsAt[shownK]);
       lastResult.colorById = animColorById(seq.colorsAt[shownK]);
@@ -1281,7 +1210,6 @@ async function startAnimation() {
       lastResult.title = autoTitle(shownK);
       $("num-clusters").value = shownK;
     }
-    clearFrameColors();
     // Restore the normal static look: country borders back, cluster overlay off.
     hideClusterBorders();
     setCountryBordersVisible(true);
@@ -1351,10 +1279,7 @@ function paintClusters(fc) {
   // Numeric feature ids are required for feature-state (hover) to work.
   fc.features.forEach((f, i) => { f.id = i + 1; });
   if (!map.getSource(SOURCE_ID)) {
-    // tolerance:0 keeps the exact (export-simplified) coordinates instead of letting
-    // Mapbox re-simplify this source independently of the border overlays — otherwise
-    // shared edges drift apart and borders don't line up with the fills when zoomed in.
-    map.addSource(SOURCE_ID, { type: "geojson", data: fc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
+    map.addSource(SOURCE_ID, { type: "geojson", data: fc });
   } else {
     map.getSource(SOURCE_ID).setData(fc);
   }
@@ -1365,10 +1290,7 @@ function paintClusters(fc) {
       type: "fill",
       source: SOURCE_ID,
       paint: {
-        // During the animation the per-frame colour is driven by feature-state
-        // (geometry is uploaded once, only the colour changes — no re-tessellation),
-        // falling back to the static `clusterColor` property the rest of the time.
-        "fill-color": ["coalesce", ["feature-state", "fillColor"], ["get", "clusterColor"], NO_DATA_FILL],
+        "fill-color": ["coalesce", ["get", "clusterColor"], NO_DATA_FILL],
         "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.82],
       },
     }, beforeId);
@@ -1536,7 +1458,7 @@ async function applyBorders() {
       lastResult.adminFeatures = feats;
       const fc = { type: "FeatureCollection", features: feats };
       if (!map.getSource(ADMIN_SOURCE)) {
-        map.addSource(ADMIN_SOURCE, { type: "geojson", data: fc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
+        map.addSource(ADMIN_SOURCE, { type: "geojson", data: fc });
       } else {
         map.getSource(ADMIN_SOURCE).setData(fc);
       }
@@ -1566,7 +1488,7 @@ async function applyBorders() {
     lastResult.countryBorderFeatures = countryFeats;
     const countryFc = { type: "FeatureCollection", features: countryFeats };
     if (!map.getSource(COUNTRY_SOURCE)) {
-      map.addSource(COUNTRY_SOURCE, { type: "geojson", data: countryFc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
+      map.addSource(COUNTRY_SOURCE, { type: "geojson", data: countryFc });
     } else {
       map.getSource(COUNTRY_SOURCE).setData(countryFc);
     }
@@ -1899,16 +1821,10 @@ function setupOptionInfo() {
 }
 
 map.on("load", () => {
-  mapReady = true;
   try { map.setProjection("globe"); } catch (_) {}
   applyMapOffset(); // centre the globe in the clear area beside the panel (desktop)
+  init();
 });
-
-// Build the control panel right away — it only needs the metadata JSON, not the
-// Mapbox basemap. Fetching + rendering it in parallel with the (slower) basemap load
-// means the country picker is populated and interactive as soon as the page opens,
-// instead of waiting for the globe to finish streaming in.
-init();
 
 // Re-centre when the viewport crosses the mobile/desktop breakpoint or resizes.
 window.addEventListener("resize", applyMapOffset);

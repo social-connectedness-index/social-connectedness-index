@@ -1,4 +1,4 @@
-/* Poppins is loaded via <link> in cluster.html's <head> (earlier than a CSS @import). */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;400;600;700&display=swap');
 
 * { box-sizing: border-box; }
 
