@@ -608,31 +608,25 @@ map.on("load", async function () {
   try { countryNames = await getJSON("geo/country_names.json"); } catch (e) { countryNames = {}; }
 
   // --- generic level setup (lazy: built on first activation) ---
-  // Cache the in-flight setup PROMISE per level (not just a "done" flag): concurrent
-  // callers — e.g. setActiveLayer("level2") and runStartupLocation()'s
-  // ensureLevel(gSel) — must all await the SAME load, so the geometry is actually
-  // ready (cfg.geojson set) before anyone uses it. A bare boolean flag flipped true
-  // before the await let the second caller skip ahead and find cfg.geojson undefined,
-  // which made startup fall back to flying to New York without selecting it.
-  const levelSetup = {};
+  const setupDone = {};
 
-  function ensureLevel(levelKey) {
-    if (levelSetup[levelKey]) return levelSetup[levelKey];
-    levelSetup[levelKey] = (async () => {
-      const cfg = LEVELS[levelKey];
+  async function ensureLevel(levelKey) {
+    if (setupDone[levelKey]) return;
+    setupDone[levelKey] = true;
+    const cfg = LEVELS[levelKey];
 
-      showSpinner();
-      let geojson, sources;
-      try {
-        [geojson, sources] = await Promise.all([loadGeometry(cfg), loadSources(cfg)]);
-      } catch (e) {
-        console.error("[SCI] failed to set up", levelKey, e);
-        levelSetup[levelKey] = null; // allow retry
-        hideSpinner();
-        return;
-      }
+    showSpinner();
+    let geojson, sources;
+    try {
+      [geojson, sources] = await Promise.all([loadGeometry(cfg), loadSources(cfg)]);
+    } catch (e) {
+      console.error("[SCI] failed to set up", levelKey, e);
+      setupDone[levelKey] = false; // allow retry
+      hideSpinner();
+      return;
+    }
 
-      geojson.features = geojson.features.map(function (d, i) {
+    geojson.features = geojson.features.map(function (d, i) {
       d.id = i + 1; // numeric id for feature-state (hover)
       const key = d.properties.id;
       d.properties.has_data = sources ? sources.has(key) : true;
@@ -686,8 +680,6 @@ map.on("load", async function () {
 
     wireLevelEvents(levelKey, cfg);
     hideSpinner();
-    })();
-    return levelSetup[levelKey];
   }
 
   // Select a region (from a map click OR the search box): fetch its SCI, recolour
