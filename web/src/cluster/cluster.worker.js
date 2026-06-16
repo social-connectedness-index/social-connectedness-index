@@ -1,5 +1,5 @@
-// cluster.worker.js — builds the clustering dendrogram (Ward by default, see
-// agglomerative.js) off the main thread
+// cluster.worker.js — builds the clustering dendrogram (population-weighted average
+// linkage by default, see agglomerative.js) off the main thread
 // so the page stays responsive (and the tab isn't killed) on large selections
 // such as Brazil's ~5,500 municipalities, and so the run can be cancelled by
 // terminating the worker. The expensive O(n^3) agglomeration runs here exactly
@@ -7,9 +7,11 @@
 // back on the main thread (cutDendrogram), so changing K never re-enters here.
 //
 // Protocol:
-//   in : { type: "dendrogram", dist: Float64Array, n }   (dist transferred in)
+//   in : { type: "dendrogram", dist: Float64Array, n, weights? }  (buffers in)
 //   out: { type: "progress", done, total }               (throttled, ~100 msgs)
 //        { type: "result", buffer: ArrayBuffer }          (merges, transferred out)
+// `weights` (optional) are per-region populations for the population-weighted
+// linkage; absent = one count per region.
 //
 // The clustering itself lives in agglomerative.js and is shared verbatim with the
 // synchronous fallback in cluster.js and the offline precompute script — the
@@ -21,7 +23,7 @@ self.onmessage = (e) => {
   const m = e.data;
   if (!m || m.type !== "dendrogram") return;
 
-  const { dist, n } = m;
+  const { dist, n, weights } = m;
   // Throttle progress posts to ~100 over the whole run (one postMessage per merge
   // would flood the channel; the merge itself is the work we want to surface).
   let last = 0;
@@ -31,7 +33,7 @@ self.onmessage = (e) => {
       last = done;
       self.postMessage({ type: "progress", done, total });
     }
-  });
+  }, undefined, weights || null);
 
   const buf = merges.buffer;
   self.postMessage({ type: "result", buffer: buf }, [buf]);

@@ -1,13 +1,14 @@
-// precompute_clusters.mjs — offline precompute of clustering dendrograms (Ward by
-// default — see agglomerative.js) for the Connected Communities tool's common
-// selections (each single country + each
+// precompute_clusters.mjs — offline precompute of clustering dendrograms
+// (population-weighted average linkage by default — see agglomerative.js) for the
+// Connected Communities tool's common selections (each single country + each
 // multi-country preset group). Shipping the tree lets the browser skip BOTH the
 // connectedness fetch and the O(n^3) clustering: it just loads the (small) tree +
 // geometry and cuts it at the chosen K.
 //
 // It reuses the SAME agglomerative.js the browser uses, reading the SAME exported
-// assets the browser fetches (web/public/data), so each precomputed tree is
-// byte-identical to what the live path would produce for that selection.
+// assets the browser fetches (web/public/data) — the SCI rows, the per-country
+// population shards (pop/<CC>.json), and the geometry — in the SAME sorted-ISO leaf
+// order, so each precomputed tree is byte-identical to what the live path produces.
 //
 // Usage:
 //   node scripts/precompute_clusters.mjs            # build all (countries + groups)
@@ -24,7 +25,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildDistanceMatrix, buildDendrogram } from "../src/cluster/agglomerative.js";
+import { buildDistanceMatrix, buildDendrogram, geometryCentroid, buildWeights, SPATIAL_ALPHA } from "../src/cluster/agglomerative.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.resolve(__dirname, "..", "public", "data");
@@ -48,8 +49,11 @@ const groups = readJSON(path.join(DATA, "groups.json"));        // { name: [iso2
 
 // Region ids (leaf order) for a list of ISO2 countries: geometry-shard order,
 // deduped, keeping only ids that have an SCI row — exactly mirrors cluster.js.
+// Also returns a centroid per id (same order) for the spatial-distance blend, so
+// the precomputed tree is identical to what the live path builds.
 function regionIdsFor(isoList) {
   const ids = [];
+  const centroids = [];
   const seen = new Set();
   for (const cc of isoList) {
     const shardPath = path.join(DATA, "geo", SCI_TYPE, cc + ".geojson");
@@ -61,9 +65,24 @@ function regionIdsFor(isoList) {
       if (!idx.sources[rid]) continue;
       seen.add(rid);
       ids.push(rid);
+      // Centroids are only used by the optional geographic blend; skip the work
+      // while it's disabled (matches cluster.js).
+      if (SPATIAL_ALPHA > 0) centroids.push(geometryCentroid(f.geometry));
     }
   }
-  return ids;
+  return { ids, centroids: SPATIAL_ALPHA > 0 ? centroids : null };
+}
+
+// Population weights aligned to regionIds, read from the SAME per-country pop
+// shards the app fetches (built by build_population.mjs), through the SAME
+// buildWeights helper — so the precomputed tree matches the live one exactly.
+function weightsFor(isoList, regionIds) {
+  const pop = {};
+  for (const cc of isoList) {
+    const p = path.join(DATA, "pop", cc + ".json");
+    if (fs.existsSync(p)) Object.assign(pop, readJSON(p));
+  }
+  return buildWeights(regionIds.map((id) => pop[id]));
 }
 
 // Read each region's SCI row from the part files (byte ranges from the index) and
@@ -126,12 +145,15 @@ const index = fs.existsSync(indexPath) ? readJSON(indexPath) : {};
 
 let built = 0, skipped = 0, failed = 0, already = 0;
 for (const sel of selections) {
-  const key = [...sel.iso].sort().join(",");
+  // One sorted-ISO order feeds the key, the leaves, and the weights, so the shipped
+  // tree matches the live path (which also sorts) exactly.
+  const sortedIso = [...sel.iso].sort();
+  const key = sortedIso.join(",");
   if (!force && index[key] && fs.existsSync(path.join(OUT_DIR, index[key]))) {
     already++;
     continue;
   }
-  const regionIds = regionIdsFor([...sel.iso].sort());
+  const { ids: regionIds, centroids } = regionIdsFor(sortedIso);
   const n = regionIds.length;
   if (n < MIN_REGIONS || n > MAX_REGIONS) {
     skipped++;
@@ -141,8 +163,9 @@ for (const sel of selections) {
   try {
     const t0 = Date.now();
     const sci = fetchSci(regionIds);
-    const { dist } = buildDistanceMatrix(regionIds, sci);
-    const merges = buildDendrogram(dist, n);
+    const { dist } = buildDistanceMatrix(regionIds, sci, { centroids });
+    const weights = weightsFor(sortedIso, regionIds);
+    const merges = buildDendrogram(dist, n, undefined, undefined, weights);
     fs.writeFileSync(
       path.join(OUT_DIR, sel.file),
       JSON.stringify({ ids: regionIds, merges: Array.from(merges) })

@@ -1,7 +1,7 @@
 // Connected Communities — a third SCI tool that groups sub-national regions into
 // communities by the strength of Facebook friendship ties between them, with
-// hierarchical agglomerative clustering (Ward linkage by default — see
-// agglomerative.js; the method's lineage is Bailey et al. 2018).
+// hierarchical agglomerative clustering (population-weighted average linkage by
+// default — see agglomerative.js; the method's lineage is Bailey et al. 2018).
 //
 // It reuses the Interactive Explorer's data plumbing (the shared R-exported
 // ./data/ assets: GADM-best "Region" geometry sharded by country, and the
@@ -10,11 +10,12 @@
 //
 // Flow: pick countries + a number of communities K -> load those countries'
 // region geometry -> range-fetch each region's SCI row (kept to just the
-// in-selection friends) -> build a 1/SCI distance matrix -> Ward-linkage
-// cluster to K groups -> colour each region by its community. All client-side.
+// in-selection friends) -> build a -log(SCI) distance matrix -> population-weighted
+// average-linkage cluster to K groups -> colour each region by its community.
+// All client-side.
 
 import { createTour } from "../tour.js";
-import { buildDistanceMatrix, buildDendrogram, cutDendrogram } from "./agglomerative.js";
+import { buildDistanceMatrix, buildDendrogram, cutDendrogram, buildCentroids, buildWeights, SPATIAL_ALPHA, MIN_CLUSTER_FRAC } from "./agglomerative.js";
 import { renderMap, renderSvg, computeBbox, naturalHeight } from "../render.js";
 import { downloadReel, downloadReelAnimation, mp4Supported } from "../reel.js";
 
@@ -113,6 +114,14 @@ const ADMIN_BORDER_COLOR = "#595959";
 const COUNTRY_SOURCE = "country-borders";
 const COUNTRY_LAYER = "country-borders";
 const COUNTRY_BORDER_COLOR = "#1f2937";
+
+// Cluster boundaries (dynamic, used during the animation): the outline BETWEEN
+// adjacent clusters. Intentionally stronger than the state/province borders but
+// weaker than the country borders. During the animation country borders are hidden
+// and these carry the structure.
+const CLUSTER_BORDER_SOURCE = "cluster-borders";
+const CLUSTER_BORDER_LAYER = "cluster-borders";
+const CLUSTER_BORDER_COLOR = "#39414e";
 
 // ---------------------------------------------------------------------------
 // Fetch helpers (shared shape with explore.js).
@@ -236,6 +245,30 @@ async function loadFeatureMap(countryCodes) {
   return map;
 }
 
+// Per-country population shards (pop/<CC>.json = { regionId: population }), used to
+// weight the linkage by people. Missing shards/ids are tolerated (buildWeights
+// fills gaps with the selection median). Returns id -> population for the codes.
+const popCache = {};
+async function loadPopulationShard(cc) {
+  if (cc in popCache) return popCache[cc];
+  let m;
+  try { m = await getJSON("pop/" + cc + ".json"); }
+  catch (e) { console.warn("[SCI] population shard missing for", cc, e); m = {}; }
+  popCache[cc] = m;
+  return m;
+}
+async function loadPopulations(countryCodes) {
+  const shards = await Promise.all(countryCodes.map(loadPopulationShard));
+  return Object.assign({}, ...shards);
+}
+
+// Population-weighted Lance–Williams weights aligned to regionIds (same helper the
+// precompute uses, so live and precomputed trees match).
+async function weightsFor(countryCodes, regionIds) {
+  const pop = await loadPopulations(countryCodes);
+  return buildWeights(regionIds.map((id) => pop[id]));
+}
+
 // Precomputed dendrograms (Layer 2): an offline R/Node step ships a per-selection
 // merge tree for the common selections (each single country + each preset group),
 // keyed by the same `selectionKey` the client uses. When a selection matches, we
@@ -330,6 +363,64 @@ function forEachVertex(geom, cb) {
   }
 }
 
+function forEachRing(geom, cb) {
+  if (!geom) return;
+  const c = geom.coordinates;
+  if (geom.type === "Polygon") {
+    for (const ring of c) cb(ring);
+  } else if (geom.type === "MultiPolygon") {
+    for (const poly of c) for (const ring of poly) cb(ring);
+  }
+}
+
+// Index the boundary SEGMENTS shared by exactly two regions, so we can later draw
+// just the edges that separate different clusters (the cluster outline). Regions
+// share exact topology (same vertices), so a shared edge appears as the same
+// segment (rounded to a ~1 m grid) in both regions' rings. Returns an array of
+// { a, b, coords } (a,b = the two feature indices the segment separates). Cached on
+// prepCache — it doesn't change with K. O(total vertices), like buildAdjacency.
+function buildClusterBorderIndex(features) {
+  const PREC = 1e5; // ~1 m grid, matching buildAdjacency
+  const segMap = new Map(); // segment key -> { coords, r0, r1 }
+  features.forEach((f, i) => {
+    forEachRing(f.geometry, (ring) => {
+      for (let p = 0; p < ring.length - 1; p++) {
+        const x1 = ring[p][0], y1 = ring[p][1], x2 = ring[p + 1][0], y2 = ring[p + 1][1];
+        const k1 = Math.round(x1 * PREC) + "," + Math.round(y1 * PREC);
+        const k2 = Math.round(x2 * PREC) + "," + Math.round(y2 * PREC);
+        const key = k1 < k2 ? k1 + "|" + k2 : k2 + "|" + k1;
+        let e = segMap.get(key);
+        if (!e) { e = { coords: [[x1, y1], [x2, y2]], r0: i, r1: -1 }; segMap.set(key, e); }
+        else if (e.r0 !== i && e.r1 === -1) e.r1 = i;
+      }
+    });
+  });
+  const segs = [];
+  for (const e of segMap.values()) if (e.r1 !== -1) segs.push({ a: e.r0, b: e.r1, coords: e.coords });
+  return segs;
+}
+
+// LineString FeatureCollection of the cluster boundaries for one frame: segments
+// whose two regions are in DIFFERENT clusters (per `labels`). With `restrict` (a
+// Set of feature indices) only segments touching those regions are included — used
+// to draw just the splitting cluster's outline during the focus/split phases.
+function buildClusterBorderFC(segs, labels, restrict) {
+  const features = [];
+  for (const s of segs) {
+    if (labels[s.a] === labels[s.b]) continue;
+    if (restrict && !restrict.has(s.a) && !restrict.has(s.b)) continue;
+    features.push({ type: "Feature", geometry: { type: "LineString", coordinates: s.coords }, properties: {} });
+  }
+  return { type: "FeatureCollection", features };
+}
+
+// Perceptual-ish squared RGB distance (redmean-style weighting), for picking
+// animation colours that contrast with neighbouring clusters.
+function rgbDist2(a, b) {
+  const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+  return 2 * dr * dr + 4 * dg * dg + 3 * db * db;
+}
+
 // Region adjacency via shared boundary vertices. The region fills are simplified
 // with shared topology, so neighbouring regions share exact vertices. Returns a
 // Set of "lo,hi" index-pair strings into the features array. Computed once per
@@ -357,10 +448,7 @@ function buildAdjacency(features) {
 // so far, to spread globally). Contrast is a cheap perceptual-weighted RGB metric.
 function assignContrastColors(usedK, clusterAdj, palette) {
   const rgb = palette.map(hexToRgb);
-  const dist2 = (i, j) => {
-    const dr = rgb[i][0] - rgb[j][0], dg = rgb[i][1] - rgb[j][1], db = rgb[i][2] - rgb[j][2];
-    return 2 * dr * dr + 4 * dg * dg + 3 * db * db; // redmean-ish weighting
-  };
+  const dist2 = (i, j) => rgbDist2(rgb[i], rgb[j]); // shared perceptual metric
   const order = Array.from({ length: usedK }, (_, i) => i)
     .sort((a, b) => clusterAdj[b].size - clusterAdj[a].size);
   const colorOf = new Array(usedK).fill(-1); // cluster ci -> palette index
@@ -408,9 +496,10 @@ let prepCache = null;        // { key, features, regionIds, dist, n }
 const selectionKey = (ids) => [...ids].sort().join(",");
 
 // ---------------------------------------------------------------------------
-// Clustering worker — the O(n^3) agglomeration (Ward) runs off the main thread
-// so the page stays responsive on large selections (e.g. Brazil's ~5,500
-// municipalities) and can be cancelled. Falls back to synchronous clustering
+// Clustering worker — the O(n^3) agglomeration (population-weighted average
+// linkage) runs off the main thread so the page stays responsive on large
+// selections (e.g. Brazil's ~5,500 municipalities) and can be cancelled. Falls
+// back to synchronous clustering
 // where Web Workers aren't available.
 // ---------------------------------------------------------------------------
 let clusterWorker = null;
@@ -434,9 +523,9 @@ function cancelClustering() {
 // Build the dendrogram for `dist` (n*n) off-thread, reporting merge progress.
 // This is the one-time O(n^3) step; cutting the returned tree to any K is cheap
 // (cutDendrogram) and happens on the main thread, so changing K never comes here.
-function runDendrogram(dist, n, onProgress) {
+function runDendrogram(dist, n, onProgress, weights) {
   if (typeof Worker === "undefined") {
-    return Promise.resolve(buildDendrogram(dist, n, onProgress));
+    return Promise.resolve(buildDendrogram(dist, n, onProgress, undefined, weights || null));
   }
   return new Promise((resolve, reject) => {
     cancelClusterReject = reject;
@@ -448,7 +537,11 @@ function runDendrogram(dist, n, onProgress) {
     };
     w.onerror = (err) => { cancelClusterReject = null; reject(err); };
     const copy = dist.slice(); // own buffer to transfer; keeps `dist` usable here
-    w.postMessage({ type: "dendrogram", dist: copy, n }, [copy.buffer]);
+    const transfer = [copy.buffer];
+    // Weights (populations) for the population-weighted linkage; transferred too.
+    const wCopy = weights ? Float64Array.from(weights) : null;
+    if (wCopy) transfer.push(wCopy.buffer);
+    w.postMessage({ type: "dendrogram", dist: copy, n, weights: wCopy }, transfer);
   });
 }
 
@@ -589,7 +682,9 @@ function autoTitle(k) {
 // Generate.
 // ---------------------------------------------------------------------------
 async function generate() {
-  const ids = [...selectedCountries];
+  // Sorted ISO order so the live leaf order matches the precompute script (which
+  // sorts), keeping a live-built tree identical to the shipped one for a selection.
+  const ids = [...selectedCountries].sort();
   if (!ids.length) { setStatus("Pick at least one country first.", "warn"); return; }
   let k = parseInt($("num-clusters").value, 10);
   if (isNaN(k) || k < 2) k = 2;
@@ -630,7 +725,10 @@ async function generate() {
         // we have; otherwise fall through to the live path.
         if (regionIds.length >= 2 && regionIds.length === precomp.ids.length) {
           const displayFeatures = Object.values(fmap); // every region, incl. no-data
-          prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: regionIds.length, merges: precomp.merges };
+          // Populations are still needed for population-based fragment absorption
+          // at cut time, even though the tree itself is precomputed.
+          const weights = await weightsFor(ids, regionIds);
+          prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: regionIds.length, merges: precomp.merges, weights };
           prepared = true;
         }
       }
@@ -675,8 +773,13 @@ async function generate() {
           setStatus(`Fetching connectedness for ${total.toLocaleString()} regions… ${Math.round((done / total) * 100)}%`);
         });
 
-        // 3) Build the distance matrix, then the dendrogram once (off-thread).
-        const { dist } = buildDistanceMatrix(regionIds, sciBySource);
+        // 3) Build the -log(SCI) social distance matrix, then the population-weighted
+        //    dendrogram once (off-thread). Centroids are only needed for the optional
+        //    geographic blend, so we skip computing them while it's disabled
+        //    (SPATIAL_ALPHA === 0) — set SPATIAL_ALPHA > 0 to re-enable.
+        const centroids = SPATIAL_ALPHA > 0 ? buildCentroids(clusterFeatures) : null;
+        const { dist } = buildDistanceMatrix(regionIds, sciBySource, { centroids });
+        const weights = await weightsFor(ids, regionIds);
         const slow = nReg > SLOW_REGION_WARN;
         setStatus(slow
           ? `Clustering ${nReg.toLocaleString()} regions (this may take a while)… 0%`
@@ -685,9 +788,9 @@ async function generate() {
         const merges = await runDendrogram(dist, nReg, (done, total) => {
           const pct = total ? Math.round((done / total) * 100) : 100;
           setStatus(`Clustering ${nReg.toLocaleString()} regions… ${pct}%`);
-        });
+        }, weights);
         showCancel(false);
-        prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: nReg, merges };
+        prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: nReg, merges, weights };
       }
     }
 
@@ -695,7 +798,8 @@ async function generate() {
     if (k >= nRegions) { k = nRegions - 1; $("num-clusters").value = k; }
 
     // 4+5) Cut the dendrogram at K, colour (max-contrast) and paint — the cheap
-    //      O(n) path, shared with the animation (applyClusterCount).
+    //      O(n) path (cutDendrogram + colouring). The animation has its own
+    //      stable-colour path (buildAnimationSequence), but shares cutDendrogram.
     const res = applyClusterCount(k);
 
     const fc = { type: "FeatureCollection", features: res.displayFeatures };
@@ -731,9 +835,10 @@ async function generate() {
 // safe to call repeatedly (e.g. to pre-render every K for the animation export).
 // Returns { colorById, clusterById, usedK }. Assumes prepCache is populated.
 function computeClusterColors(k) {
-  const { clusterFeatures, n, merges } = prepCache;
+  const { clusterFeatures, n, merges, weights } = prepCache;
 
-  const labels = cutDendrogram(merges, n, k);
+  // Absorb tiny (low-POPULATION) fragments into their nearest cluster (usedK may be < k).
+  const labels = cutDendrogram(merges, n, k, { minClusterFrac: MIN_CLUSTER_FRAC, weights });
   const usedK = new Set(labels).size;
 
   const palette = clusterPalette(usedK);
@@ -790,13 +895,17 @@ function applyClusterCount(k) {
 }
 
 // ---------------------------------------------------------------------------
-// Animation — sweep K from 1 up to ANIM_MAX_K so you can watch clusters split,
-// one merge undone at a time. Cheap: each step is just an O(n) dendrogram cut +
-// recolour (no refetch, no recompute, no camera move). The camera stays put so
-// you see exactly which clusters break off, and where.
+// Animation — sweep K from 1 up to ANIM_MAX_K so you can watch communities split,
+// one merge undone at a time. buildAnimationSequence precomputes the whole sweep
+// from RAW dendrogram cuts (so every step is exactly one clean split) with stable,
+// contrast-aware colours. Each step plays a three-phase choreography to make the
+// split easy to follow: focus (grey everything but the splitting community),
+// split (reveal the two halves, a new boundary appears), restore (all back in
+// colour at K+1). During the sweep country borders are hidden and the dynamic
+// cluster-boundary overlay is shown instead. The camera stays put throughout.
+// The same sequence drives the MP4 export (downloadAnimationReel).
 // ---------------------------------------------------------------------------
 const ANIM_MAX_K = 30;
-const ANIM_STEP_MS = 1300;
 let animating = false; // the K-sweep loop is active
 let paused = false;    // ...but currently frozen on a frame
 
@@ -832,6 +941,200 @@ function togglePause() {
   if (paused && lastResult) setStatus(`Paused — ${lastResult.usedK} ${lastResult.usedK === 1 ? "cluster" : "clusters"}`);
 }
 
+// Per-phase timing for the "focus → split → restore" choreography (ms).
+const ANIM_FOCUS_MS = 1000; // splitting cluster kept in colour, the rest greyed
+const ANIM_SPLIT_MS = 1400; // the split revealed (rest still grey)
+const ANIM_REST_MS = 1100;  // all clusters back in colour
+const ANIM_GREY = "#d4d9dd"; // backgrounded (non-focused) clusters during a split
+
+// Precompute a stable, easy-to-follow animation sequence. We use RAW dendrogram
+// cuts (no fragment absorption) so each K→K+1 step is EXACTLY one cluster splitting
+// in two — the thing the choreography highlights. Colours are stable across steps:
+// when a cluster splits, its larger half keeps its colour and the smaller half gets
+// a fresh one, so only the split changes between frames (no distracting reshuffle).
+// Returns { maxK, colorsAt[k], labelsAt[k], splits[k] } where colorsAt/labelsAt are
+// per-region arrays (clusterFeatures order) and splits[k] lists the region indices
+// of the cluster that splits going from k to k+1.
+function buildAnimationSequence(maxK) {
+  const { n, merges, clusterFeatures } = prepCache;
+  const nFeat = clusterFeatures.length;
+  const palette = clusterPalette(maxK);
+  const paletteRgb = palette.map(hexToRgb);
+  const usedColor = new Array(palette.length).fill(false);
+
+  // Region adjacency list, so a newly-split piece can pick a colour that contrasts
+  // with its actual neighbours (the colours stay STABLE across steps — only the new
+  // piece is coloured — but we choose that one colour to avoid clashing neighbours).
+  if (!prepCache.adjEdges) prepCache.adjEdges = buildAdjacency(clusterFeatures);
+  const adj = Array.from({ length: nFeat }, () => []);
+  for (const e of prepCache.adjEdges) {
+    const sep = e.indexOf(",");
+    const a = +e.slice(0, sep), b = +e.slice(sep + 1);
+    adj[a].push(b); adj[b].push(a);
+  }
+
+  const colorsAt = [];  // colorsAt[k] (k=1..maxK): per-region hex
+  const labelsAt = [];  // labelsAt[k]: raw cluster label per region
+  const splits = [];    // splits[k] (k=1..maxK-1): region indices of the splitting cluster
+  const colorIdxOf = new Int32Array(nFeat); // current palette index per region
+
+  // Pick the unused palette colour that maximises the minimum contrast to the given
+  // neighbour palette indices (falls back to any colour if all are used).
+  const pickColor = (neighIdx) => {
+    let best = -1, bestScore = -Infinity;
+    for (let p = 0; p < palette.length; p++) {
+      if (usedColor[p]) continue;
+      let mn = Infinity;
+      for (const q of neighIdx) { const d = rgbDist2(paletteRgb[p], paletteRgb[q]); if (d < mn) mn = d; }
+      const score = neighIdx.size ? mn : -p; // no neighbours yet → lowest index
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+    if (best < 0) for (let p = 0; p < palette.length; p++) { // all used: reuse best-contrast
+      let mn = Infinity;
+      for (const q of neighIdx) { const d = rgbDist2(paletteRgb[p], paletteRgb[q]); if (d < mn) mn = d; }
+      if (mn > bestScore) { bestScore = mn; best = p; }
+    }
+    return best;
+  };
+
+  let prevLabels = cutDendrogram(merges, n, 1);
+  labelsAt[1] = prevLabels;
+  usedColor[0] = true;
+  colorsAt[1] = new Array(nFeat).fill(palette[0]);
+
+  for (let k = 1; k < maxK; k++) {
+    const nextLabels = cutDendrogram(merges, n, k + 1);
+    // Exactly one prev-cluster maps to two next-clusters; find it and its halves.
+    const byPrev = new Map(); // prevLabel -> Map(nextLabel -> count)
+    for (let i = 0; i < nFeat; i++) {
+      const p = prevLabels[i], q = nextLabels[i];
+      let m = byPrev.get(p); if (!m) { m = new Map(); byPrev.set(p, m); }
+      m.set(q, (m.get(q) || 0) + 1);
+    }
+    let splitPrev = -1, keepSub = -1;
+    for (const [p, m] of byPrev) {
+      if (m.size >= 2) {
+        const keys = [...m.keys()].sort((x, y) => m.get(y) - m.get(x));
+        splitPrev = p; keepSub = keys[0]; // larger half keeps the colour
+        break;
+      }
+    }
+
+    // Degenerate step (no community actually split — e.g. distance ties): carry the
+    // frame forward unchanged and mark it as "no split" so the player skips it
+    // rather than greying the whole map for a phase with nothing to show.
+    if (splitPrev < 0) {
+      colorsAt[k + 1] = colorsAt[k];
+      labelsAt[k + 1] = nextLabels;
+      splits[k] = null;
+      prevLabels = nextLabels;
+      continue;
+    }
+
+    const splittingIdx = [], newPiece = [];
+    for (let i = 0; i < nFeat; i++) {
+      if (prevLabels[i] === splitPrev) {
+        splittingIdx.push(i);
+        if (nextLabels[i] !== keepSub) newPiece.push(i);
+      }
+    }
+    // Neighbour colours of the new piece (regions outside it that border it).
+    const newSet = new Set(newPiece);
+    const neighIdx = new Set();
+    for (const r of newPiece) for (const q of adj[r]) if (!newSet.has(q)) neighIdx.add(colorIdxOf[q]);
+    const best = pickColor(neighIdx);
+    usedColor[best] = true;
+
+    const next = colorsAt[k].slice();
+    for (const i of newPiece) { colorIdxOf[i] = best; next[i] = palette[best]; }
+    colorsAt[k + 1] = next;
+    labelsAt[k + 1] = nextLabels;
+    splits[k] = splittingIdx;
+    prevLabels = nextLabels;
+  }
+  return { maxK, colorsAt, labelsAt, splits };
+}
+
+// Paint one animation frame: set each clustered region's colour (and optionally its
+// cluster label, so click-to-highlight keeps working after the animation stops).
+function paintAnimFrame(colorArr, labelArr) {
+  const { displayFeatures, clusterFeatures } = prepCache;
+  clusterFeatures.forEach((f, i) => {
+    f.properties.clusterColor = colorArr[i];
+    if (labelArr) f.properties.cluster = labelArr[i];
+  });
+  paintClusters({ type: "FeatureCollection", features: displayFeatures });
+}
+
+// id -> colour map for lastResult (downloads/state) from a per-region colour array.
+function animColorById(colorArr) {
+  const m = {};
+  prepCache.clusterFeatures.forEach((f, i) => { m[f.properties.id] = colorArr[i]; });
+  return m;
+}
+
+// id -> colour map for ONE animation phase. With `keepIdx` (a list of region
+// indices), only those regions take their colour from `colorArr` and the rest are
+// greyed (the focus/split phases); without it, every region takes `colorArr` (the
+// fully-coloured "restore" phase). Shared by the on-screen animation and the MP4
+// export so both look identical.
+function phaseColorById(colorArr, keepIdx) {
+  const { clusterFeatures } = prepCache;
+  const m = {};
+  if (keepIdx) {
+    const keep = new Set(keepIdx);
+    clusterFeatures.forEach((f, i) => { m[f.properties.id] = keep.has(i) ? colorArr[i] : ANIM_GREY; });
+  } else {
+    clusterFeatures.forEach((f, i) => { m[f.properties.id] = colorArr[i]; });
+  }
+  return m;
+}
+
+// Show/update the dynamic cluster-boundary overlay (used during the animation).
+// Created on first use just below the country borders so the line stack reads
+// region (thin) < cluster (medium) < country (thick).
+function setClusterBorders(fc) {
+  if (!map.getSource(CLUSTER_BORDER_SOURCE)) {
+    map.addSource(CLUSTER_BORDER_SOURCE, { type: "geojson", data: fc });
+  } else {
+    map.getSource(CLUSTER_BORDER_SOURCE).setData(fc);
+  }
+  if (!map.getLayer(CLUSTER_BORDER_LAYER)) {
+    const before = map.getLayer(COUNTRY_LAYER) ? COUNTRY_LAYER
+      : (map.getLayer("waterway-label") ? "waterway-label" : undefined);
+    map.addLayer({
+      id: CLUSTER_BORDER_LAYER,
+      type: "line",
+      source: CLUSTER_BORDER_SOURCE,
+      layout: { "line-join": "round", "line-cap": "round", visibility: "visible" },
+      paint: {
+        "line-color": CLUSTER_BORDER_COLOR,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.8, 5, 1.6, 8, 2.6],
+        "line-opacity": 0.95,
+      },
+    }, before);
+  } else {
+    map.setLayoutProperty(CLUSTER_BORDER_LAYER, "visibility", "visible");
+  }
+}
+function hideClusterBorders() {
+  if (map.getLayer(CLUSTER_BORDER_LAYER)) map.setLayoutProperty(CLUSTER_BORDER_LAYER, "visibility", "none");
+}
+function setCountryBordersVisible(on) {
+  if (map.getLayer(COUNTRY_LAYER)) map.setLayoutProperty(COUNTRY_LAYER, "visibility", on ? "visible" : "none");
+}
+
+// Sleep `ms`, sliced so Pause freezes and Stop aborts promptly. Returns false if the
+// animation was stopped (caller should bail).
+async function animSleep(ms) {
+  for (let t = 0; t < ms && animating; t += 50) {
+    while (paused && animating) await sleep(100);
+    if (!animating) return false;
+    await sleep(50);
+  }
+  return animating;
+}
+
 async function startAnimation() {
   if (animating || !prepCache || !lastResult) return;
   const maxK = Math.min(ANIM_MAX_K, prepCache.regionIds.length - 1);
@@ -841,37 +1144,84 @@ async function startAnimation() {
   paused = false;
   setAnimControls("running");
   $("num-clusters").disabled = true;
+  highlightCluster(null); // clear any click-highlight before we start repainting
+
+  const seq = buildAnimationSequence(maxK);
+  // Boundary segments (cached) for the dynamic cluster-outline overlay.
+  if (!prepCache.borderSegs) prepCache.borderSegs = buildClusterBorderIndex(prepCache.clusterFeatures);
+  const segs = prepCache.borderSegs;
+  // During the animation: hide country borders, show cluster boundaries instead.
+  setCountryBordersVisible(false);
+
+  let shownK = 1; // last FULLY-COLOURED K painted (so Stop never leaves a grey frame)
+  const plural = (k) => (k === 1 ? "cluster" : "clusters");
+  const showColoured = (k) => {
+    paintAnimFrame(seq.colorsAt[k], seq.labelsAt[k]);
+    setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k], null));
+    lastResult.colorById = animColorById(seq.colorsAt[k]);
+    lastResult.usedK = k;
+    lastResult.title = autoTitle(k);
+    $("num-clusters").value = k;
+    shownK = k;
+  };
+
   try {
-    for (let k = 1; k <= maxK; k++) {
-      if (!animating) break;
-      // Hold on the current frame while paused (Stop sets animating=false to release).
-      while (paused && animating) await sleep(120);
-      if (!animating) break;
-      const res = applyClusterCount(k);
-      Object.assign(lastResult, {
-        colorById: res.colorById, usedK: res.usedK, title: res.title,
-      });
-      $("num-clusters").value = res.usedK;
-      setStatus(`Animating… ${res.usedK} ${res.usedK === 1 ? "cluster" : "clusters"}`);
-      // Inter-frame wait, sliced so Pause/Stop respond quickly (not after the last frame).
-      if (k < maxK) {
-        for (let t = 0; t < ANIM_STEP_MS && animating && !paused; t += 60) await sleep(60);
-      }
+    // Start with every cluster in colour at K=1.
+    showColoured(1);
+    setStatus(`Animating… 1 cluster`);
+    if (!(await animSleep(ANIM_REST_MS))) return;
+
+    for (let k = 1; k < maxK; k++) {
+      const splitIdx = seq.splits[k];
+      if (!splitIdx) continue;
+      const splitSet = new Set(splitIdx);
+      const before = seq.colorsAt[k];   // splitting cluster all one colour
+      const after = seq.colorsAt[k + 1]; // splitting cluster now two colours
+
+      // Phase 1 — focus: grey everything except the cluster about to split, and
+      // draw just that cluster's outline.
+      const focus = new Array(before.length).fill(ANIM_GREY);
+      for (const i of splitIdx) focus[i] = before[i];
+      paintAnimFrame(focus, null);
+      setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k], splitSet));
+      setStatus(`Splitting into ${k + 1}…`);
+      if (!(await animSleep(ANIM_FOCUS_MS))) return;
+
+      // Phase 2 — split: reveal the split inside the focused cluster (rest grey);
+      // the new dividing boundary appears.
+      const split = new Array(after.length).fill(ANIM_GREY);
+      for (const i of splitIdx) split[i] = after[i];
+      paintAnimFrame(split, null);
+      setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k + 1], splitSet));
+      if (!(await animSleep(ANIM_SPLIT_MS))) return;
+
+      // Phase 3 — restore: bring every cluster back into colour at K+1.
+      showColoured(k + 1);
+      setStatus(`Animating… ${k + 1} ${plural(k + 1)}`);
+      if (!(await animSleep(ANIM_REST_MS))) return;
     }
-    if (animating) setStatus(`${lastResult.usedK} clusters (animation complete).`, "ok");
+    setStatus(`${maxK} ${plural(maxK)} (animation complete).`, "ok");
   } finally {
+    // Always leave the map on a fully-coloured frame, never a greyed split frame.
+    if (seq.colorsAt[shownK]) {
+      paintAnimFrame(seq.colorsAt[shownK], seq.labelsAt[shownK]);
+      lastResult.colorById = animColorById(seq.colorsAt[shownK]);
+      lastResult.usedK = shownK;
+      lastResult.title = autoTitle(shownK);
+      $("num-clusters").value = shownK;
+    }
+    // Restore the normal static look: country borders back, cluster overlay off.
+    hideClusterBorders();
+    setCountryBordersVisible(true);
     stopAnimation();
   }
 }
 
-// Export the K-sweep (1 → ANIM_MAX_K) as a 9:16 MP4 reel. Each K is rendered to a
-// clean (basemap-free) portrait frame — same look as the still reel — and held for
-// ANIM_REEL_HOLD_S, with a longer hold on the final frame. computeClusterColors is
-// pure, so this doesn't disturb the live map; only the colour + title vary per frame.
-// Per-frame hold is derived from ANIM_STEP_MS so the exported reel always plays at the
-// same speed as the on-screen sweep; the final frame lingers a bit longer.
-const ANIM_REEL_HOLD_S = ANIM_STEP_MS / 1000;
-const ANIM_REEL_LAST_HOLD_S = ANIM_REEL_HOLD_S * 2;
+// Export the animation as a 9:16 MP4 reel that plays EXACTLY like the on-screen
+// sweep: the same stable-colour focus → split → restore choreography (built from the
+// same buildAnimationSequence), with each phase held for the same duration as on
+// screen (ANIM_FOCUS/SPLIT/REST_MS). Each phase is one clean (basemap-free) frame;
+// the final fully-coloured frame lingers a little longer.
 async function downloadAnimationReel() {
   if (!prepCache || !lastResult) return;
   if (!mp4Supported()) { setStatus("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/SVG.", "warn"); return; }
@@ -881,19 +1231,40 @@ async function downloadAnimationReel() {
   stopAnimation(); // don't run the live sweep and the export at once
   try {
     setStatus("Preparing animation frames…");
-    // Base render opts (features, bbox, borders, caption…) — only colour + title
-    // vary per frame, so shallow-clone the base and swap those two fields.
-    const baseOpts = buildRenderOpts(1080);
+    // Base render opts (features, bbox, caption…). For the animation we hide the
+    // country borders (strongBorderFeatures=null) and instead draw the dynamic
+    // cluster boundaries in the medium "countryFeatures" slot — matching on screen.
+    const baseOpts = { ...buildRenderOpts(1080), strongBorderFeatures: null };
+    const seq = buildAnimationSequence(maxK);
+    if (!prepCache.borderSegs) prepCache.borderSegs = buildClusterBorderIndex(prepCache.clusterFeatures);
+    const segs = prepCache.borderSegs;
     const frames = [];
-    for (let k = 1; k <= maxK; k++) {
-      const cc = computeClusterColors(k);
-      frames.push({
-        renderOpts: { ...baseOpts, colorById: cc.colorById, title: autoTitle(cc.usedK) },
-        seconds: k === maxK ? ANIM_REEL_LAST_HOLD_S : ANIM_REEL_HOLD_S,
-      });
-      // Yield so the "Preparing…" status can paint on slower devices.
-      if (k % 5 === 0) await sleep(0);
+    // colorById = phase fill; labels/restrict define the cluster outline geometry.
+    const push = (colorById, labels, restrict, k, seconds) => frames.push({
+      renderOpts: {
+        ...baseOpts,
+        colorById,
+        title: autoTitle(k),
+        countryFeatures: buildClusterBorderFC(segs, labels, restrict).features,
+        countryBorderColor: CLUSTER_BORDER_COLOR,
+      },
+      seconds,
+    });
+
+    // Start: all clusters in colour at K=1.
+    push(phaseColorById(seq.colorsAt[1], null), seq.labelsAt[1], null, 1, ANIM_REST_MS / 1000);
+    for (let k = 1; k < maxK; k++) {
+      const splitIdx = seq.splits[k];
+      if (!splitIdx) continue;
+      const splitSet = new Set(splitIdx);
+      // focus (still K), split (K+1, isolated), restore (K+1, all coloured)
+      push(phaseColorById(seq.colorsAt[k], splitIdx), seq.labelsAt[k], splitSet, k, ANIM_FOCUS_MS / 1000);
+      push(phaseColorById(seq.colorsAt[k + 1], splitIdx), seq.labelsAt[k + 1], splitSet, k + 1, ANIM_SPLIT_MS / 1000);
+      const lastStep = k === maxK - 1;
+      push(phaseColorById(seq.colorsAt[k + 1], null), seq.labelsAt[k + 1], null, k + 1, (ANIM_REST_MS / 1000) * (lastStep ? 2.5 : 1));
+      if (k % 4 === 0) await sleep(0); // yield so the "Preparing…" status can paint
     }
+
     const name = slug(lastResult.title) + "_animation";
     await downloadReelAnimation(frames, name + ".mp4", { setStatus });
   } catch (e) {
@@ -1294,7 +1665,7 @@ async function download(fmt) {
       return;
     }
     if (fmt === "mp4anim") {
-      // Animated 9:16 reel sweeping K from 1 → 30 (the K-sweep animation, as video).
+      // The on-screen 1→30 animation as a 9:16 video (same focus/split/restore reel).
       await downloadAnimationReel();
       return;
     }
@@ -1366,6 +1737,18 @@ async function init() {
     const close = panel.querySelector(".close-btn");
     if (close) close.addEventListener("click", () => { panel.hidden = true; sync(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") { panel.hidden = true; sync(); } });
+  })();
+
+  // In-depth method modal (opened from the About box's "Read more").
+  (function setupMethodModal() {
+    const open = $("method-open"), modal = $("method-modal");
+    if (!open || !modal) return;
+    const show = (on) => { modal.hidden = !on; };
+    open.addEventListener("click", () => show(true));
+    const close = modal.querySelector(".close-btn");
+    if (close) close.addEventListener("click", () => show(false));
+    modal.addEventListener("click", (e) => { if (e.target === modal) show(false); }); // backdrop
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") show(false); });
   })();
 
   // Collapse/expand the control panel (mobile — frees up the map).

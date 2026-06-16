@@ -113,13 +113,14 @@
        Facebook friendship ties between them. Two regions are treated as <em>close</em>
        when a randomly chosen Facebook user in one is highly likely to be friends with a
        randomly chosen user in the other.</p>
-    <p>It uses <strong>hierarchical agglomerative clustering</strong> (Ward's method):
-       every region starts on its own and the two groups whose merger keeps clusters most
-       compact are joined repeatedly, until the chosen number of clusters remain. The
-       distance between two regions is the inverse of their Social Connectedness Index. No
-       geographic constraint is applied — clusters are usually contiguous because
-       connectedness falls off with distance, but a genuinely strong long-distance tie
-       (e.g. migration links) can put non-adjacent regions in the same cluster.</p>
+    <p>Under the hood it uses <strong>hierarchical clustering</strong>: every region starts
+       on its own, and the communities whose residents are most connected are merged step
+       by step until the number of clusters you chose remains. Merges are weighted by
+       <strong>population</strong>, so communities reflect where people actually are rather
+       than how finely a country happens to be subdivided. No geographic constraint is
+       applied — clusters are usually contiguous, but a strong long-distance tie can place
+       non-adjacent regions together.</p>
+    <p><button type="button" id="method-open" class="link-btn">Read more about the method →</button></p>
     <p>More details, including the full data download, are at the
        <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
     <p class="map-attribution">Basemap © <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">Mapbox</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · <a href="https://www.mapbox.com/map-feedback/" target="_blank" rel="noopener">Improve this map</a></p>
@@ -127,6 +128,71 @@
       <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" />
       <span>Social Capital Lab</span>
     </a>
+  </div>
+
+  <!-- In-depth method explainer (opened from the About box's "Read more") -->
+  <div id="method-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="method-title">
+      <button type="button" class="close-btn" aria-label="Close">×</button>
+      <h3 id="method-title">How the clustering works</h3>
+
+      <p>This tool finds <em>communities</em> — groups of regions whose residents are
+        unusually likely to be Facebook friends with one another. Everything runs in your
+        browser. Here is the full method, from raw data to the coloured map.</p>
+
+      <h4>1. The data</h4>
+      <p>For every pair of regions we use the public <strong>Social Connectedness Index
+        (SCI)</strong>: a measure proportional to the probability that a randomly chosen
+        Facebook user in one region and a randomly chosen user in the other are friends.
+        Because it is already divided by each region's user count, the SCI is a
+        <em>per-person</em> measure — it is not inflated simply by a region being large.</p>
+
+      <h4>2. Distance between two regions</h4>
+      <p>We turn connectedness into a <em>distance</em>: regions with a high SCI are
+        “close”, regions with a low SCI are “far”. The distance is <code>−log(SCI)</code>.
+        The log matters because the SCI spans many orders of magnitude; without it a handful
+        of very strong ties would dominate everything. Distances are then scaled to a 0–1
+        range, and the rare pairs with no SCI reading are filled with a high (but not
+        extreme) value.</p>
+
+      <h4>3. Building communities</h4>
+      <p>We use <strong>hierarchical agglomerative clustering</strong>. Every region starts
+        as its own community; we then repeatedly merge the two <em>closest</em> communities,
+        recording the order of every merge, until only one remains.</p>
+      <p>The crucial choice is how to measure the distance between two communities that each
+        contain many regions. We define it as the <strong>average distance between a random
+        resident of one community and a random resident of the other</strong>. Each region's
+        contribution is weighted by its <strong>population</strong>, so the distance between
+        communities I and J is the population-weighted average of the region-to-region
+        distances (each pair weighted by the product of the two regions' populations). This
+        is known as <em>population-weighted average linkage</em>.</p>
+      <p>Weighting by population matters because administrative regions vary wildly in size.
+        Without it, a country carved into hundreds of tiny districts would out-vote one split
+        into a few large provinces. With it, a community's “pull” reflects its <em>people</em>:
+        populous places anchor communities, and sparse areas are absorbed into their neighbours.</p>
+
+      <h4>4. Choosing how many communities</h4>
+      <p>Because every merge was recorded, the full hierarchy forms a tree. Asking for K
+        communities just means cutting that tree so K branches remain — which is why the
+        slider responds instantly without re-computing anything.</p>
+
+      <h4>5. Tidying small fragments</h4>
+      <p>After cutting, any community whose total population is tiny compared with the others
+        is folded into its nearest neighbour, so the map isn't peppered with one-off
+        fragments. A single very populous region (a major metro) is kept even though it is one
+        unit — the test is on people, not on the count of regions. As a result you may
+        occasionally get slightly fewer communities than you asked for.</p>
+
+      <h4>6. Colours, borders and the animation</h4>
+      <p>Neighbouring communities are given strongly contrasting colours so boundaries are
+        easy to read. There is no geographic constraint in the clustering itself — communities
+        are usually contiguous because connectedness falls off with distance, but a genuinely
+        strong long-distance tie (for example, migration links) can place non-adjacent regions
+        in the same community.</p>
+      <p>The <strong>Animate</strong> button sweeps from one community up to thirty, splitting
+        one community at a time: it highlights the community about to split, shows the split,
+        then restores the full colouring — so you can follow exactly how the hierarchy unfolds.</p>
+    </div>
   </div>
 
   <!-- config.js (Mapbox token + options) must load before cluster.js. -->

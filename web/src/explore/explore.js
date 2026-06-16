@@ -66,7 +66,12 @@ const TOUR_STEPS = [
     targets: ["#console"],
   },
 ];
-const tour = createTour(TOUR_STEPS, "sci_explore_tour_v1");
+const TOUR_SEEN_KEY = "sci_explore_tour_v1";
+// After the tour ends (finished OR skipped), the explorer runs its startup-location
+// flow (geolocate → select that region, else New York). The flow lives inside the
+// map "load" handler, so it's bridged out through this hook.
+let onTourEnd = null;
+const tour = createTour(TOUR_STEPS, TOUR_SEEN_KEY, () => { if (onTourEnd) onTourEnd(); });
 
 // Default world view, US visible, nothing pre-highlighted.
 const DEFAULT_CENTER = [-30, 28];
@@ -441,6 +446,43 @@ function featureBounds(geom) {
   const sg = (g) => { if (!g) return; if (g.type === "GeometryCollection") (g.geometries || []).forEach(sg); else if (g.coordinates) sc(g.coordinates); };
   sg(geom);
   return any ? [minx, miny, maxx, maxy] : null;
+}
+
+// Ray-casting point-in-polygon for a single linear ring.
+function pointInRing(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    if (((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+// True if [x,y] falls inside a Polygon / MultiPolygon / GeometryCollection (outer
+// ring contains the point and no hole excludes it).
+function pointInGeometry(x, y, geom) {
+  if (!geom) return false;
+  const inPoly = (poly) => {
+    if (!poly.length || !pointInRing(x, y, poly[0])) return false;
+    for (let h = 1; h < poly.length; h++) if (pointInRing(x, y, poly[h])) return false; // in a hole
+    return true;
+  };
+  if (geom.type === "Polygon") return inPoly(geom.coordinates);
+  if (geom.type === "MultiPolygon") return geom.coordinates.some(inPoly);
+  if (geom.type === "GeometryCollection") return (geom.geometries || []).some((g) => pointInGeometry(x, y, g));
+  return false;
+}
+
+// The loaded feature whose polygon contains [lng,lat] (bbox prefilter, bounds cached
+// on the feature), or null. Used to resolve a geolocation/fallback coordinate to a
+// region.
+function featureAtPoint(features, lng, lat) {
+  for (const f of features) {
+    const b = f._bbox || (f._bbox = featureBounds(f.geometry));
+    if (!b || lng < b[0] || lng > b[2] || lat < b[1] || lat > b[3]) continue;
+    if (pointInGeometry(lng, lat, f.geometry)) return f;
+  }
+  return null;
 }
 
 // Accent-insensitive search fold (mirrors the Map Generator): "Dusseldorf"
@@ -992,6 +1034,65 @@ map.on("load", async function () {
   await ensureLevel("level0");
   setActiveLayer("level2");
 
+  // --- Startup location: open on the user's own region (or New York) so the map
+  // isn't blank on first sight. Runs after the tutorial finishes/skips (see
+  // setupTour); resolves a coordinate to a data-bearing region and selects it.
+  const NEW_YORK = [-74.006, 40.7128];
+  // Prompt at most once per browser profile (best-effort: private mode can't persist
+  // the flag, so it may re-ask there; the Permissions API still avoids re-prompting
+  // anyone who actually granted/denied).
+  const GEO_ASKED_KEY = "sci_explore_geo_asked";
+  const geoAsked = () => { try { return !!localStorage.getItem(GEO_ASKED_KEY); } catch (e) { return false; } };
+  const markGeoAsked = () => { try { localStorage.setItem(GEO_ASKED_KEY, "1"); } catch (e) {} };
+
+  function selectAtPoint(lng, lat) {
+    const cfg = LEVELS[gSel];
+    if (!cfg || !cfg.geojson) return false;
+    const f = featureAtPoint(cfg.geojson.features, lng, lat);
+    if (!f || f.properties.has_data === false) return false;
+    selectRegion(gSel, cfg, f.properties.id, f.properties.name, f.properties.country, true);
+    return true;
+  }
+  let startupRan = false;
+  async function runStartupLocation() {
+    if (startupRan) return; // once per page load (not on manual tour replays)
+    startupRan = true;
+    try { await ensureLevel(gSel); } catch (e) { /* geometry needed for the point test */ }
+    const fallback = () => {
+      if (lastSelection) return; // user already picked a place while we waited
+      if (!selectAtPoint(NEW_YORK[0], NEW_YORK[1])) {
+        try { map.flyTo({ center: NEW_YORK, zoom: 4, duration: 1200 }); } catch (e) {}
+      }
+    };
+    const useGeo = () => navigator.geolocation.getCurrentPosition(
+      (pos) => { // don't override a place the user clicked/searched during the wait
+        if (lastSelection) return;
+        if (!selectAtPoint(pos.coords.longitude, pos.coords.latitude)) fallback();
+      },
+      () => fallback(), // denied / unavailable / timeout → New York
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+    );
+    if (!navigator.geolocation) { fallback(); return; }
+
+    // Prompt at most once, EVER. Use the Permissions API (where available) so a
+    // visitor who already granted access still opens on their region silently, while
+    // anyone who denied or dismissed the prompt is never asked again — they just
+    // open on New York.
+    let state = null;
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        state = (await navigator.permissions.query({ name: "geolocation" })).state;
+      }
+    } catch (e) { /* no Permissions API → rely on the asked flag below */ }
+
+    if (state === "denied") { fallback(); return; }
+    if (state === "granted") { useGeo(); return; }     // already allowed: no prompt
+    if (geoAsked()) { fallback(); return; }            // prompted before (and not granted): don't re-ask
+    markGeoAsked();
+    useGeo();                                          // the one and only prompt
+  }
+  onTourEnd = runStartupLocation;
+
   document.querySelectorAll(".button-container button").forEach(function (button) {
     button.addEventListener("click", async function () {
       const consoleEl = document.getElementById("console");
@@ -1248,10 +1349,16 @@ map.on("load", async function () {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") shut(); });
   })();
 
-  // First-run walkthrough: wire the replay button and auto-show it once.
+  // First-run walkthrough, then the startup-location flow. On the first visit we show
+  // the tour and run geolocation when it ends (onTourEnd, wired above). On return
+  // visits the tour is skipped, so we kick off the location flow straight away — both
+  // paths avoid a blank opening map. The replay button re-runs only the tour.
   (function setupTour() {
     const btn = document.getElementById("tourBtn");
     if (btn) btn.addEventListener("click", tour.start);
-    tour.maybeAutoStart();
+    let seen = false;
+    try { seen = !!localStorage.getItem(TOUR_SEEN_KEY); } catch (e) { /* private mode */ }
+    if (seen) runStartupLocation();
+    else tour.start(); // onTourEnd → runStartupLocation when the tour finishes/skips
   })();
 });

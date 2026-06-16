@@ -7,6 +7,10 @@
 # Data and output (large/generated files)
 output
 data
+# GADM population CSVs — large build-only inputs for web/scripts/build_population.mjs,
+# which turns them into the per-country web/public/data/pop/<CC>.json shards the
+# clustering app ships. Keep the script + generated shards, not these source CSVs.
+/gadm*_population.csv
 
 # Secrets
 private_keys.json
