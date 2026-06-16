@@ -87,6 +87,16 @@ if (!forceNoBasemap) {
 }
 map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
 
+// The panel is built before the basemap finishes loading (so it's interactive
+// immediately), but painting clusters needs the map style ready. Generate awaits
+// this before its first paint — a no-op in the normal case where the user has
+// picked countries and clicked Generate well after the basemap arrived.
+let mapReady = false;
+function whenMapReady() {
+  if (mapReady || (map.isStyleLoaded && map.isStyleLoaded())) return Promise.resolve();
+  return new Promise((resolve) => map.once("load", resolve));
+}
+
 // --- Mobile viewport fix: iOS Safari (and other mobile browsers with a dynamic
 // toolbar) build the WebGL canvas before the URL bar settles. #map is
 // `position:fixed; height:100%`, so when the toolbar auto-hides the container
@@ -367,6 +377,15 @@ function clusterPalette(k) {
 }
 function hexToRgb(hex) {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+// Blend a hex colour toward white by `t` (0 = unchanged, 1 = white). Used to fade
+// the non-focused clusters during the split animation so they keep their own hue
+// but recede into the background — mirroring the Explorer's out-of-focus look —
+// rather than being flattened to a single flat grey.
+function fadeHex(hex, t) {
+  const [r, g, b] = hexToRgb(hex);
+  const h = (c) => Math.round(c + (255 - c) * t).toString(16).padStart(2, "0");
+  return "#" + h(r) + h(g) + h(b);
 }
 
 // ---------------------------------------------------------------------------
@@ -715,6 +734,7 @@ async function generate() {
   $("download").hidden = true; // shown again only once a map is generated
   setAnimControls("hidden"); // no animation controls until a map exists
   showSpinner();
+  await whenMapReady(); // the panel may be ready before the basemap; don't paint early
 
   try {
     const key = selectionKey(ids);
@@ -962,10 +982,13 @@ function togglePause() {
 }
 
 // Per-phase timing for the "focus → split → restore" choreography (ms).
-const ANIM_FOCUS_MS = 1000; // splitting cluster kept in colour, the rest greyed
-const ANIM_SPLIT_MS = 1400; // the split revealed (rest still grey)
+const ANIM_FOCUS_MS = 1000; // splitting cluster kept in colour, the rest faded back
+const ANIM_SPLIT_MS = 1400; // the split revealed (rest still faded)
 const ANIM_REST_MS = 1100;  // all clusters back in colour
-const ANIM_GREY = "#d4d9dd"; // backgrounded (non-focused) clusters during a split
+// How far non-focused clusters fade toward white during a split. They keep their
+// own hue but become light/out-of-focus, so the eye is drawn to the cluster that's
+// splitting rather than to a flat grey backdrop.
+const ANIM_FADE = 0.8;
 
 // Precompute a stable, easy-to-follow animation sequence. We use RAW dendrogram
 // cuts (no fragment absorption) so each K→K+1 step is EXACTLY one cluster splitting
@@ -1103,7 +1126,7 @@ function phaseColorById(colorArr, keepIdx) {
   const m = {};
   if (keepIdx) {
     const keep = new Set(keepIdx);
-    clusterFeatures.forEach((f, i) => { m[f.properties.id] = keep.has(i) ? colorArr[i] : ANIM_GREY; });
+    clusterFeatures.forEach((f, i) => { m[f.properties.id] = keep.has(i) ? colorArr[i] : fadeHex(colorArr[i], ANIM_FADE); });
   } else {
     clusterFeatures.forEach((f, i) => { m[f.properties.id] = colorArr[i]; });
   }
@@ -1198,18 +1221,18 @@ async function startAnimation() {
       const before = seq.colorsAt[k];   // splitting cluster all one colour
       const after = seq.colorsAt[k + 1]; // splitting cluster now two colours
 
-      // Phase 1 — focus: grey everything except the cluster about to split, and
-      // draw just that cluster's outline.
-      const focus = new Array(before.length).fill(ANIM_GREY);
+      // Phase 1 — focus: fade everything except the cluster about to split (each
+      // region keeps its own hue but lightens), and draw just that cluster's outline.
+      const focus = before.map((c) => fadeHex(c, ANIM_FADE));
       for (const i of splitIdx) focus[i] = before[i];
       paintAnimFrame(focus, null);
       setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k], splitSet));
       setStatus(`Splitting into ${k + 1}…`);
       if (!(await animSleep(ANIM_FOCUS_MS))) return;
 
-      // Phase 2 — split: reveal the split inside the focused cluster (rest grey);
+      // Phase 2 — split: reveal the split inside the focused cluster (rest faded);
       // the new dividing boundary appears.
-      const split = new Array(after.length).fill(ANIM_GREY);
+      const split = after.map((c) => fadeHex(c, ANIM_FADE));
       for (const i of splitIdx) split[i] = after[i];
       paintAnimFrame(split, null);
       setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k + 1], splitSet));
@@ -1841,10 +1864,16 @@ function setupOptionInfo() {
 }
 
 map.on("load", () => {
+  mapReady = true;
   try { map.setProjection("globe"); } catch (_) {}
   applyMapOffset(); // centre the globe in the clear area beside the panel (desktop)
-  init();
 });
+
+// Build the control panel right away — it only needs the metadata JSON, not the
+// Mapbox basemap. Fetching + rendering it in parallel with the (slower) basemap load
+// means the country picker is populated and interactive as soon as the page opens,
+// instead of waiting for the globe to finish streaming in.
+init();
 
 // Re-centre when the viewport crosses the mobile/desktop breakpoint or resizes.
 window.addEventListener("resize", applyMapOffset);
