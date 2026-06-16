@@ -87,6 +87,26 @@ if (!forceNoBasemap) {
 }
 map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
 
+// --- Mobile viewport fix: iOS Safari (and other mobile browsers with a dynamic
+// toolbar) build the WebGL canvas before the URL bar settles. #map is
+// `position:fixed; height:100%`, so when the toolbar auto-hides the container
+// grows — but the browser reports that as a visualViewport change, NOT the window
+// "resize" Mapbox listens for, so the canvas keeps its shorter initial height and
+// an empty band shows below the map until something forces a resize (which is why
+// a manual refresh "fixes" it — by then the toolbar is already settled). Re-sync
+// the canvas to its container on visualViewport/orientation changes, and a couple
+// of times right after load to catch the first-paint settle. rAF-coalesced so a
+// burst of events triggers at most one resize per frame. (Mirrors explore.js.)
+let resizePending = false;
+function syncMapSize() {
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => { resizePending = false; try { map.resize(); } catch (_) {} });
+}
+if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
+window.addEventListener("orientationchange", syncMapSize);
+map.on("load", () => { syncMapSize(); setTimeout(syncMapSize, 300); });
+
 const FILL_LAYER = "clusters-fill";
 const LINE_LAYER = "clusters-line";
 // Click-to-highlight: a white casing under a dark line, both filtered to the

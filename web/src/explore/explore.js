@@ -68,8 +68,8 @@ const TOUR_STEPS = [
 ];
 const TOUR_SEEN_KEY = "sci_explore_tour_v1";
 // After the tour ends (finished OR skipped), the explorer runs its startup-location
-// flow (geolocate → select that region, else New York). The flow lives inside the
-// map "load" handler, so it's bridged out through this hook.
+// flow (asks for geolocation). The flow lives inside the map "load" handler, so it's
+// bridged out through this hook.
 let onTourEnd = null;
 const tour = createTour(TOUR_STEPS, TOUR_SEEN_KEY, () => { if (onTourEnd) onTourEnd(); });
 
@@ -119,6 +119,26 @@ if (!forceNoBasemap) {
 
 // Zoom/compass at bottom-right so it doesn't sit under the top-right results card.
 map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
+
+// --- Mobile viewport fix: iOS Safari (and other mobile browsers with a dynamic
+// toolbar) build the WebGL canvas before the URL bar settles. #map is
+// `position:fixed; height:100%`, so when the toolbar auto-hides the container
+// grows — but the browser reports that as a visualViewport change, NOT the window
+// "resize" Mapbox listens for, so the canvas keeps its shorter initial height and
+// an empty band shows below the map until something forces a resize (which is why
+// a manual refresh "fixes" it — by then the toolbar is already settled). Re-sync
+// the canvas to its container on visualViewport/orientation changes, and a couple
+// of times right after load to catch the first-paint settle. rAF-coalesced so a
+// burst of events triggers at most one resize per frame.
+let resizePending = false;
+function syncMapSize() {
+  if (resizePending) return;
+  resizePending = true;
+  requestAnimationFrame(() => { resizePending = false; try { map.resize(); } catch (_) {} });
+}
+if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
+window.addEventListener("orientationchange", syncMapSize);
+map.on("load", () => { syncMapSize(); setTimeout(syncMapSize, 300); });
 // No on-map AttributionControl: the required © Mapbox / © OpenStreetMap credit
 // lives in the "About this map" (i) panel instead (see #data-explanation in
 // explore.html) — equivalent to Mapbox's own compact "behind a click" control,
@@ -474,7 +494,7 @@ function pointInGeometry(x, y, geom) {
 }
 
 // The loaded feature whose polygon contains [lng,lat] (bbox prefilter, bounds cached
-// on the feature), or null. Used to resolve a geolocation/fallback coordinate to a
+// on the feature), or null. Used to resolve the startup coordinate to a
 // region.
 function featureAtPoint(features, lng, lat) {
   for (const f of features) {
@@ -1034,10 +1054,10 @@ map.on("load", async function () {
   await ensureLevel("level0");
   setActiveLayer("level2");
 
-  // --- Startup location: open on the user's own region (or New York) so the map
-  // isn't blank on first sight. Runs after the tutorial finishes/skips (see
-  // setupTour); resolves a coordinate to a data-bearing region and selects it.
-  const NEW_YORK = [-74.006, 40.7128];
+  // --- Startup location: ask for the user's location. If they share it, open on the
+  // region containing it; if they deny/dismiss it (or it's unavailable), do NOTHING —
+  // the user picks a place manually (no auto-selection, no fallback). Runs after the
+  // tutorial finishes/skips on first visit, immediately on return visits (see setupTour).
   // Prompt at most once per browser profile (best-effort: private mode can't persist
   // the flag, so it may re-ask there; the Permissions API still avoids re-prompting
   // anyone who actually granted/denied).
@@ -1057,27 +1077,20 @@ map.on("load", async function () {
   async function runStartupLocation() {
     if (startupRan) return; // once per page load (not on manual tour replays)
     startupRan = true;
+    if (!navigator.geolocation) return; // no geolocation API → user picks manually
     try { await ensureLevel(gSel); } catch (e) { /* geometry needed for the point test */ }
-    const fallback = () => {
-      if (lastSelection) return; // user already picked a place while we waited
-      if (!selectAtPoint(NEW_YORK[0], NEW_YORK[1])) {
-        try { map.flyTo({ center: NEW_YORK, zoom: 4, duration: 1200 }); } catch (e) {}
-      }
-    };
     const useGeo = () => navigator.geolocation.getCurrentPosition(
       (pos) => { // don't override a place the user clicked/searched during the wait
         if (lastSelection) return;
-        if (!selectAtPoint(pos.coords.longitude, pos.coords.latitude)) fallback();
+        selectAtPoint(pos.coords.longitude, pos.coords.latitude);
       },
-      () => fallback(), // denied / unavailable / timeout → New York
+      () => {}, // denied / unavailable / timeout → do nothing; the user picks manually
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
     );
-    if (!navigator.geolocation) { fallback(); return; }
 
     // Prompt at most once, EVER. Use the Permissions API (where available) so a
     // visitor who already granted access still opens on their region silently, while
-    // anyone who denied or dismissed the prompt is never asked again — they just
-    // open on New York.
+    // anyone who denied or dismissed the prompt is never asked again.
     let state = null;
     try {
       if (navigator.permissions && navigator.permissions.query) {
@@ -1085,11 +1098,11 @@ map.on("load", async function () {
       }
     } catch (e) { /* no Permissions API → rely on the asked flag below */ }
 
-    if (state === "denied") { fallback(); return; }
-    if (state === "granted") { useGeo(); return; }     // already allowed: no prompt
-    if (geoAsked()) { fallback(); return; }            // prompted before (and not granted): don't re-ask
+    if (state === "denied") return;                 // already denied: don't ask, don't move
+    if (state === "granted") { useGeo(); return; }  // already allowed: no prompt
+    if (geoAsked()) return;                          // prompted before (not granted): don't re-ask
     markGeoAsked();
-    useGeo();                                          // the one and only prompt
+    useGeo();                                        // the one and only prompt
   }
   onTourEnd = runStartupLocation;
 
@@ -1350,9 +1363,9 @@ map.on("load", async function () {
   })();
 
   // First-run walkthrough, then the startup-location flow. On the first visit we show
-  // the tour and run geolocation when it ends (onTourEnd, wired above). On return
-  // visits the tour is skipped, so we kick off the location flow straight away — both
-  // paths avoid a blank opening map. The replay button re-runs only the tour.
+  // the tour and ask for geolocation when it ends (onTourEnd, wired above). On return
+  // visits the tour is skipped, so we kick off the location flow straight away. Either
+  // way, if the user doesn't share their location nothing is auto-selected — they pick.
   (function setupTour() {
     const btn = document.getElementById("tourBtn");
     if (btn) btn.addEventListener("click", tour.start);
