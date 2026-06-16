@@ -93,6 +93,25 @@ const forceNoBasemap =
   !!window.SCI_CONFIG.DISABLE_BASEMAP ||
   sessionStorage.getItem(NO_BASEMAP_SESSION_KEY) === "1";
 
+// tolerance:0 disables Mapbox's per-tile GeoJSON simplification so the region
+// fills and the derived border overlays stay pixel-aligned when zoomed in (see
+// the perf round). But it also forces the FULL-resolution ~34k-region world to
+// be tessellated in full. On desktop that's fine; on memory-constrained mobile
+// browsers — notably iOS Safari, whose WebContent process is killed when it
+// overruns — it blows the memory budget: the tab crashes, auto-reloads, crashes
+// again, and the browser shows "A problem repeatedly occurred". On those devices
+// we fall back to Mapbox's default simplification (undefined → 0.375), trading a
+// little border drift when zoomed deep for a map that actually loads. Detected by
+// low reported memory (Chromium) or a coarse primary pointer (phones/tablets;
+// touch laptops still report a fine primary pointer and keep the crisp borders).
+const IS_LOW_MEMORY_DEVICE =
+  (typeof navigator !== "undefined" &&
+    ((navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+      (typeof window !== "undefined" &&
+        window.matchMedia &&
+        window.matchMedia("(pointer: coarse)").matches)));
+const GEO_TOLERANCE = IS_LOW_MEMORY_DEVICE ? undefined : 0;
+
 const map = new mapboxgl.Map({
   attributionControl: false,
   container: "map",
@@ -624,7 +643,8 @@ map.on("load", async function () {
     // The geometry is already simplified at export (keep=0.2); letting Mapbox simplify
     // the fill source independently of the border-overlay sources made shared edges
     // land on different vertices, so borders drifted off the fills when zoomed in.
-    map.addSource(levelKey, { type: "geojson", data: geojson, tolerance: 0 });
+    // GEO_TOLERANCE relaxes this back to the default on mobile to avoid OOM crashes.
+    map.addSource(levelKey, { type: "geojson", data: geojson, tolerance: GEO_TOLERANCE });
 
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     map.addLayer(
@@ -964,7 +984,7 @@ map.on("load", async function () {
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     if (!map.getLayer("gadm1-outline")) {
       if (!map.getSource("border-state")) {
-        map.addSource("border-state", { type: "geojson", data: stateGeo, tolerance: 0 }); // exact coords: align with the fills
+        map.addSource("border-state", { type: "geojson", data: stateGeo, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
       }
       map.addLayer(
         {
@@ -984,7 +1004,7 @@ map.on("load", async function () {
     }
     if (!map.getLayer("country-outline")) {
       if (!map.getSource("border-country")) {
-        map.addSource("border-country", { type: "geojson", data: countryGeo, tolerance: 0 }); // exact coords: align with the fills
+        map.addSource("border-country", { type: "geojson", data: countryGeo, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
       }
       map.addLayer(
         {

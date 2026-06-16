@@ -64,6 +64,24 @@ const forceNoBasemap =
   !!window.SCI_CONFIG.DISABLE_BASEMAP ||
   sessionStorage.getItem(NO_BASEMAP_SESSION_KEY) === "1";
 
+// tolerance:0 disables Mapbox's per-tile GeoJSON simplification so the region
+// fills and the derived admin/country border overlays stay pixel-aligned when
+// zoomed in. But it forces the full-resolution geometry to be tessellated in
+// full, which on memory-constrained mobile browsers — notably iOS Safari, whose
+// WebContent process is killed when it overruns — can OOM-crash the tab (it
+// reloads, crashes again, and shows "A problem repeatedly occurred"). The Cluster
+// tool only loads the selected countries' regions, so the risk is lower than the
+// Explorer's whole-world layer, but we apply the same guard for consistency: keep
+// tolerance:0 on desktop, fall back to Mapbox's default (undefined → 0.375) on
+// touch/low-memory devices. Mirrors GEO_TOLERANCE in explore.js.
+const IS_LOW_MEMORY_DEVICE =
+  (typeof navigator !== "undefined" &&
+    ((navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+      (typeof window !== "undefined" &&
+        window.matchMedia &&
+        window.matchMedia("(pointer: coarse)").matches)));
+const GEO_TOLERANCE = IS_LOW_MEMORY_DEVICE ? undefined : 0;
+
 const map = new mapboxgl.Map({
   attributionControl: false,
   container: "map",
@@ -1146,7 +1164,7 @@ function phaseColorById(colorArr, keepIdx) {
 // region (thin) < cluster (medium) < country (thick).
 function setClusterBorders(fc) {
   if (!map.getSource(CLUSTER_BORDER_SOURCE)) {
-    map.addSource(CLUSTER_BORDER_SOURCE, { type: "geojson", data: fc, tolerance: 0 }); // exact coords: align with the fills
+    map.addSource(CLUSTER_BORDER_SOURCE, { type: "geojson", data: fc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
   } else {
     map.getSource(CLUSTER_BORDER_SOURCE).setData(fc);
   }
@@ -1336,7 +1354,7 @@ function paintClusters(fc) {
     // tolerance:0 keeps the exact (export-simplified) coordinates instead of letting
     // Mapbox re-simplify this source independently of the border overlays — otherwise
     // shared edges drift apart and borders don't line up with the fills when zoomed in.
-    map.addSource(SOURCE_ID, { type: "geojson", data: fc, tolerance: 0 });
+    map.addSource(SOURCE_ID, { type: "geojson", data: fc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
   } else {
     map.getSource(SOURCE_ID).setData(fc);
   }
@@ -1518,7 +1536,7 @@ async function applyBorders() {
       lastResult.adminFeatures = feats;
       const fc = { type: "FeatureCollection", features: feats };
       if (!map.getSource(ADMIN_SOURCE)) {
-        map.addSource(ADMIN_SOURCE, { type: "geojson", data: fc, tolerance: 0 }); // exact coords: align with the fills
+        map.addSource(ADMIN_SOURCE, { type: "geojson", data: fc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
       } else {
         map.getSource(ADMIN_SOURCE).setData(fc);
       }
@@ -1548,7 +1566,7 @@ async function applyBorders() {
     lastResult.countryBorderFeatures = countryFeats;
     const countryFc = { type: "FeatureCollection", features: countryFeats };
     if (!map.getSource(COUNTRY_SOURCE)) {
-      map.addSource(COUNTRY_SOURCE, { type: "geojson", data: countryFc, tolerance: 0 }); // exact coords: align with the fills
+      map.addSource(COUNTRY_SOURCE, { type: "geojson", data: countryFc, tolerance: GEO_TOLERANCE }); // exact coords on desktop; relaxed on mobile (see GEO_TOLERANCE)
     } else {
       map.getSource(COUNTRY_SOURCE).setData(countryFc);
     }
