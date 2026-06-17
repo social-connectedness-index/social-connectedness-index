@@ -1105,6 +1105,7 @@ function syncCompareUI() {
   if ($("paletteWrap")) $("paletteWrap").style.display = on ? "none" : "";
   if ($("singleBreaksWrap")) $("singleBreaksWrap").style.display = on ? "none" : "";
   if ($("compareBreaksWrap")) $("compareBreaksWrap").style.display = on ? "" : "none";
+  if ($("highlightWrap")) $("highlightWrap").style.display = on ? "none" : "";
   if ($("regionLabel")) $("regionLabel").textContent = on ? "Region A" : "Region";
   if (on) renderSourceOptionsB();
 }

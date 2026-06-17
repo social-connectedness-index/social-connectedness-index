@@ -34,7 +34,7 @@
       <label id="regionLabel">Region</label>
       <input id="searchA" type="text" placeholder="Type to filter…" autocomplete="off" />
       <div id="sourceA" class="listbox" role="listbox" tabindex="0"></div>
-      <div id="sourceBWrap" style="display:none">
+      <div id="sourceBWrap" style="display:none; margin-top:10px">
         <label>Region B</label>
         <input id="searchB" type="text" placeholder="Type to filter…" autocomplete="off" />
         <div id="sourceB" class="listbox" role="listbox" tabindex="0"></div>
@@ -139,7 +139,7 @@
             edit them and it switches to <b>Custom</b>.
           </div>
 
-          <label>Breaks (comma-separated multipliers)</label>
+          <label>Breaks (comma-separated multiples)</label>
           <input id="breaks" type="text" />
           <div class="help-hint">
             Legend boundaries in multiples of the reference (e.g., '1, 5, 10' bins regions into
@@ -149,7 +149,7 @@
         </div>
 
         <div id="compareBreaksWrap" style="display:none">
-          <label>Comparison breaks (comma-separated multipliers)</label>
+          <label>Comparison breaks (comma-separated multiples)</label>
           <input id="cbreaks" type="text" />
           <div class="help-hint">
             Symmetric multiplier thresholds on each side of 'Equal' (e.g., '1.5, 2, 3' creates
@@ -157,7 +157,7 @@
           </div>
         </div>
 
-        <label class="check"><input id="highlight" type="checkbox" /> Color home region</label>
+        <label class="check" id="highlightWrap"><input id="highlight" type="checkbox" /> Color home region</label>
         <label class="check"><input id="borders" type="checkbox" checked /> Show state borders</label>
 
         <div class="grid2">

@@ -434,6 +434,19 @@ function fadeHex(hex, t) {
   return "#" + h(r) + h(g) + h(b);
 }
 
+// Make a hex colour pop: push each channel away from its own luminance (more vivid /
+// saturated) and lift it a touch brighter. Used on the cluster about to split during
+// the focus/split beats so the eye is drawn to it even when its base hue is pale.
+function vivifyHex(hex, sat = 1.3, light = 16) {
+  const [r, g, b] = hexToRgb(hex);
+  const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+  const h = (c) => {
+    const v = Math.round(lum + (c - lum) * sat + light);
+    return Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0");
+  };
+  return "#" + h(r) + h(g) + h(b);
+}
+
 // ---------------------------------------------------------------------------
 // Max-contrast colouring — make neighbouring clusters look as different as
 // possible so it's clear where one cluster ends and the next begins.
@@ -976,12 +989,22 @@ async function generate() {
     }
 
     const nRegions = prepCache.regionIds.length;
-    if (k >= nRegions) { k = nRegions - 1; $("num-clusters").value = k; }
+    // Cap the request at the most clusters this selection can actually SHOW (deeper
+    // cuts just spawn fragments that get absorbed), so the number always means the
+    // number visible on the map.
+    const maxVisible = Math.min(ensureVisibleScan().maxVisible, nRegions - 1);
+    $("num-clusters").max = maxVisible;
+    if (k > maxVisible) k = maxVisible;
+    if (k < 2) k = 2;
 
-    // 4+5) Cut the dendrogram at K, colour (max-contrast) and paint — the cheap
-    //      O(n) path (cutDendrogram + colouring). The animation has its own
-    //      stable-colour path (buildAnimationSequence), but shares cutDendrogram.
+    // 4+5) Cut the dendrogram to K VISIBLE clusters, colour (max-contrast) and paint
+    //      — the cheap O(n) path. The animation has its own stable-colour path
+    //      (buildAnimationSequence) but shares the same visible-count cut.
     const res = applyClusterCount(k);
+    // A requested count that isn't exactly achievable snaps to the nearest; reflect
+    // the actual visible count so the input always matches the clusters shown.
+    $("num-clusters").value = res.usedK;
+    k = res.usedK;
 
     const fc = { type: "FeatureCollection", features: res.displayFeatures };
     const bbox = selectionBbox(ids, fc, res.displayIds);
@@ -1189,28 +1212,74 @@ function relabelTinyFragments(labels, n) {
   return labels;
 }
 
-// Cut the cached dendrogram at k and compute the max-contrast colouring — a PURE
-// O(n) step that touches neither the live map nor the feature properties, so it's
-// safe to call repeatedly (e.g. to pre-render every K for the animation export).
+// --- Visible-count mapping --------------------------------------------------
+// The two absorption passes (population fragments in cutDendrogram + scattered
+// fragments in relabelTinyFragments) can fold a fresh split back into a neighbour,
+// so a raw cut of k often shows FEWER than k clusters. To make "N clusters" mean N
+// clusters ON THE MAP, we deepen the raw cut until exactly N survive absorption.
+
+// Absorbed + fragment-folded labels for a RAW dendrogram cut of `rawK`, compacted to
+// 0..v-1, plus the resulting VISIBLE cluster count v.
+function absorbedLabelsAtRaw(rawK) {
+  const { n, merges, weights } = prepCache;
+  const labels = cutDendrogram(merges, n, rawK, { minClusterFrac: MIN_CLUSTER_FRAC, weights });
+  relabelTinyFragments(labels, n); // mutates a fresh array, so caching the result is safe
+  const remap = new Map();
+  for (let i = 0; i < n; i++) {
+    const l = labels[i];
+    let c = remap.get(l);
+    if (c === undefined) { c = remap.size; remap.set(l, c); }
+    labels[i] = c;
+  }
+  return { labels, visible: remap.size };
+}
+
+const VISIBLE_SCAN_PLATEAU = 15; // stop deepening once this many extra cuts add no new cluster
+// Map each achievable VISIBLE cluster count to the shallowest raw cut that yields it
+// (remembering its labels). Cached per selection on prepCache. Bounded O(scan · n):
+// we deepen only until the visible count plateaus (the data's true cluster ceiling)
+// or a sane cap, since beyond that deeper cuts just spawn more absorbable fragments.
+function ensureVisibleScan() {
+  if (prepCache.visibleScan) return prepCache.visibleScan;
+  const { n } = prepCache;
+  const rawForVisible = [];   // visible D -> shallowest rawK achieving it
+  const labelsByVisible = []; // visible D -> compacted labels
+  let maxVisible = 1, lastGain = 1;
+  const cap = Math.min(n - 1, 240);
+  for (let rawK = 1; rawK <= cap; rawK++) {
+    const { labels, visible } = absorbedLabelsAtRaw(rawK);
+    if (labelsByVisible[visible] === undefined) { rawForVisible[visible] = rawK; labelsByVisible[visible] = labels; }
+    if (visible > maxVisible) { maxVisible = visible; lastGain = rawK; }
+    if (rawK - lastGain >= VISIBLE_SCAN_PLATEAU) break; // hit the data's cluster ceiling
+  }
+  return (prepCache.visibleScan = { rawForVisible, labelsByVisible, maxVisible });
+}
+
+// Labels with exactly N visible clusters when achievable; otherwise the closest
+// achievable count (snapping down within range). Returns { labels, visible }.
+function cutToVisibleCount(N) {
+  const scan = ensureVisibleScan();
+  N = Math.max(1, Math.min(N, scan.maxVisible));
+  let D = N;
+  while (D >= 1 && scan.labelsByVisible[D] === undefined) D--;          // nearest achievable ≤ N
+  if (D < 1) { D = N; while (D <= scan.maxVisible && scan.labelsByVisible[D] === undefined) D++; }
+  return { labels: scan.labelsByVisible[D], visible: D };
+}
+
+// Cut the cached dendrogram to k VISIBLE clusters and compute the max-contrast
+// colouring — a PURE step that touches neither the live map nor the feature
+// properties, so it's safe to call repeatedly (e.g. to pre-render every K).
 // Returns { colorById, clusterById, usedK }. Assumes prepCache is populated.
 function computeClusterColors(k) {
-  const { clusterFeatures, n, merges, weights } = prepCache;
+  const { clusterFeatures } = prepCache;
 
-  // Absorb tiny (low-POPULATION) fragments into their nearest cluster (usedK may be < k).
-  const labels = cutDendrogram(merges, n, k, { minClusterFrac: MIN_CLUSTER_FRAC, weights });
-  // Then fold tiny, geographically-scattered fragments into the cluster around them.
-  relabelTinyFragments(labels, n);
-  const usedK = new Set(labels).size;
+  // Deepen the cut until exactly k clusters SURVIVE absorption, so the number shown
+  // matches the number requested. `labels` is already compacted to 0..usedK-1.
+  const { labels, visible: usedK } = cutToVisibleCount(k);
 
   const palette = clusterPalette(usedK);
-  // Re-map possibly-sparse labels (0..k-1) to compact 0..usedK-1 in first-seen order.
-  const labelOrder = new Map();
   const ciByRegion = new Int32Array(clusterFeatures.length);
-  clusterFeatures.forEach((f, i) => {
-    const lab = labels[i];
-    if (!labelOrder.has(lab)) labelOrder.set(lab, labelOrder.size);
-    ciByRegion[i] = labelOrder.get(lab);
-  });
+  clusterFeatures.forEach((f, i) => { ciByRegion[i] = labels[i]; });
 
   // Max-contrast colouring: derive cluster adjacency (from cached region adjacency
   // + this K's labels) and assign palette colours so neighbours look different.
@@ -1285,7 +1354,9 @@ function animMaxK() {
   let k = lastResult && (lastResult.requestedK || lastResult.usedK);
   if (!k) k = parseInt($("num-clusters") && $("num-clusters").value, 10);
   if (isNaN(k) || k < 1) k = 1;
-  return Math.max(1, Math.min(k, nReg - 1));
+  // Never sweep past the most clusters this selection can actually show.
+  const maxVis = prepCache ? Math.min(ensureVisibleScan().maxVisible, nReg - 1) : k;
+  return Math.max(1, Math.min(k, maxVis));
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1385,14 +1456,11 @@ function teardownAnimation() {
 function stopAnimation() {
   if (ANIM.active && ANIM.seq && ANIM.seq.colorsAt[ANIM.k]) {
     const k = ANIM.k;
-    // Settle on the clean frame via feature-state (instant, no setData) so Stop
-    // doesn't flash/re-tessellate. The colours stay shown via feature-state; we also
-    // sync properties.clusterColor in memory so a later repaint is correct WITHOUT a
-    // setData here (the next Generate / K-change clears the feature-state for us).
-    paintAnimFrame(ANIM.seq.colorsAt[k], ANIM.seq.labelsAt[k]);
-    const cById = animColorById(ANIM.seq.colorsAt[k]);
-    for (const f of prepCache.displayFeatures) { const c = cById[f.properties.id]; if (c != null) f.properties.clusterColor = c; }
-    lastResult.colorById = cById;
+    // Settle on the clean K=k frame as a REAL map (setData) so the stopped view IS
+    // the k-cluster map — click-highlight and downloads then behave correctly
+    // instead of acting like the pre-animation K. Colours are unchanged (same stable
+    // animation palette already on screen), so there's no visible recolour.
+    lastResult.colorById = materializeCleanFrame(k);
     lastResult.usedK = k;
     lastResult.title = autoTitle(k);
     $("num-clusters").value = k;
@@ -1418,8 +1486,9 @@ const ANIM_REST_MS = 2400;  // all clusters back in colour — held a beat longe
 const ANIM_CHOREO_FROM_K = 9;
 // How far non-focused clusters fade toward white during a split. They keep their
 // own hue but become light/out-of-focus, so the eye is drawn to the cluster that's
-// splitting rather than to a flat grey backdrop.
-const ANIM_FADE = 0.8;
+// splitting rather than to a flat grey backdrop. Pushed fairly high so even a pale
+// splitting cluster still stands out against the receded rest.
+const ANIM_FADE = 0.88;
 
 // Precompute a stable, easy-to-follow animation sequence. We use RAW dendrogram
 // cuts (no fragment absorption) so each K→K+1 step is EXACTLY one cluster splitting
@@ -1428,10 +1497,14 @@ const ANIM_FADE = 0.8;
 // a fresh one, so only the split changes between frames (no distracting reshuffle).
 // Returns { maxK, colorsAt[k], labelsAt[k], splits[k] } where colorsAt/labelsAt are
 // per-region arrays (clusterFeatures order) and splits[k] lists the region indices
-// of the cluster that splits going from k to k+1.
+// of the cluster that splits going from k to k+1. Frame k is the map with exactly k
+// VISIBLE clusters (post-absorption), so each step adds one cluster you can see — the
+// raw splits that just get absorbed are skipped, matching the static tool's count.
 function buildAnimationSequence(maxK) {
-  const { n, merges, clusterFeatures } = prepCache;
+  const { clusterFeatures } = prepCache;
   const nFeat = clusterFeatures.length;
+  const scan = ensureVisibleScan();
+  maxK = Math.max(1, Math.min(maxK, scan.maxVisible));
   const palette = clusterPalette(maxK);
   const paletteRgb = palette.map(hexToRgb);
   const usedColor = new Array(palette.length).fill(false);
@@ -1448,7 +1521,7 @@ function buildAnimationSequence(maxK) {
   }
 
   const colorsAt = [];  // colorsAt[k] (k=1..maxK): per-region hex
-  const labelsAt = [];  // labelsAt[k]: raw cluster label per region
+  const labelsAt = [];  // labelsAt[k]: visible cluster label per region (compacted)
   const splits = [];    // splits[k] (k=1..maxK-1): region indices of the splitting cluster
   const colorIdxOf = new Int32Array(nFeat); // current palette index per region
 
@@ -1479,63 +1552,76 @@ function buildAnimationSequence(maxK) {
     return best;
   };
 
-  let prevLabels = cutDendrogram(merges, n, 1);
+  let prevLabels = scan.labelsByVisible[1] || new Int32Array(nFeat);
   labelsAt[1] = prevLabels;
   usedColor[0] = true;
   colorsAt[1] = new Array(nFeat).fill(palette[0]);
 
   for (let k = 1; k < maxK; k++) {
-    const nextLabels = cutDendrogram(merges, n, k + 1);
-    // Exactly one prev-cluster maps to two next-clusters; find it and its halves.
-    const byPrev = new Map(); // prevLabel -> Map(nextLabel -> count)
-    for (let i = 0; i < nFeat; i++) {
-      const p = prevLabels[i], q = nextLabels[i];
-      let m = byPrev.get(p); if (!m) { m = new Map(); byPrev.set(p, m); }
-      m.set(q, (m.get(q) || 0) + 1);
-    }
-    let splitPrev = -1, keepSub = -1;
-    for (const [p, m] of byPrev) {
-      if (m.size >= 2) {
-        const keys = [...m.keys()].sort((x, y) => m.get(y) - m.get(x));
-        splitPrev = p; keepSub = keys[0]; // larger half keeps the colour
-        break;
-      }
-    }
-
-    // Degenerate step (no community actually split — e.g. distance ties): carry the
-    // frame forward unchanged and mark it as "no split" so the player skips it
-    // rather than greying the whole map for a phase with nothing to show.
-    if (splitPrev < 0) {
+    const nextLabels = scan.labelsByVisible[k + 1];
+    // Unachievable count (a "hole" the data can't produce): carry the frame forward
+    // and mark "no split" so the player jumps past it instead of greying the map.
+    if (!nextLabels) {
       colorsAt[k + 1] = colorsAt[k];
-      labelsAt[k + 1] = nextLabels;
+      labelsAt[k + 1] = prevLabels;
       splits[k] = null;
-      prevLabels = nextLabels;
       continue;
     }
 
-    const splittingIdx = [], newPiece = [];
-    for (let i = 0; i < nFeat; i++) {
-      if (prevLabels[i] === splitPrev) {
-        splittingIdx.push(i);
-        if (nextLabels[i] !== keepSub) newPiece.push(i);
+    // Group next-frame regions by their (compacted) visible cluster label.
+    const nextGroups = new Map(); // q -> region indices
+    for (let i = 0; i < nFeat; i++) { const q = nextLabels[i]; let g = nextGroups.get(q); if (!g) { g = []; nextGroups.set(q, g); } g.push(i); }
+
+    // Each next cluster inherits the DOMINANT colour of the regions it's made of, so
+    // unchanged clusters keep their colour. Because deepening only splits clusters,
+    // a split shows up as two next clusters sharing the same dominant colour: the
+    // bigger keeps it, the smaller is the "new piece" and gets a fresh contrast hue.
+    const domColor = new Map(); // q -> dominant prev colour index
+    for (const [q, idxs] of nextGroups) {
+      const cnt = new Map();
+      for (const i of idxs) { const c = colorIdxOf[i]; cnt.set(c, (cnt.get(c) || 0) + 1); }
+      let best = 0, bc = -1; for (const [c, n2] of cnt) if (n2 > bc) { bc = n2; best = c; }
+      domColor.set(q, best);
+    }
+    const byColor = new Map(); // colour idx -> [q...]
+    for (const q of nextGroups.keys()) { const c = domColor.get(q); let a = byColor.get(c); if (!a) { a = []; byColor.set(c, a); } a.push(q); }
+
+    const assignedOfQ = new Map(); // q -> colour idx
+    for (const [c, qs] of byColor) {
+      if (qs.length === 1) { assignedOfQ.set(qs[0], c); continue; }
+      qs.sort((a, b) => nextGroups.get(b).length - nextGroups.get(a).length);
+      assignedOfQ.set(qs[0], c); // largest keeps the colour
+    }
+    // Assign fresh colours to the new pieces; remember the biggest split for the
+    // focus/split choreography (its parent = keeper regions + the new piece).
+    let splitRegions = null, splitSize = -1;
+    for (const [c, qs] of byColor) {
+      if (qs.length < 2) continue;
+      for (let j = 1; j < qs.length; j++) {
+        const piece = nextGroups.get(qs[j]);
+        const pieceSet = new Set(piece);
+        const neighIdx = new Set();
+        for (const r of piece) for (const v of adj[r]) if (!pieceSet.has(v)) {
+          const nv = nextLabels[v];
+          neighIdx.add(assignedOfQ.has(nv) ? assignedOfQ.get(nv) : colorIdxOf[v]);
+        }
+        const best = pickColor(neighIdx, c); // sibling = the keeper's colour
+        usedColor[best] = true;
+        assignedOfQ.set(qs[j], best);
+        const parentRegions = nextGroups.get(qs[0]).concat(piece);
+        if (parentRegions.length > splitSize) { splitSize = parentRegions.length; splitRegions = parentRegions; }
       }
     }
-    // Neighbour colours of the new piece (regions outside it that border it).
-    const newSet = new Set(newPiece);
-    const neighIdx = new Set();
-    for (const r of newPiece) for (const q of adj[r]) if (!newSet.has(q)) neighIdx.add(colorIdxOf[q]);
-    // The sibling half keeps the cluster's current colour — contrast against it hard
-    // so the two halves of the split look clearly different.
-    let siblingIdx = -1;
-    for (let i = 0; i < nFeat; i++) if (prevLabels[i] === splitPrev && nextLabels[i] === keepSub) { siblingIdx = colorIdxOf[i]; break; }
-    const best = pickColor(neighIdx, siblingIdx);
-    usedColor[best] = true;
 
-    const next = colorsAt[k].slice();
-    for (const i of newPiece) { colorIdxOf[i] = best; next[i] = palette[best]; }
+    // Paint every region with its cluster's assigned colour (unchanged clusters keep
+    // theirs; only the new piece moves), then advance.
+    const next = new Array(nFeat);
+    const nextColorIdx = new Int32Array(nFeat);
+    for (let i = 0; i < nFeat; i++) { const ci = assignedOfQ.get(nextLabels[i]); nextColorIdx[i] = ci; next[i] = palette[ci]; }
     colorsAt[k + 1] = next;
     labelsAt[k + 1] = nextLabels;
-    splits[k] = splittingIdx;
+    splits[k] = splitRegions;
+    colorIdxOf.set(nextColorIdx);
     prevLabels = nextLabels;
   }
   return { maxK, colorsAt, labelsAt, splits };
@@ -1580,7 +1666,7 @@ function phaseColorById(colorArr, keepIdx) {
   const m = {};
   if (keepIdx) {
     const keep = new Set(keepIdx);
-    clusterFeatures.forEach((f, i) => { m[f.properties.id] = keep.has(i) ? colorArr[i] : fadeHex(colorArr[i], ANIM_FADE); });
+    clusterFeatures.forEach((f, i) => { m[f.properties.id] = keep.has(i) ? vivifyHex(colorArr[i]) : fadeHex(colorArr[i], ANIM_FADE); });
   } else {
     clusterFeatures.forEach((f, i) => { m[f.properties.id] = colorArr[i]; });
   }
@@ -1607,11 +1693,63 @@ async function animDelay(ms, token) {
 // Paint the clean, fully-coloured frame for step `k` (the "restore" look): every
 // cluster in colour, and lastResult / the K input synced so a Stop / download here
 // is correct. Sets ANIM.k.
+// Render the clean K=k frame as a REAL map: write each region's cluster label +
+// colour into the source and setData it (exactly like the static K-change path), so
+// the displayed map genuinely IS the k-cluster map. This is what makes click-
+// highlight and Stop behave correctly mid-animation — without it the source keeps
+// the pre-animation K's labels, so clicking at "5 clusters" would highlight the
+// 20-cluster grouping and Stop would leave a 20-cluster map behind. Uses the
+// animation's STABLE colours (colorsAt) so nothing visibly recolours. Only runs on
+// settled frames (once per step), so the per-frame feature-state path still handles
+// the rapid focus/split fades with no setData. Returns the id -> colour map.
+function materializeCleanFrame(k) {
+  const { displayFeatures, clusterFeatures } = prepCache;
+  const colorArr = ANIM.seq.colorsAt[k];
+  const rawLabels = ANIM.seq.labelsAt[k];
+  // Compact the (possibly sparse) dendrogram labels to 0..usedK-1 in first-seen
+  // order so the "Cluster N" caption numbering matches the static view.
+  const labelOrder = new Map();
+  const colorById = {}, clusterById = {};
+  clusterFeatures.forEach((f, i) => {
+    const lab = rawLabels[i];
+    if (!labelOrder.has(lab)) labelOrder.set(lab, labelOrder.size);
+    colorById[f.properties.id] = colorArr[i];
+    clusterById[f.properties.id] = labelOrder.get(lab);
+  });
+  // No-data regions inherit their host's cluster + colour (no grey holes).
+  for (const { grey, host } of ensureNoDataLinks()) {
+    const hid = host.properties.id;
+    if (colorById[hid] != null) { colorById[grey.properties.id] = colorById[hid]; clusterById[grey.properties.id] = clusterById[hid]; }
+  }
+  displayFeatures.forEach((f) => {
+    const id = f.properties.id;
+    f.properties.cluster = clusterById[id] == null ? null : clusterById[id];
+    f.properties.clusterColor = colorById[id];
+  });
+  const fc = { type: "FeatureCollection", features: displayFeatures };
+  fc.features.forEach((f, i) => { f.id = i + 1; }); // stable numeric ids for feature-state
+  if (!map.getSource(SOURCE_ID)) {
+    paintClusters(fc); // first paint (also adds the layers)
+  } else {
+    // Refresh the source so properties.cluster (read by click-highlight) matches the
+    // displayed K. Crucially we do NOT removeFeatureState here: we keep painting the
+    // full colours via feature-state so the in-flight re-tessellation can't briefly
+    // fall back to the PREVIOUS frame's baked clusterColor — that fallback (the new
+    // cluster showing its old colour for a frame) was the "new cluster flashes"
+    // glitch. The colour shown is identical to the baked one, so there's no recolour.
+    map.getSource(SOURCE_ID).setData(fc);
+    for (const f of displayFeatures) {
+      const c = colorById[f.properties.id];
+      map.setFeatureState({ source: SOURCE_ID, id: f.id }, { color: c == null ? NO_DATA_FILL : c });
+    }
+  }
+  return colorById;
+}
+
 function renderStep(k) {
-  paintAnimFrame(ANIM.seq.colorsAt[k], ANIM.seq.labelsAt[k]);
+  lastResult.colorById = materializeCleanFrame(k);
   ANIM.k = k;
   ANIM.phase = 0;
-  lastResult.colorById = animColorById(ANIM.seq.colorsAt[k]);
   lastResult.usedK = k;
   lastResult.title = autoTitle(k);
   $("num-clusters").value = k;
@@ -1645,8 +1783,8 @@ async function playStep(k, direction) {
   try {
     const one = ANIM.seq.colorsAt[k];     // splitting cluster as one colour
     const two = ANIM.seq.colorsAt[k + 1]; // ...split into two colours
-    // Fade everything but the splitting cluster (it keeps its own hues).
-    const faded = (arr) => { const f = arr.map((c) => fadeHex(c, ANIM_FADE)); for (const i of splitIdx) f[i] = arr[i]; return f; };
+    // Fade everything but the splitting cluster, which is brightened so it pops.
+    const faded = (arr) => { const f = arr.map((c) => fadeHex(c, ANIM_FADE)); for (const i of splitIdx) f[i] = vivifyHex(arr[i]); return f; };
     // Phase A → B: forward shows one→two; reverse shows two→one.
     const a = direction > 0 ? one : two;
     const b = direction > 0 ? two : one;
@@ -1701,7 +1839,7 @@ function enterAnimation() {
   highlightCluster(null); // clear any click-highlight before we start repainting
   ANIM.seq = buildAnimationSequence(maxK);
   ANIM.maxK = maxK;
-  ANIM.mode = "auto";
+  ANIM.mode = "manual"; // start in manual (presentation-clicker) mode; user can switch to Automatic
   ANIM.active = true;
   ANIM.busy = false;
   ANIM.paused = false;
@@ -1719,7 +1857,7 @@ function enterAnimation() {
   setCountryBordersVisible(true);
   renderStep(1);
   setAnimControls("active");
-  autoLoop();
+  updateAnimStatus(); // manual mode: just show the starting frame's status (no auto loop)
 }
 
 // Switch between automatic playback and manual stepping. Auto → manual pauses on
@@ -1728,6 +1866,7 @@ function setAnimMode(mode) {
   if (!ANIM.active || ANIM.mode === mode) return;
   ANIM.mode = mode;
   animToken++; // cancel the auto loop / any in-flight transition
+  if (selectedCluster != null) highlightCluster(null); // drop any manual click-selection before the mode switches
   if (ANIM.busy) { renderStep(ANIM.k); ANIM.busy = false; } // snap a mid-transition to a clean frame
   if (mode === "auto") ANIM.paused = false; // switching back to Automatic resumes playing
   syncAnimModeUI();
@@ -1761,7 +1900,7 @@ function paintPhaseFrame(k, phase) {
   const splitIdx = ANIM.seq.splits[k];
   const src = phase === 2 ? ANIM.seq.colorsAt[k + 1] : ANIM.seq.colorsAt[k];
   const faded = src.map((c) => fadeHex(c, ANIM_FADE));
-  for (const i of splitIdx) faded[i] = src[i]; // keep the focused cluster(s) in colour
+  for (const i of splitIdx) faded[i] = vivifyHex(src[i]); // brighten the focused cluster(s) so they pop
   paintAnimFrame(faded, null);
   ANIM.k = k;
   ANIM.phase = phase;
@@ -1772,8 +1911,20 @@ function paintPhaseFrame(k, phase) {
 // the choreography (focus → split → restore), not a whole K→K+1 step. The beat order
 // across a split is: clean@k → focus → split → clean@(k+1) → focus → split → …
 // Degenerate steps (no real split) collapse to a single jump between clean frames.
+// Manual mode lets you click a region to read its name; the moment you step (Back/
+// Next) we drop that click-selection so the animation frame paints cleanly again.
+// highlightCluster(null) restores the default fill-opacity the animation expects;
+// updateAnimStatus() restores the clean-frame caption the click had replaced (the
+// step's own phase caption, if any, overrides it just below).
+function clearStepSelection() {
+  if (selectedCluster == null) return;
+  highlightCluster(null);
+  updateAnimStatus();
+}
+
 function stepForward() {
   if (!ANIM.active || ANIM.busy) return;
+  clearStepSelection();
   animToken++; // cancel any stray auto timer
   const k = ANIM.k, phase = ANIM.phase || 0;
   if (phase === 0) {
@@ -1794,6 +1945,7 @@ function stepForward() {
 }
 function stepBackward() {
   if (!ANIM.active || ANIM.busy) return;
+  clearStepSelection();
   animToken++;
   const k = ANIM.k, phase = ANIM.phase || 0;
   if (phase === 2) {
@@ -2194,6 +2346,9 @@ function wireHover() {
   // which, esp. on touch where there's no hover). A click on a no-data region or
   // empty map clears the highlight and the name.
   map.on("click", FILL_LAYER, (e) => {
+    // No region selection during automatic playback — it would fight the animation.
+    // (Manual stepping DOES allow it; the selection is cleared on the next Back/Next.)
+    if (ANIM.active && ANIM.mode === "auto") return;
     if (!e.features.length) return;
     const f = e.features[0];
     const ci = f.properties.cluster;
@@ -2206,6 +2361,7 @@ function wireHover() {
     else { setStatus(""); setCaption(`${regionLabel(f.properties)} — Cluster ${ci + 1}`); }
   });
   map.on("click", (e) => {
+    if (ANIM.active && ANIM.mode === "auto") return; // leave the automatic animation undisturbed
     if (!map.getLayer(FILL_LAYER)) return;
     const hits = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
     if (!hits.length) { highlightCluster(null); setStatus(""); hideCaption(); }

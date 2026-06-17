@@ -120,8 +120,8 @@
       <button id="animate" class="btn-secondary" type="button" hidden>▶ Animate</button>
       <div id="anim-controls" class="anim-controls" hidden>
         <div class="anim-mode" role="group" aria-label="Animation mode">
-          <button id="anim-auto" class="seg-btn" type="button" aria-pressed="true">Automatic</button>
-          <button id="anim-manual" class="seg-btn" type="button" aria-pressed="false">Manual</button>
+          <button id="anim-manual" class="seg-btn" type="button" aria-pressed="true">Manual</button>
+          <button id="anim-auto" class="seg-btn" type="button" aria-pressed="false">Automatic</button>
         </div>
         <div class="anim-buttons">
           <button id="anim-prev" class="btn-secondary" type="button" hidden>◀ Back</button>
@@ -212,8 +212,11 @@
       <p>After cutting, any community whose total population is tiny compared with the others
         is folded into its nearest neighbour, so the map isn't peppered with one-off
         fragments. A single very populous region (a major metro) is kept even though it is one
-        unit — the test is on people, not on the count of regions. As a result you may
-        occasionally get slightly fewer communities than you asked for.</p>
+        unit — the test is on people, not on the count of regions. To keep the number honest,
+        the tree is then cut a little deeper until exactly the number of clusters you asked for
+        survive this tidying — so the count always matches what you see on the map. Some
+        selections have a natural ceiling: once deeper cuts only produce fragments that get
+        absorbed, the slider simply stops there.</p>
 
       <h4>6. Colours, borders and the animation</h4>
       <p>Colours are chosen to be as distinct from one another as possible across the whole map,
