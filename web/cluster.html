@@ -24,6 +24,9 @@
 <body>
   <div id="map"></div>
   <div id="loading-icon"></div>
+  <!-- Prominent on-map caption: the clicked region's name, or the current animation
+       step (e.g. "Europe in 5 clusters" / "Next cluster to split"). -->
+  <div id="map-caption" class="map-caption" hidden></div>
 
   <!-- Left control panel: pick countries + number of clusters, then Generate. -->
   <aside id="panel">
@@ -65,7 +68,6 @@
       <!-- Mode 1: regional grouping (precomputed, instant) -->
       <div id="panel-regional" class="mode-panel" role="tabpanel">
         <div class="region-buttons" id="region-buttons"></div>
-        <label class="sublabel" for="region-select">More regional groupings</label>
         <select id="region-select" class="region-select" aria-label="More regional groupings">
           <option value="">Choose a region…</option>
         </select>
@@ -125,20 +127,19 @@
           <button id="anim-prev" class="btn-secondary" type="button">◀ Back</button>
           <button id="anim-next" class="btn-secondary" type="button">Next ▶</button>
         </div>
-        <button id="anim-stop" class="btn-secondary" type="button">■ Stop</button>
+        <div class="anim-play-row">
+          <button id="anim-pause" class="btn-secondary" type="button" aria-pressed="false">⏸ Pause</button>
+          <button id="anim-stop" class="btn-secondary" type="button">■ Stop</button>
+        </div>
       </div>
       <button id="download" class="btn-secondary" type="button" hidden>Download ▾</button>
       <div id="download-menu" class="download-menu" hidden>
         <button type="button" data-fmt="png">PNG image</button>
         <button type="button" data-fmt="svg">SVG (vector)</button>
         <button type="button" data-fmt="mp4">MP4 (reel, 9:16)</button>
-        <button type="button" data-fmt="mp4anim">MP4 animation (1→30)</button>
-        <button type="button" data-fmt="map">Current map view (PNG)</button>
+        <button type="button" data-fmt="mp4anim">MP4 animation</button>
       </div>
     </div>
-
-    <div id="status" class="status" role="status" aria-live="polite"></div>
-
   </aside>
 
   <!-- About panel -->
@@ -187,9 +188,7 @@
       <p>We turn connectedness into a <em>distance</em>: regions with a high SCI are
         “close”, regions with a low SCI are “far”. The distance is <code>−log(SCI)</code>.
         The log matters because the SCI spans many orders of magnitude; without it a handful
-        of very strong ties would dominate everything. Distances are then scaled to a 0–1
-        range, and the rare pairs with no SCI reading are filled with a high (but not
-        extreme) value.</p>
+        of very strong ties would dominate everything.</p>
 
       <h4>3. Building communities</h4>
       <p>We use <strong>hierarchical agglomerative clustering</strong>. Every region starts
@@ -209,8 +208,7 @@
 
       <h4>4. Choosing how many communities</h4>
       <p>Because every merge was recorded, the full hierarchy forms a tree. Asking for K
-        communities just means cutting that tree so K branches remain — which is why the
-        slider responds instantly without re-computing anything.</p>
+        communities just means cutting that tree so K branches remain.</p>
 
       <h4>5. Tidying small fragments</h4>
       <p>After cutting, any community whose total population is tiny compared with the others
@@ -226,7 +224,8 @@
         are usually contiguous because connectedness falls off with distance, but a genuinely
         strong long-distance tie (for example, migration links) can place non-adjacent regions
         in the same community.</p>
-      <p>The <strong>Animate</strong> button steps from one community up to thirty, splitting
+      <p>The <strong>Animate</strong> button steps from one community up to the number of
+        clusters you chose, splitting
         one community at a time: it highlights the community about to split, shows the split,
         then restores the full colouring — so you can follow exactly how the hierarchy unfolds.
         Choose <strong>Automatic</strong> to play it through on its own, or <strong>Manual</strong>

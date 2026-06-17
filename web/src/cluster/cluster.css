@@ -6,6 +6,26 @@ body { font-family: 'Poppins', sans-serif; margin: 0; }
 
 #map { position: fixed; inset: 0; width: 100%; height: 100%; }
 
+/* Prominent on-map caption (animation step text / clicked-region name). Sits at the
+   bottom-centre, clear of the top-left panel; pointer-events:none so it never blocks
+   map interaction (you can click "through" it). */
+.map-caption {
+  position: fixed;
+  left: 50%; bottom: 30px;
+  transform: translateX(-50%);
+  max-width: min(90vw, 540px);
+  padding: 11px 22px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #d4dde2;
+  border-radius: 999px;
+  box-shadow: 0 4px 18px rgba(20, 40, 55, 0.18);
+  font-size: 19px; font-weight: 600; line-height: 1.3;
+  color: #10617b; text-align: center;
+  z-index: 6; pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+.map-caption[hidden] { display: none; }
+
 #loading-icon {
   display: none;
   position: fixed; top: 50%; left: 50%;
@@ -77,7 +97,6 @@ input[type="number"] { width: 110px; }
 .mode-tab.active { background: #10617b; color: #fff; }
 
 .mode-panel[hidden] { display: none; }
-.sublabel { display: block; margin: 10px 0 5px; font-size: 11.5px; color: #5a6873; }
 
 /* Regional-grouping buttons (broad continents). */
 .region-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -92,7 +111,7 @@ input[type="number"] { width: 110px; }
 
 /* "More regional groupings" dropdown. */
 .region-select {
-  width: 100%; padding: 7px 9px; border: 1px solid #cfd9df; border-radius: 6px;
+  width: 100%; margin-top: 6px; padding: 7px 9px; border: 1px solid #cfd9df; border-radius: 6px;
   font-family: inherit; font-size: 13px; color: #2a3942; background: #fff; cursor: pointer;
 }
 .region-select:focus { outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15); }
@@ -150,10 +169,10 @@ input[type="number"] { width: 110px; }
 .checkbox-row input { margin: 0; accent-color: #1879d5; }
 
 /* ---- actions ---- */
-.panel-actions { position: relative; display: flex; flex-direction: column; gap: 8px; margin: 4px 0 10px; }
+.panel-actions { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
 .btn-primary, .btn-secondary {
   font: inherit; font-weight: 600; font-size: 14px;
-  padding: 9px 12px; border-radius: 7px; cursor: pointer; border: 1px solid transparent;
+  padding: 6px 12px; border-radius: 7px; cursor: pointer; border: 1px solid transparent;
 }
 .btn-primary { background: #10617b; color: #fff; }
 .btn-primary:hover { background: #0d4f64; }
@@ -163,19 +182,22 @@ input[type="number"] { width: 110px; }
 .btn-secondary:disabled { color: #aab8c0; border-color: #dde6ea; cursor: default; }
 
 /* Animation controls: mode toggle, an optional stepper, and Stop, stacked. */
-.anim-controls:not([hidden]) { display: flex; flex-direction: column; gap: 8px; }
+.anim-controls:not([hidden]) { display: flex; flex-direction: column; gap: 6px; }
 /* Segmented Automatic | Manual toggle. */
 .anim-mode { display: flex; gap: 0; border: 1px solid #b9d0da; border-radius: 7px; overflow: hidden; }
 .seg-btn {
   flex: 1; font: inherit; font-weight: 600; font-size: 14px;
-  padding: 8px 10px; cursor: pointer; border: none; background: #fff; color: #10617b;
+  padding: 6px 10px; cursor: pointer; border: none; background: #fff; color: #10617b;
 }
 .seg-btn + .seg-btn { border-left: 1px solid #b9d0da; }
 .seg-btn:hover:not(.active) { background: #eef5f8; }
 .seg-btn.active { background: #10617b; color: #fff; }
 /* Back / Next stepper (only shown in manual mode). */
-.anim-steps:not([hidden]) { display: flex; gap: 8px; }
+.anim-steps:not([hidden]) { display: flex; gap: 6px; }
 .anim-steps .btn-secondary { flex: 1; }
+/* Pause/Play + Stop on one row (Pause is hidden in manual mode, so Stop fills it). */
+.anim-play-row { display: flex; gap: 6px; }
+.anim-play-row .btn-secondary { flex: 1; }
 
 .download-menu {
   position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
@@ -188,11 +210,6 @@ input[type="number"] { width: 110px; }
   padding: 9px 12px; background: #fff; border: none; cursor: pointer;
 }
 .download-menu button:hover { background: #f1f6f8; }
-
-/* ---- status ---- */
-.status { font-size: 12px; line-height: 1.45; color: #4a5862; min-height: 16px; margin-bottom: 8px; }
-.status-ok { color: #1d7a4d; }
-.status-warn { color: #b3541e; }
 
 /* ---- Social Capital Lab credit (inside the About box, matching the Explorer) ---- */
 .lab-mark {
@@ -339,6 +356,22 @@ input[type="number"] { width: 110px; }
   .panel-lede { display: none; }
   .field { margin-bottom: 8px; }
   .checklist { max-height: 116px; }
+  /* Keep the regional-grouping buttons on ONE line (South Asia was wrapping).
+     Tighten them so all five fit on common phones; on very narrow screens the row
+     scrolls horizontally rather than wrapping, so it's always a single line. */
+  .region-buttons {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .region-buttons::-webkit-scrollbar { display: none; }
+  .region-btn {
+    flex: 0 0 auto;
+    padding: 4px 8px;
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
   /* Custom (arbitrary multi-country) mode is desktop-only — it can kick off slow,
      un-precomputed in-browser clustering that weak phones may not finish. */
   .custom-advanced { display: none; }
@@ -349,5 +382,13 @@ input[type="number"] { width: 110px; }
     overflow: hidden;
   }
   #panel.collapsed > :not(.tool-nav):not(.panel-head) { display: none; }
+  /* While animating, a collapsed panel still exposes the animation controls
+     (Automatic/Manual + Back/Next + Stop) so you can step through the sweep with the
+     map uncovered. Everything else in the actions row (Generate/Download/…) stays
+     hidden. Same specificity as the collapse rule above, but later → it wins. */
+  #panel.collapsed.animating .panel-actions { display: flex; }
+  #panel.collapsed.animating .panel-actions > :not(#anim-controls) { display: none; }
+  /* Smaller, lower caption on phones; still clearly readable over the map. */
+  .map-caption { font-size: 15px; padding: 8px 16px; bottom: 18px; max-width: calc(100vw - 24px); }
   #about { left: 8px; right: 8px; width: auto; }
 }

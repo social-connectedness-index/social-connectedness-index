@@ -4,7 +4,7 @@ A free, browser-based tool for mapping the Social Connectedness Index (SCI), a
 measure of the relative probability of Facebook friendship between places. Three
 tools share one dataset:
 
-- /generator — Map Generator: makes a static map image (PNG/JPG/SVG, plus an MP4
+- /generator — Map Maker: makes a static map image (PNG/JPG/SVG, plus an MP4
   reel) for one "home" region's friendship pattern, or a two-region comparison.
 - /explore   — Interactive Explorer: a Mapbox globe; click a country/region to
   recolor the world by its SCI. (No programmatic API; human/visual use.)
@@ -15,7 +15,7 @@ tools share one dataset:
   animate the 1→K split sequence; PNG/SVG/MP4 downloads. (No programmatic API;
   human/visual use.)
 
-Everything runs client-side; there is no server-side API. The Map Generator can,
+Everything runs client-side; there is no server-side API. The Map Maker can,
 however, be driven programmatically in two ways — both work in a headless browser
 (e.g. Playwright/Puppeteer) and neither affects ordinary visitors.
 
@@ -37,8 +37,9 @@ Parameters (all optional):
 - sourceName    region name to look up instead of id  (e.g. "Berlin")
 - sourceB / sourceBName   second region (mode=compare)
 - regions       what to show: all | same-country | same-subcontinent |
-                a continent group name | ISO2 codes — comma-separated
-                (e.g. regions=Europe  or  regions=US,CA,MX  or  regions=all)
+                a continent group OR sub-regional grouping name (e.g. Europe,
+                Nordic, "Gulf (GCC)", Andean, Balkans) | ISO2 codes — comma-separated
+                (e.g. regions=Europe  or  regions=Nordic  or  regions=US,CA,MX)
 - metro         CBSA code to restrict a US ZIP map to one metro area
 - palette       single-map palette name (see SCI.listPalettes())
 - comparePalette   diverging palette name (mode=compare)

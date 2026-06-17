@@ -11,7 +11,7 @@ dataset (`public/data/`):
 | Page | What it is |
 |------|-----------|
 | `index.html` | **Landing page** — chooser with three cards. |
-| `generator.html` | **Map Generator** — the canvas-rendered static map maker (described below). 18 map types, with PNG/JPG/SVG/MP4 downloads. |
+| `generator.html` | **Map Maker** — the canvas-rendered static map maker (described below). 18 map types, with PNG/JPG/SVG/MP4 downloads. |
 | `explore.html` | **Interactive Explorer** — a Mapbox-GL slippy map (`src/explore/`). Click any country or region ("GADM best" — the finest available GADM level per country) and the world recolours to its SCI. Two levels only; no downloads — its job is fast, live exploration. |
 | `cluster.html` | **Connected Communities** — a Mapbox-GL map (`src/cluster/`) that groups a region's sub-national units into _clusters_ by Facebook connectedness (hierarchical agglomerative clustering, population-weighted average linkage). Pick a precomputed **regional grouping** or **single country** (instant), or an advanced **custom** combination (clustered live in-browser); choose how many clusters K; optionally animate the 1→K split sequence. PNG/SVG/MP4 downloads. |
 
@@ -26,21 +26,21 @@ Cloudflare Pages serves these at `/`, `/generator`, `/explore`, and `/cluster`.
 > dev origin (e.g. `http://localhost:5173`). Without a valid token the Explorer
 > auto-falls back to a no-basemap mode (polygons on a plain background — still
 > fully usable). The
-> Explorer reuses the **same `public/data/` assets** as the Generator (country /
+> Explorer reuses the **same `public/data/` assets** as the Map Maker (country /
 > gadm2 geo + per-source SCI; the gadm2 id is backed by GADM-best data), so there
 > is no separate data pipeline.
 
-## Map Generator — what it produces (static images, not an interactive map)
+## Map Maker — what it produces (static images, not an interactive map)
 
 The web app produces the same **static, ggplot-style map images** as the R tool
 (`src/make_map.R`) — not a zoomable slippy map. The choropleth, title/subtitle,
-legend, and caption are drawn on an HTML5 **canvas** (`src/render.js`) using an
+legend, and caption are drawn on an HTML5 **canvas** (`src/shared/render.js`) using an
 equirectangular projection fit to the chosen bounds. The coloring math
 (reference-quantile **or absolute-value** normalization; break schemes —
 quantile / even / log / custom; palette interpolation, legend labels, and
 diverging comparison palettes) is a parity-verified port of `src/make_map.R` /
-`src/mapping_tools.R`, in `src/sci.js`. World/wide maps auto-trim their vertical
-letterbox to the map's natural aspect (`naturalHeight` in `src/render.js`).
+`src/mapping_tools.R`, in `src/generator/sci.js`. World/wide maps auto-trim their vertical
+letterbox to the map's natural aspect (`naturalHeight` in `src/shared/render.js`).
 (The web app replaced the old interactive R/Shiny app, which has been removed; the
 R tool now lives on only as the batch/scripting backend and the data export below.)
 
@@ -57,8 +57,8 @@ from the web app: the six geoBoundaries types (`adm1`, `adm2`, and their
 nine NUTS types (`nuts1/2/3` and their `_country` / `country_` directions — GADM
 covers the same European regions).
 
-**Downloads:** PNG, JPG (canvas), SVG (`src/export_vector.js`, reusing the SVG
-backend in `src/render.js`), and MP4 (`src/video.js`, via WebCodecs + `mp4-muxer`).
+**Downloads:** PNG, JPG (canvas), SVG (`src/generator/export_vector.js`, reusing the SVG
+backend in `src/shared/render.js`), and MP4 (`src/shared/video.js`, via WebCodecs + `mp4-muxer`).
 
 ## How it works
 
@@ -67,8 +67,8 @@ R export pipeline (offline)              Browser (online, static)
   export/export_all.R                      fetch geo/<level>.geojson    (per shard)
     ├─ geo/<level>/...geojson    ─────►    fetch sci/<type>/<id>.json   (per source,
     ├─ sci/<type>/<id>.json                  or HTTP Range from part-NNN.bin)
-    └─ manifest/groups/palettes/...        compute rel-SCI, breaks, colors (sci.js)
-                                           render choropleth + legend (render.js)
+    └─ manifest/groups/palettes/...        compute rel-SCI, breaks, colors (generator/sci.js)
+                                           render choropleth + legend (shared/render.js)
                                            export PNG / JPG / SVG / MP4
 ```
 
@@ -82,7 +82,7 @@ per-file size within Cloudflare Pages limits. See `export/export_sci.R` and
 
 ## Programmatic / shareable / agent access
 
-The Map Generator has no server API (it's static), but it can be driven two ways
+The Map Maker has no server API (it's static), but it can be driven two ways
 — both invisible to ordinary visitors and usable from a headless browser:
 
 1. **URL parameters** — `generator.html?origin=…&source=…&regions=…` pre-fills the
@@ -92,7 +92,7 @@ The Map Generator has no server API (it's static), but it can be driven two ways
    `SCI.toBlob(fmt)`, `SCI.findRegions(name)`, `SCI.listTypes()/listLevels()/
    listPalettes()`, etc. A `sci:generated` DOM event fires after each render.
 
-Both are implemented in `src/main.js` (`applyConfig` / `configFromUrl` / the
+Both are implemented in `src/generator/generator.js` (`applyConfig` / `configFromUrl` / the
 `window.SCI` object). The full schema and examples live in **`public/llms.txt`**
 (served at `/llms.txt`) — update it whenever the params or API change.
 
@@ -172,18 +172,23 @@ cost nothing.
 
 ## Files
 
+The three tools live in parallel folders under `src/` — `src/generator/`,
+`src/explore/`, `src/cluster/` — with code used by two or more of them in
+`src/shared/`. (`sci.js` and `export_vector.js` are generator-only, so they live in
+`src/generator/` rather than `src/shared/`.)
+
 - `index.html` / `src/landing.css` — landing page (tool chooser)
-- `generator.html` — the Map Generator page (loads `src/main.js`)
+- `generator.html` — the Map Maker page (loads `src/generator/generator.js`)
 - `explore.html` — the Interactive Explorer page (loads `src/explore/*`)
 - `cluster.html` — the Connected Communities page (loads `src/cluster/*`)
-- `src/sci.js` — rendering math ported from R (normalize, breaks, palette, labels, comparison)
-- `src/render.js` — canvas choropleth + legend (`drawScene`/`renderMap`) and SVG backend
-- `src/export_vector.js` — SVG download (reuses `render.js`'s SVG backend)
-- `src/video.js` — MP4 encoder core (WebCodecs + `mp4-muxer`)
-- `src/reel.js` / `src/reel.css` — 9:16 reel builder + delivery (shared by the Generator and cluster apps)
-- `src/tour.js` / `src/tour.css` — shared first-run guided-tour engine
-- `src/main.js` — Generator UI wiring, data loading (incl. range-fetch), state
-- `src/style.css` — Generator layout and controls
+- `src/shared/render.js` — canvas choropleth + legend (`drawScene`/`renderMap`) and SVG backend
+- `src/shared/video.js` — MP4 encoder core (WebCodecs + `mp4-muxer`)
+- `src/shared/reel.js` / `src/shared/reel.css` — 9:16 reel builder + delivery (shared by the Map Maker and Cluster apps)
+- `src/shared/tour.js` / `src/shared/tour.css` — shared first-run guided-tour engine
+- `src/generator/generator.js` — Map Maker UI wiring, data loading (incl. range-fetch), state
+- `src/generator/generator.css` — Map Maker layout and controls
+- `src/generator/sci.js` — rendering math ported from R (normalize, breaks, palette, labels, comparison)
+- `src/generator/export_vector.js` — SVG download (reuses `shared/render.js`'s SVG backend)
 - `src/explore/explore.js` — Interactive Explorer (Mapbox-GL; per-source SCI fetch + client-side binning for both levels)
 - `src/explore/explore.css` — Explorer styling
 - `src/explore/config.js` — Explorer config (Mapbox token, data base, basemap kill-switch)

@@ -1,5 +1,5 @@
 /* Landing / tool-chooser page for social-connectedness.org.
-   Two cards: Interactive Explorer and Map Generator. Palette matches the
+   Two cards: Interactive Explorer and Map Maker. Palette matches the
    SCI blue map gradient (#d1dfe5 -> #10617b). */
 
 * { box-sizing: border-box; }
@@ -80,7 +80,7 @@ html, body {
   background-image: url('/img/generator-card.jpg');
   /* "contain" would fit the (landscape) photo to the card height; auto 105% zooms
      it in by 5% (height = 105% of the content box, centered, edges cropped). */
-  background-size: auto 120%;
+  background-size: auto 105%;
   /* Inset the photo so it has breathing room on the white field (border-box
      keeps the card height unchanged; the image fits inside the padded area). */
   background-origin: content-box;
@@ -93,7 +93,7 @@ html, body {
 .art-cluster {
   background-color: #ffffff;
   background-image: url('/img/cluster-card.png');
-  background-size: auto 105%;
+  background-size: auto 85%;
   background-position: center;
 }
 

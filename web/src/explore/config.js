@@ -3,7 +3,7 @@
 //
 // Unlike the standalone fork, the SCI data is NOT fetched from Cloudflare R2 —
 // it is served from this same site's ./data/ directory (the R-exported assets
-// shared with the Map Generator). The only external dependency is the Mapbox
+// shared with the Map Maker). The only external dependency is the Mapbox
 // basemap, configured below.
 
 window.SCI_CONFIG = {
@@ -22,7 +22,7 @@ window.SCI_CONFIG = {
   MAPBOX_TOKEN: import.meta.env.VITE_MAPBOX_TOKEN || "",
 
   // Base path (relative to the deployed site root) for the R-exported data
-  // shared with the Map Generator. No trailing slash.
+  // shared with the Map Maker. No trailing slash.
   DATA_BASE: "./data",
 
   // If true, skip the Mapbox basemap entirely and render the choropleth on a

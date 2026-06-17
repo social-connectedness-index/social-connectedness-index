@@ -1,7 +1,7 @@
 // export_vector.js — Vector (SVG) download of the current map. Reuses render.js's
 // renderSvg() so the layout is byte-for-byte the same scene as the canvas/PNG
 // output, just emitted as vectors.
-import { renderSvg } from "./render.js";
+import { renderSvg } from "../shared/render.js";
 
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -12,7 +12,7 @@ function triggerDownload(blob, filename) {
   // The anchor must be in the DOM for the click to trigger a download in some
   // mobile browsers; and the object URL must be revoked LATER, not immediately —
   // revoking right after click() can abort the download before the browser has
-  // finished reading the blob. (Same fix as downloadBlob in main.js.)
+  // finished reading the blob. (Same fix as downloadBlob in generator.js.)
   document.body.appendChild(a);
   a.click();
   a.remove();

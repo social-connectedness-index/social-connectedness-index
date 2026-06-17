@@ -3,7 +3,7 @@
 // no dependencies, and "explain only": it never changes the page's inputs.
 //
 // Usage:
-//   import { createTour } from "./tour.js";
+//   import { createTour } from "../shared/tour.js";
 //   const tour = createTour(STEPS, "my_page_tour_v1");
 //   tourBtn.addEventListener("click", tour.start);   // manual replay
 //   tour.maybeAutoStart();                           // once per browser

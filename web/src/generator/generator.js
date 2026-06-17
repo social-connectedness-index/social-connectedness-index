@@ -1,20 +1,27 @@
-// main.js — UI wiring, data loading, and orchestration for the SCI map maker.
+// generator.js — UI wiring, data loading, and orchestration for the SCI Map Maker.
 // Produces a STATIC map image (like the R tool's ggplot output) with PNG/JPG/SVG/
 // MP4 download. UI flow: Origin type -> Source region -> Destination type,
 // with country filtering, plus an optional two-region compare.
 //
 // The type system, sharded-geometry list, and range-indexed SCI list all come
 // from data/manifest.json so the frontend stays in sync with the R export.
+// sci.js + export_vector.js are generator-only (kept in this folder); render/reel/
+// video/tour live in ../shared (used by the Explorer / Cluster apps too).
 import {
   normalize, autoBreaks, buildBins, interpolatePalette, labelSingle, colorsFor,
   comparisonLogRatios, comparisonBreaks, labelComparison, divergingPalette, colorsForComparison,
   breaksForScheme, quantile,
 } from "./sci.js";
-import { computeBbox, renderMap, renderSvg, naturalHeight } from "./render.js";
-import { buildReelCanvas, deliverVideo, mp4Supported } from "./reel.js";
-import { encodeMp4 } from "./video.js";
+import { computeBbox, renderMap, renderSvg, naturalHeight } from "../shared/render.js";
+import { buildReelCanvas, deliverVideo, mp4Supported } from "../shared/reel.js";
+import { encodeMp4 } from "../shared/video.js";
 import { downloadSvg } from "./export_vector.js";
-import { createTour } from "./tour.js";
+import { createTour } from "../shared/tour.js";
+// Sub-regional groupings shared with the Connected Communities (cluster) app, so the
+// same ready-made groupings (DACH, Nordic, Andean, …) are offered here under "Regions
+// to show". The broad continents + sub-continental groups they also reference already
+// exist as groups.json entries, so only the explicit {name,members} presets are added.
+import CLUSTER_PRESETS from "../cluster/cluster_presets.json";
 
 // ---- first-run walkthrough -------------------------------------------------
 // Explain-only tour of the generator's controls; see tour.js for the engine.
@@ -116,6 +123,38 @@ function resolveType(o, d) {
 // ---- state & data loading -------------------------------------------------
 
 let manifest, groups, palettes, countries, bounds, csub;
+
+// Sub-regional groupings (DACH, Nordic, Andean, …) imported from the cluster app's
+// preset config. name -> { codes:[iso2…], box:{xlim,ylim} }. Built in init() once
+// countries.json + bounds.json are loaded. Treated like continent groups in the
+// "Regions to show" list, but resolved via this map instead of groups.json.
+let regionalPresets = {};
+
+const escHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escAttr = (s) => escHtml(s).replace(/"/g, "&quot;");
+
+// Build `regionalPresets` from CLUSTER_PRESETS. Only the explicit {name,members}
+// dropdown items are taken — the {group} refs and continent buttons are already
+// groups.json entries shown in the list. Members are filtered to data countries
+// (countries.json), and the zoom box is the union of the members' curated mainland
+// boxes (bounds.countries), exactly as the cluster app frames these presets.
+function buildRegionalPresets() {
+  regionalPresets = {};
+  const known = new Set(countries.map((c) => c.id));
+  for (const grp of CLUSTER_PRESETS.dropdown || []) {
+    for (const it of grp.items || []) {
+      if (!it.members || regionalPresets[it.name]) continue;
+      const codes = it.members.filter((c) => known.has(c));
+      if (!codes.length) continue;
+      const boxes = codes.map((c) => bounds.countries[c]).filter(Boolean);
+      const box = boxes.length ? {
+        xlim: [Math.min(...boxes.map((b) => b.xlim[0])), Math.max(...boxes.map((b) => b.xlim[1]))],
+        ylim: [Math.min(...boxes.map((b) => b.ylim[0])), Math.max(...boxes.map((b) => b.ylim[1]))],
+      } : null;
+      regionalPresets[it.name] = { codes, box };
+    }
+  }
+}
 
 // Special "Regions to show" options resolved relative to the selected origin.
 const OPT_ALL = "All countries";
@@ -432,7 +471,7 @@ function selectedCountryCodes() {
   for (const g of gsel) {
     if (g === OPT_SAME_COUNTRY) { if (oc) codes.add(oc); }
     else if (g === OPT_SAME_SUBCONT) { subcontinentMembers(oc).forEach((c) => codes.add(c)); }
-    else (groups[g] || []).forEach((c) => codes.add(c));
+    else (regionalPresets[g] ? regionalPresets[g].codes : (groups[g] || [])).forEach((c) => codes.add(c));
   }
   for (const c of csel) codes.add(c);
   return codes.size ? codes : null;
@@ -744,7 +783,10 @@ function selectionBbox() {
     else if (g === OPT_SAME_SUBCONT) {
       const box = (originRegion(oc) || {}).box;
       if (box) boxes.push(box);
-    } else if (bounds.groups[g]) boxes.push(bounds.groups[g]);
+    } else {
+      const box = regionalPresets[g] ? regionalPresets[g].box : bounds.groups[g];
+      if (box) boxes.push(box);
+    }
   }
   for (const c of csel) if (bounds.countries[c]) boxes.push(bounds.countries[c]);
   if (boxes.length === 0) return null;
@@ -949,7 +991,7 @@ const canvasBlob = (canvas, type, quality) =>
 
 // ---- video (Instagram Reel / TikTok) --------------------------------------
 // The 9:16 MP4 reel composition + delivery (incl. the iOS inline-save overlay)
-// lives in the shared src/reel.js so the Generator and the Clustering app produce
+// lives in the shared src/shared/reel.js so the Generator and the Clustering app produce
 // the identical portrait video format. buildReelCanvas takes render.js options;
 // here we pass `lastRender`.
 
@@ -968,7 +1010,7 @@ async function download(fmt) {
       if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/JPG.");
       const setStatus = (m) => { $("status").textContent = m; };
       setStatus("Encoding MP4… this can take a few seconds.");
-      const blob = await encodeMp4(buildReelCanvas(lastRender), { seconds: 10, fps: 30 });
+      const blob = await encodeMp4(buildReelCanvas(lastRender), { seconds: 20, fps: 30 });
       await deliverVideo(blob, `${slug()}.mp4`, { setStatus });
     }
   } catch (e) {
@@ -1156,6 +1198,7 @@ async function init() {
   // Guard against an older groups.json where a single-code group serialized as a
   // bare string instead of an array (would break groups[g].forEach).
   for (const k in groups) if (!Array.isArray(groups[k])) groups[k] = [groups[k]];
+  buildRegionalPresets();
 
   buildTypeGraph();
   $("originType").innerHTML = ORIGIN_LEVELS.map((l) => `<option value="${l}">${LEVEL_LABEL[l]}</option>`).join("");
@@ -1169,10 +1212,15 @@ async function init() {
     [OPT_SAME_SUBCONT, "Same (sub)continent as origin"],
   ];
   const continentGroups = Object.keys(groups).filter((g) => g !== "All countries" && g !== "United States");
+  // Continent/sub-continental groups, then the imported sub-regional presets. They
+  // live in one list (presets appended after the groups) — the checklist floats
+  // checked rows to the top, so a second divider wouldn't stay put.
+  const regionRow = (value, label) => `<label class="chk"><input type="checkbox" value="${escAttr(value)}" /> ${escHtml(label)}</label>`;
   $("group").innerHTML =
     dynChk.map(([v, label]) => `<label class="chk"><input type="checkbox" value="${v}" /> ${label}</label>`).join("") +
     `<div class="chk-divider"></div>` +
-    continentGroups.map((g) => `<label class="chk"><input type="checkbox" value="${g}" /> ${g}</label>`).join("");
+    continentGroups.map((g) => regionRow(g, g)).join("") +
+    Object.keys(regionalPresets).map((name) => regionRow(name, name)).join("");
   $("customCountries").innerHTML = countries
     .map((c) => `<label class="chk" data-name="${fold(c.name)}"><input type="checkbox" value="${c.id}" /> ${c.name}</label>`)
     .join("");
@@ -1498,7 +1546,7 @@ async function sciToBlob(fmt = "png") {
   if (fmt === "svg") return new Blob([renderSvg(lastRender)], { type: "image/svg+xml" });
   if (fmt === "mp4") {
     if (!mp4Supported()) throw new Error("MP4 needs WebCodecs (Chrome/Edge/Safari 17+); may be unavailable headless.");
-    return encodeMp4(buildReelCanvas(lastRender), { seconds: 10, fps: 30 });
+    return encodeMp4(buildReelCanvas(lastRender), { seconds: 20, fps: 30 });
   }
   throw new Error("Unknown format: " + fmt);
 }

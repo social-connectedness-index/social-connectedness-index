@@ -7,7 +7,7 @@ import { defineConfig } from "vite";
 //
 // Three HTML entry points:
 //   index.html      — landing page / tool chooser
-//   generator.html  — the static Map Generator (canvas-rendered)
+//   generator.html  — the static Map Maker (canvas-rendered)
 //   explore.html    — the interactive Mapbox explorer
 //   cluster.html    — the Connected Communities clustering tool
 export default defineConfig({

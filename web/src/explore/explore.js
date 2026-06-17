@@ -9,7 +9,7 @@
 // the old gadm2 exports.)
 //
 // Unlike the standalone fork this was adapted from, ALL data comes from the
-// same R-exported assets that power the Map Generator (served from ./data/):
+// same R-exported assets that power the Map Maker (served from ./data/):
 //   geo:  geo/country.geojson, geo/gadm2/<CC>.geojson (+ _parts.json)
 //   sci:  sci/country/<id>.json                       ({friend_id: raw_scaled_sci})
 //         sci/gadm2/index.json + part-NNN.bin         (range-indexed, same blob shape)
@@ -21,7 +21,7 @@
 // levels — now applied uniformly, which removes the R2 dependency and the
 // separate pre-binning ETL entirely.
 
-import { createTour } from "../tour.js";
+import { createTour } from "../shared/tour.js";
 
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that explore.html loads config.js before explore.js.");
@@ -31,7 +31,7 @@ mapboxgl.accessToken = window.SCI_CONFIG.MAPBOX_TOKEN;
 const DATA_BASE = (window.SCI_CONFIG.DATA_BASE || "./data").replace(/\/$/, "");
 
 // ---- first-run walkthrough -------------------------------------------------
-// Explain-only tour of the Explorer; see ../tour.js for the engine. The final
+// Explain-only tour of the Explorer; see ../shared/tour.js for the engine. The final
 // step targets #console, which only exists after a place is selected — when it's
 // hidden the engine falls back to a centered card, so the step adapts itself.
 const TOUR_STEPS = [
@@ -179,7 +179,7 @@ function hoverTooltipHtml(feat, levelKey) {
 // Colours + bins (shared by all three levels).
 // ---------------------------------------------------------------------------
 // Reference quantile of a source's friend distribution = "1x" (matches the
-// static Map Generator's default of the 25th percentile). User-adjustable via
+// static Map Maker's default of the 25th percentile). User-adjustable via
 // the "Scale relative to … percentile" control in the panel.
 const DEFAULT_REFERENCE_QUANTILE = 0.25;
 let referenceQuantile = DEFAULT_REFERENCE_QUANTILE;
@@ -332,7 +332,7 @@ async function loadGadm2Index() {
 }
 
 // Range-fetch one GADM2 source's JSON blob from the concatenated part files.
-// Mirrors the Map Generator's getSciRanged: handles a 206 slice as well as a
+// Mirrors the Map Maker's getSciRanged: handles a 206 slice as well as a
 // server that ignores Range and returns the whole part (200), which we slice.
 async function getSciRanged(id) {
   const idx = await loadGadm2Index();
@@ -505,7 +505,7 @@ function featureAtPoint(features, lng, lat) {
   return null;
 }
 
-// Accent-insensitive search fold (mirrors the Map Generator): "Dusseldorf"
+// Accent-insensitive search fold (mirrors the Map Maker): "Dusseldorf"
 // matches "Düsseldorf" regardless of OS/keyboard.
 const SEARCH_FOLD = { "ß": "ss", "ø": "o", "ł": "l", "æ": "ae", "œ": "oe", "đ": "d", "ð": "d", "þ": "th", "ı": "i" };
 const foldText = (s) =>

@@ -1,5 +1,5 @@
 // reel.js — Shared 9:16 "Instagram Reel" MP4 composition + delivery for the SCI
-// web tools (the Map Generator and the Clustering app), so both produce the exact
+// web tools (the Map Maker and the Clustering app), so both produce the exact
 // same portrait video format. Builds a 1080x1920 frame from render.js options,
 // encodes it with video.js (WebCodecs + mp4-muxer), and hands it to the user —
 // share sheet / direct download on desktop & Android, an inline "press-and-hold
@@ -47,7 +47,7 @@ export function buildReelCanvas(renderOpts) {
 // Encode `renderOpts` as a short 9:16 MP4 and deliver it. `setStatus(msg)` is an
 // optional progress reporter (each tool wires its own status line). Throws with a
 // clear message where MP4 isn't supported.
-export async function downloadReel(renderOpts, filename, { setStatus = () => {}, seconds = 10, fps = 30 } = {}) {
+export async function downloadReel(renderOpts, filename, { setStatus = () => {}, seconds = 20, fps = 30 } = {}) {
   if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG or SVG.");
   setStatus("Encoding MP4… this can take a few seconds.");
   const blob = await encodeMp4(buildReelCanvas(renderOpts), { seconds, fps });

@@ -6,7 +6,7 @@
 // It reuses the Interactive Explorer's data plumbing (the shared R-exported
 // ./data/ assets: GADM-best "Region" geometry sharded by country, and the
 // range-indexed worldwide region->region SCI) and Mapbox basemap setup, plus the
-// Map Generator's static renderer (render.js) for the downloadable image/MP4.
+// Map Maker's static renderer (render.js) for the downloadable image/MP4.
 //
 // Flow: pick a regional grouping / single country / custom combination + a number
 // of clusters K -> load those countries' region geometry -> range-fetch each
@@ -15,10 +15,10 @@
 // colour each region by its community. All client-side. Regional-grouping and
 // single-country selections are precomputed (just a tree load + O(n) cut).
 
-import { createTour } from "../tour.js";
+import { createTour } from "../shared/tour.js";
 import { buildDistanceMatrix, buildDendrogram, cutDendrogram, buildCentroids, buildWeights, SPATIAL_ALPHA, MIN_CLUSTER_FRAC } from "./agglomerative.js";
-import { renderMap, renderSvg, computeBbox, naturalHeight } from "../render.js";
-import { downloadReel, downloadReelAnimation, mp4Supported } from "../reel.js";
+import { renderMap, renderSvg, computeBbox, naturalHeight } from "../shared/render.js";
+import { downloadReel, downloadReelAnimation, mp4Supported } from "../shared/reel.js";
 // Hand-authored regional-grouping presets (see cluster_presets.json). Bundled at
 // build time so it lives in version control (public/data/ is gitignored data).
 import CLUSTER_PRESETS from "./cluster_presets.json";
@@ -47,7 +47,7 @@ const TOUR_STEPS = [
     body: "Group regions into clusters by how tightly they're linked on Facebook. Here's a quick tour; skip anytime.",
     targets: null,
   },
-  { title: "Pick what to cluster", body: "Choose a ready-made regional grouping or a single country — both load instantly. (Advanced users can build a custom combination of countries.)", targets: ["#picker-field"] },
+  { title: "Pick what to cluster", body: "Choose a ready-made regional grouping or a single country — both load instantly. (Advanced users on desktop can build a custom combination of countries.)", targets: ["#picker-field"] },
   { title: "Choose how many clusters", body: "Set the number of clusters to split the regions into. Each one gets its own color.", targets: ["#num-clusters"] },
   { title: "Generate", body: "Click Generate. The tool fetches the connectedness between every pair of selected regions, clusters them, and colors the map.", targets: ["#generate"] },
   { title: "Download", body: "Once a map is generated you can download it.", targets: ["#download"] },
@@ -74,8 +74,6 @@ const map = new mapboxgl.Map({
   style: forceNoBasemap ? EMPTY_STYLE : "mapbox://styles/mapbox/light-v11",
   center: [10, 55],
   zoom: 2.5,
-  // Needed so the "Current map view" download can read pixels back off the canvas.
-  preserveDrawingBuffer: true,
 });
 if (!forceNoBasemap) {
   map.on("error", function (e) {
@@ -142,20 +140,12 @@ const ADMIN_SOURCE = "admin";
 const ADMIN_LAYER = "admin-borders";
 const ADMIN_BORDER_COLOR = "#595959";
 
-// Country-only outlines (geo/border_country.geojson, also region-derived). Drawn
-// as their own layer on TOP of the state borders, darker and thicker, so national
-// boundaries read clearly against internal state/province divisions.
+// Country-only outlines (geo/border_country.geojson, also region-derived). A muted
+// slate grey, a bit darker + thicker than the Explorer's "country-outline" so the
+// national borders read clearly (but not as harsh as the old near-black thick lines).
 const COUNTRY_SOURCE = "country-borders";
 const COUNTRY_LAYER = "country-borders";
-const COUNTRY_BORDER_COLOR = "#1f2937";
-
-// Cluster boundaries (dynamic, used during the animation): the outline BETWEEN
-// adjacent clusters. Intentionally stronger than the state/province borders but
-// weaker than the country borders. During the animation country borders are hidden
-// and these carry the structure.
-const CLUSTER_BORDER_SOURCE = "cluster-borders";
-const CLUSTER_BORDER_LAYER = "cluster-borders";
-const CLUSTER_BORDER_COLOR = "#39414e";
+const COUNTRY_BORDER_COLOR = "#5a6873";
 
 // ---------------------------------------------------------------------------
 // Fetch helpers (shared shape with explore.js).
@@ -440,57 +430,6 @@ function forEachVertex(geom, cb) {
   }
 }
 
-function forEachRing(geom, cb) {
-  if (!geom) return;
-  const c = geom.coordinates;
-  if (geom.type === "Polygon") {
-    for (const ring of c) cb(ring);
-  } else if (geom.type === "MultiPolygon") {
-    for (const poly of c) for (const ring of poly) cb(ring);
-  }
-}
-
-// Index the boundary SEGMENTS shared by exactly two regions, so we can later draw
-// just the edges that separate different clusters (the cluster outline). Regions
-// share exact topology (same vertices), so a shared edge appears as the same
-// segment (rounded to a ~1 m grid) in both regions' rings. Returns an array of
-// { a, b, coords } (a,b = the two feature indices the segment separates). Cached on
-// prepCache — it doesn't change with K. O(total vertices), like buildAdjacency.
-function buildClusterBorderIndex(features) {
-  const PREC = 1e5; // ~1 m grid, matching buildAdjacency
-  const segMap = new Map(); // segment key -> { coords, r0, r1 }
-  features.forEach((f, i) => {
-    forEachRing(f.geometry, (ring) => {
-      for (let p = 0; p < ring.length - 1; p++) {
-        const x1 = ring[p][0], y1 = ring[p][1], x2 = ring[p + 1][0], y2 = ring[p + 1][1];
-        const k1 = Math.round(x1 * PREC) + "," + Math.round(y1 * PREC);
-        const k2 = Math.round(x2 * PREC) + "," + Math.round(y2 * PREC);
-        const key = k1 < k2 ? k1 + "|" + k2 : k2 + "|" + k1;
-        let e = segMap.get(key);
-        if (!e) { e = { coords: [[x1, y1], [x2, y2]], r0: i, r1: -1 }; segMap.set(key, e); }
-        else if (e.r0 !== i && e.r1 === -1) e.r1 = i;
-      }
-    });
-  });
-  const segs = [];
-  for (const e of segMap.values()) if (e.r1 !== -1) segs.push({ a: e.r0, b: e.r1, coords: e.coords });
-  return segs;
-}
-
-// LineString FeatureCollection of the cluster boundaries for one frame: segments
-// whose two regions are in DIFFERENT clusters (per `labels`). With `restrict` (a
-// Set of feature indices) only segments touching those regions are included — used
-// to draw just the splitting cluster's outline during the focus/split phases.
-function buildClusterBorderFC(segs, labels, restrict) {
-  const features = [];
-  for (const s of segs) {
-    if (labels[s.a] === labels[s.b]) continue;
-    if (restrict && !restrict.has(s.a) && !restrict.has(s.b)) continue;
-    features.push({ type: "Feature", geometry: { type: "LineString", coordinates: s.coords }, properties: {} });
-  }
-  return { type: "FeatureCollection", features };
-}
-
 // Perceptual-ish squared RGB distance (redmean-style weighting), for picking
 // animation colours that contrast with neighbouring clusters.
 function rgbDist2(a, b) {
@@ -636,12 +575,24 @@ const spinner = $("loading-icon");
 const showSpinner = () => { if (spinner) spinner.style.display = "block"; };
 const hideSpinner = () => { if (spinner) spinner.style.display = "none"; };
 const showCancel = (on) => { const b = $("cancel"); if (b) b.hidden = !on; };
+// The on-panel status line was removed to declutter the panel. Progress/animation
+// text now lives on the on-map caption; normal messages are simply dropped. Genuine
+// problems still go to the console so they're not lost. Kept as a function (rather
+// than deleting its many call sites) so callers are unchanged.
 const setStatus = (msg, kind) => {
-  const el = $("status");
-  if (!el) return;
-  el.textContent = msg || "";
-  el.className = "status" + (kind ? " status-" + kind : "");
+  if (msg && (kind === "warn" || kind === "error")) console.warn("[SCI]", msg);
 };
+
+// Prominent on-map caption (animation step text / clicked-region name). Empty text
+// hides it. This is the cluster app's only on-screen text readout (the small panel
+// status line was removed); setStatus is now a no-op kept only for shared callers.
+const setCaption = (text) => {
+  const el = $("map-caption");
+  if (!el) return;
+  el.textContent = text || "";
+  el.hidden = !text;
+};
+const hideCaption = () => setCaption("");
 
 function countryNameOf(iso2) {
   const e = countryNames[iso2];
@@ -655,6 +606,22 @@ function regionLabel(props) {
   const cn = countryNameOf(props.country);
   if (cn && cn !== name) name += ", " + cn;
   return name;
+}
+
+// A short human name for the current selection, for the on-map caption (e.g.
+// "Europe", "France", "France & 2 more"). Captured onto lastResult at generate time.
+function selectionDisplayName() {
+  if (pickMode === "regional" && activeRegionalId) {
+    const p = regionalPresets.find((x) => x.id === activeRegionalId);
+    if (p && p.label) return p.label;
+  }
+  const ids = [...selectedCountries];
+  if (ids.length === 1) return countryNameOf(ids[0]);
+  if (ids.length >= 2) {
+    const names = ids.map(countryNameOf).sort();
+    return names.length === 2 ? `${names[0]} & ${names[1]}` : `${names[0]} & ${names.length - 1} more`;
+  }
+  return "These regions";
 }
 
 // ---------------------------------------------------------------------------
@@ -829,13 +796,21 @@ function updateSelectedSummary() {
   updateGenerateEnabled();
   const el = $("selected-summary");
   if (!el) return;
-  const ids = [...selectedCountries];
-  if (!ids.length) {
-    el.textContent = pickMode === "regional" ? "Pick a regional grouping above."
-      : pickMode === "country" ? "Pick a country above."
-      : "Pick countries to combine.";
+  // Only the custom (multi-select) mode shows a textual summary. In regional and
+  // single-country modes the choice is obvious from the active button / highlighted
+  // list row, so the summary line is hidden to keep the panel compact.
+  if (pickMode !== "custom") {
+    el.textContent = "";
+    el.hidden = true;
     return;
   }
+  const ids = [...selectedCountries];
+  if (!ids.length) {
+    el.textContent = "Pick countries to combine.";
+    el.hidden = false;
+    return;
+  }
+  el.hidden = false;
   const names = ids.map(countryNameOf).sort();
   const shown = names.slice(0, 4).join(", ");
   el.textContent = names.length + (names.length === 1 ? " country: " : " countries: ") +
@@ -981,11 +956,16 @@ async function generate() {
       features: res.displayFeatures, ids: res.displayIds, countryCodes: ids,
       colorById: res.colorById, usedK: res.usedK,
       title: res.title, bbox, adminFeatures: null,
+      name: selectionDisplayName(), // short label for the on-map caption
+      requestedK: k, // the clusters the user chose — the animation sweeps 1 → this
     };
 
     await applyBorders(); // country borders always; checkbox toggles the state/province overlay
     $("download").hidden = false;
     setAnimControls("idle"); // map ready → offer the Animate button
+    // Reflect the actual animation range (1 → chosen clusters) on the export label.
+    const mp4anim = $("download-menu") && $("download-menu").querySelector('[data-fmt="mp4anim"]');
+    if (mp4anim) mp4anim.textContent = `MP4 animation (1→${animMaxK()})`;
     setStatus("");
   } catch (e) {
     if (e && e.message === "cancelled") {
@@ -1066,19 +1046,31 @@ function applyClusterCount(k) {
 }
 
 // ---------------------------------------------------------------------------
-// Animation — step K from 1 up to ANIM_MAX_K so you can watch communities split,
+// Animation — step K from 1 up to the number of clusters the user chose (animMaxK,
+// bounded by the region count) so you can watch communities split,
 // one merge undone at a time. Two modes: AUTOMATIC plays the sweep on its own (and
 // loops); MANUAL freezes and lets you step Back / Next through the splits (each step
 // can also be run in reverse as a merge). buildAnimationSequence precomputes the
 // whole sweep from RAW dendrogram cuts (so every step is exactly one clean split)
 // with stable, contrast-aware colours. Each step plays a three-phase choreography to
 // make it easy to follow: focus (fade everything but the splitting community), split
-// (reveal the two halves, a new boundary appears), restore (all back in colour at
-// K+1). During the sweep country borders are hidden and the dynamic cluster-boundary
-// overlay is shown instead. The camera stays put throughout. The same sequence drives
-// the MP4 export (downloadAnimationReel).
+// (reveal the two halves), restore (all back in colour at K+1). Clusters are shown by
+// fill colour + the fade only — there is NO cluster-boundary overlay (removed); the
+// country borders stay visible throughout. The camera stays put. The same sequence
+// drives the MP4 export (downloadAnimationReel).
 // ---------------------------------------------------------------------------
-const ANIM_MAX_K = 30;
+// The animation sweeps 1 → animMaxK(), where animMaxK is the number of clusters the
+// user selected (the #num-clusters value, falling back to the displayed usedK),
+// bounded by the region count. So a 6-cluster map animates 1→6, not always 1→30.
+function animMaxK() {
+  const nReg = prepCache ? prepCache.regionIds.length : 1;
+  // Prefer the K captured at generate time (the live #num-clusters value is mutated
+  // by the animation as it steps, so it can't be trusted on a second Animate).
+  let k = lastResult && (lastResult.requestedK || lastResult.usedK);
+  if (!k) k = parseInt($("num-clusters") && $("num-clusters").value, 10);
+  if (isNaN(k) || k < 1) k = 1;
+  return Math.max(1, Math.min(k, nReg - 1));
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -1089,8 +1081,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // fully-coloured step painted; `busy` guards against overlapping step animations;
 // `animToken` is bumped to cancel any in-flight loop/transition (mode change, stop,
 // new step) so timers/loops unwind promptly.
-const ANIM = { active: false, mode: "auto", k: 1, maxK: 1, seq: null, segs: null, busy: false };
+// `phase` is the manual "presentation clicker" sub-position WITHIN a split step:
+//   0 = a clean fully-coloured frame at ANIM.k (not mid-split)
+//   1 = focus: the cluster about to split is in colour, everything else faded
+//   2 = split: the two halves revealed (k+1 labels), the rest still faded
+// During phases 1/2, ANIM.k is the LOWER level of the step (k, splitting k→k+1).
+// Auto mode ignores `phase` (it always plays whole steps via playStep).
+const ANIM = { active: false, mode: "auto", k: 1, maxK: 1, seq: null, busy: false, phase: 0, paused: false };
 let animToken = 0;
+
+// Mobile panel collapse helpers (shared by the toggle button and the auto-collapse
+// that happens when you enter Manual stepping on a phone).
+const isMobileView = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+let panelAutoCollapsed = false; // true only when WE collapsed the panel for the animation
+function setPanelCollapsed(collapsed) {
+  const btn = $("panel-toggle"), panel = $("panel");
+  if (!panel) return;
+  panel.classList.toggle("collapsed", collapsed);
+  if (!btn) return;
+  btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  const label = collapsed ? "Expand panel" : "Collapse panel";
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("title", label);
+}
 
 // The animation controls have three UI states:
 //   "idle"   — a single "▶ Animate" button (a map exists, not animating)
@@ -1112,25 +1125,39 @@ function syncAnimModeUI() {
   if (auto) { auto.classList.toggle("active", !isManual); auto.setAttribute("aria-pressed", String(!isManual)); }
   if (manual) { manual.classList.toggle("active", isManual); manual.setAttribute("aria-pressed", String(isManual)); }
   if (steps) steps.hidden = !isManual;
+  // Pause/Play exists only in automatic mode; its label reflects the paused state.
+  const pause = $("anim-pause");
+  if (pause) {
+    pause.hidden = isManual;
+    pause.textContent = ANIM.paused ? "▶ Play" : "⏸ Pause";
+    pause.setAttribute("aria-pressed", String(ANIM.paused));
+  }
   updateStepButtons();
 }
 function updateStepButtons() {
   const prev = $("anim-prev"), next = $("anim-next");
-  if (prev) prev.disabled = !ANIM.active || ANIM.busy || ANIM.k <= 1;
-  if (next) next.disabled = !ANIM.active || ANIM.busy || ANIM.k >= ANIM.maxK;
+  const onClean = (ANIM.phase || 0) === 0;
+  // Only the very first (clean K=1) and very last (clean K=maxK) frames are dead-ends;
+  // mid-split phases always have a beat before and after them.
+  const atStart = ANIM.k <= 1 && onClean;
+  const atEnd = ANIM.k >= ANIM.maxK && onClean;
+  if (prev) prev.disabled = !ANIM.active || ANIM.busy || atStart;
+  if (next) next.disabled = !ANIM.active || ANIM.busy || atEnd;
 }
 
-// Tear down the animation's transient map state (cluster-boundary overlay off,
-// country borders back) and cancel any running loop/transition. Does NOT touch the
-// controls or repaint — callers do that. Used by generate() (which repaints anyway)
-// and exitAnimation().
+// Tear down the animation's transient map state and cancel any running loop/
+// transition. Does NOT touch the controls or repaint — callers do that. Used by
+// generate() (which repaints anyway) and exitAnimation().
 function teardownAnimation() {
   animToken++;
   ANIM.active = false;
   ANIM.busy = false;
-  hideClusterBorders();
   setCountryBordersVisible(true);
   $("num-clusters").disabled = false;
+  $("panel")?.classList.remove("animating");
+  hideCaption();
+  // If WE auto-collapsed the panel for manual stepping, expand it back on exit.
+  if (panelAutoCollapsed) { setPanelCollapsed(false); panelAutoCollapsed = false; }
 }
 
 // Stop: leave the map on a clean fully-coloured frame at the current step and
@@ -1314,36 +1341,6 @@ function phaseColorById(colorArr, keepIdx) {
   return m;
 }
 
-// Show/update the dynamic cluster-boundary overlay (used during the animation).
-// Created on first use just below the country borders so the line stack reads
-// region (thin) < cluster (medium) < country (thick).
-function setClusterBorders(fc) {
-  if (!map.getSource(CLUSTER_BORDER_SOURCE)) {
-    map.addSource(CLUSTER_BORDER_SOURCE, { type: "geojson", data: fc });
-  } else {
-    map.getSource(CLUSTER_BORDER_SOURCE).setData(fc);
-  }
-  if (!map.getLayer(CLUSTER_BORDER_LAYER)) {
-    const before = map.getLayer(COUNTRY_LAYER) ? COUNTRY_LAYER
-      : (map.getLayer("waterway-label") ? "waterway-label" : undefined);
-    map.addLayer({
-      id: CLUSTER_BORDER_LAYER,
-      type: "line",
-      source: CLUSTER_BORDER_SOURCE,
-      layout: { "line-join": "round", "line-cap": "round", visibility: "visible" },
-      paint: {
-        "line-color": CLUSTER_BORDER_COLOR,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.8, 5, 1.6, 8, 2.6],
-        "line-opacity": 0.95,
-      },
-    }, before);
-  } else {
-    map.setLayoutProperty(CLUSTER_BORDER_LAYER, "visibility", "visible");
-  }
-}
-function hideClusterBorders() {
-  if (map.getLayer(CLUSTER_BORDER_LAYER)) map.setLayoutProperty(CLUSTER_BORDER_LAYER, "visibility", "none");
-}
 function setCountryBordersVisible(on) {
   if (map.getLayer(COUNTRY_LAYER)) map.setLayoutProperty(COUNTRY_LAYER, "visibility", on ? "visible" : "none");
 }
@@ -1359,12 +1356,12 @@ async function animDelay(ms, token) {
 }
 
 // Paint the clean, fully-coloured frame for step `k` (the "restore" look): every
-// cluster in colour, the cluster-boundary overlay matching, and lastResult / the
-// K input synced so a Stop / download here is correct. Sets ANIM.k.
+// cluster in colour, and lastResult / the K input synced so a Stop / download here
+// is correct. Sets ANIM.k.
 function renderStep(k) {
   paintAnimFrame(ANIM.seq.colorsAt[k], ANIM.seq.labelsAt[k]);
-  setClusterBorders(buildClusterBorderFC(ANIM.segs, ANIM.seq.labelsAt[k], null));
   ANIM.k = k;
+  ANIM.phase = 0;
   lastResult.colorById = animColorById(ANIM.seq.colorsAt[k]);
   lastResult.usedK = k;
   lastResult.title = autoTitle(k);
@@ -1378,6 +1375,9 @@ function updateAnimStatus() {
   if (ANIM.mode === "manual") setStatus(`Step ${k} of ${ANIM.maxK} — ${k} ${plural}`);
   else if (k >= ANIM.maxK) setStatus(`${k} ${plural} (animation complete).`, "ok");
   else setStatus(`Animating… ${k} ${plural}`);
+  // Prominent on-map caption for the clean frame, e.g. "Europe in 5 clusters".
+  const name = (lastResult && lastResult.name) || "These regions";
+  setCaption(`${name} in ${k} ${plural}`);
 }
 
 // Play the split between levels k and k+1 as a focus → split → restore choreography.
@@ -1392,7 +1392,6 @@ async function playStep(k, direction) {
   ANIM.busy = true;
   updateStepButtons();
   try {
-    const splitSet = new Set(splitIdx);
     const one = ANIM.seq.colorsAt[k];     // splitting cluster as one colour
     const two = ANIM.seq.colorsAt[k + 1]; // ...split into two colours
     // Fade everything but the splitting cluster (it keeps its own hues).
@@ -1400,18 +1399,15 @@ async function playStep(k, direction) {
     // Phase A → B: forward shows one→two; reverse shows two→one.
     const a = direction > 0 ? one : two;
     const b = direction > 0 ? two : one;
-    const aLabels = direction > 0 ? ANIM.seq.labelsAt[k] : ANIM.seq.labelsAt[k + 1];
-    const bLabels = direction > 0 ? ANIM.seq.labelsAt[k + 1] : ANIM.seq.labelsAt[k];
 
     // Phase 1 — focus: the cluster about to change, in colour, the rest faded.
     paintAnimFrame(faded(a), null);
-    setClusterBorders(buildClusterBorderFC(ANIM.segs, aLabels, splitSet));
-    setStatus(direction > 0 ? `Splitting into ${k + 1}…` : `Merging into ${k}…`);
+    setCaption(direction > 0 ? "Next cluster to split" : "Merging two clusters");
     if (!(await animDelay(ANIM_FOCUS_MS, token))) return false;
 
     // Phase 2 — change: reveal the split (or merge) inside the focused cluster.
     paintAnimFrame(faded(b), null);
-    setClusterBorders(buildClusterBorderFC(ANIM.segs, bLabels, splitSet));
+    setCaption(direction > 0 ? "Split into two subclusters" : "Merged into one cluster");
     if (!(await animDelay(ANIM_SPLIT_MS, token))) return false;
 
     // Phase 3 — restore: every cluster back in colour at the target K.
@@ -1428,7 +1424,7 @@ async function playStep(k, direction) {
 // loop survives; it unwinds as soon as the mode changes or the animation stops.
 async function autoLoop() {
   const token = ++animToken;
-  while (ANIM.active && ANIM.mode === "auto" && animToken === token) {
+  while (ANIM.active && ANIM.mode === "auto" && !ANIM.paused && animToken === token) {
     if (ANIM.k >= ANIM.maxK) {
       updateAnimStatus();
       if (!(await animDelay(ANIM_REST_MS * 2.5, token))) return;
@@ -1442,22 +1438,25 @@ async function autoLoop() {
   }
 }
 
-// Enter animation mode: build the sequence, hide country borders for the dynamic
-// cluster-boundary overlay, start at K=1 and begin playing automatically.
+// Enter animation mode: build the sequence, start at K=1 and begin playing
+// automatically. Clusters are conveyed by fill colour + the focus/split fade — there
+// is no cluster-boundary overlay (removed); the country borders stay visible.
 function enterAnimation() {
   if (ANIM.active || !prepCache || !lastResult) return;
-  const maxK = Math.min(ANIM_MAX_K, prepCache.regionIds.length - 1);
+  const maxK = animMaxK();
   if (maxK < 1) return;
   highlightCluster(null); // clear any click-highlight before we start repainting
   ANIM.seq = buildAnimationSequence(maxK);
-  if (!prepCache.borderSegs) prepCache.borderSegs = buildClusterBorderIndex(prepCache.clusterFeatures);
-  ANIM.segs = prepCache.borderSegs;
   ANIM.maxK = maxK;
   ANIM.mode = "auto";
   ANIM.active = true;
   ANIM.busy = false;
+  ANIM.paused = false;
   $("num-clusters").disabled = true;
-  setCountryBordersVisible(false); // during the sweep the cluster boundaries carry the structure
+  $("panel")?.classList.add("animating"); // lets the collapsed panel still expose the controls on mobile
+  // Keep the (subtle grey) country borders visible during the sweep — same as the
+  // static view — and draw only the inter-cluster divisions on top (perimeter off).
+  setCountryBordersVisible(true);
   renderStep(1);
   setAnimControls("active");
   autoLoop();
@@ -1470,21 +1469,91 @@ function setAnimMode(mode) {
   ANIM.mode = mode;
   animToken++; // cancel the auto loop / any in-flight transition
   if (ANIM.busy) { renderStep(ANIM.k); ANIM.busy = false; } // snap a mid-transition to a clean frame
+  if (mode === "auto") ANIM.paused = false; // switching back to Automatic resumes playing
   syncAnimModeUI();
-  if (mode === "auto") autoLoop();
-  else updateAnimStatus();
+  if (mode === "auto") {
+    autoLoop();
+  } else {
+    updateAnimStatus();
+    // On mobile, collapse the panel out of the way so you can watch the map while
+    // stepping — the Back/Next controls stay visible (see cluster.css .animating).
+    if (isMobileView() && !$("panel")?.classList.contains("collapsed")) {
+      setPanelCollapsed(true);
+      panelAutoCollapsed = true;
+    }
+  }
 }
 
-// Manual stepping (only reachable in manual mode — the stepper is hidden in auto).
-async function stepForward() {
-  if (!ANIM.active || ANIM.busy || ANIM.k >= ANIM.maxK) return;
-  animToken++;
-  await playStep(ANIM.k, +1);
+// Pause / resume automatic playback WITHOUT leaving auto mode (Stop exits entirely).
+// Pausing freezes on a clean frame; Play resumes the loop from there.
+function togglePause() {
+  if (!ANIM.active || ANIM.mode !== "auto") return;
+  ANIM.paused = !ANIM.paused;
+  if (ANIM.paused) {
+    animToken++; // stop the loop / cancel any in-flight transition
+    if (ANIM.busy) { renderStep(ANIM.k); ANIM.busy = false; } // settle on a clean frame
+  } else {
+    autoLoop(); // resume (autoLoop bumps animToken itself)
+  }
+  syncAnimModeUI();
 }
-async function stepBackward() {
-  if (!ANIM.active || ANIM.busy || ANIM.k <= 1) return;
+
+// Paint ONE sub-phase of the split between k and k+1, instantly (no timed delay) —
+// the building block of the manual presentation-clicker stepping. phase 1 = focus
+// (splitting cluster in colour, the rest faded, k labels); phase 2 = split (the two
+// halves revealed, k+1 labels, the rest still faded). Mirrors the look of playStep's
+// phases so manual and automatic playback are visually identical.
+function paintPhaseFrame(k, phase) {
+  const splitIdx = ANIM.seq.splits[k];
+  const src = phase === 2 ? ANIM.seq.colorsAt[k + 1] : ANIM.seq.colorsAt[k];
+  const faded = src.map((c) => fadeHex(c, ANIM_FADE));
+  for (const i of splitIdx) faded[i] = src[i]; // keep the focused cluster(s) in colour
+  paintAnimFrame(faded, null);
+  ANIM.k = k;
+  ANIM.phase = phase;
+  updateStepButtons();
+}
+
+// Manual stepping = a presentation clicker. Each click advances exactly ONE beat of
+// the choreography (focus → split → restore), not a whole K→K+1 step. The beat order
+// across a split is: clean@k → focus → split → clean@(k+1) → focus → split → …
+// Degenerate steps (no real split) collapse to a single jump between clean frames.
+function stepForward() {
+  if (!ANIM.active || ANIM.busy) return;
+  animToken++; // cancel any stray auto timer
+  const k = ANIM.k, phase = ANIM.phase || 0;
+  if (phase === 0) {
+    if (k >= ANIM.maxK) return;
+    if (!ANIM.seq.splits[k]) { renderStep(k + 1); return; } // nothing splits — jump
+    paintPhaseFrame(k, 1);
+    setStatus(`Step ${k} of ${ANIM.maxK} — splitting`);
+    setCaption("Next cluster to split");
+  } else if (phase === 1) {
+    paintPhaseFrame(k, 2);
+    setStatus(`Step ${k} of ${ANIM.maxK} — splitting`);
+    setCaption("Split into two subclusters");
+  } else { // phase 2 → settle onto the clean frame at k+1
+    renderStep(k + 1);
+  }
+}
+function stepBackward() {
+  if (!ANIM.active || ANIM.busy) return;
   animToken++;
-  await playStep(ANIM.k - 1, -1);
+  const k = ANIM.k, phase = ANIM.phase || 0;
+  if (phase === 2) {
+    paintPhaseFrame(k, 1);
+    setStatus(`Step ${k} of ${ANIM.maxK} — splitting`);
+    setCaption("Next cluster to split");
+  } else if (phase === 1) { // back to the clean frame before the split
+    renderStep(k);
+  } else { // phase 0 → step back into the previous split's "split" beat
+    if (k <= 1) return;
+    const prevK = k - 1;
+    if (!ANIM.seq.splits[prevK]) { renderStep(prevK); return; } // degenerate — jump back
+    paintPhaseFrame(prevK, 2);
+    setStatus(`Step ${prevK} of ${ANIM.maxK} — splitting`);
+    setCaption("Split into two subclusters");
+  }
 }
 
 // Stop button → leave animation mode (stopAnimation restores a clean static view).
@@ -1498,43 +1567,34 @@ function exitAnimation() { stopAnimation(); }
 async function downloadAnimationReel() {
   if (!prepCache || !lastResult) return;
   if (!mp4Supported()) { setStatus("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/SVG.", "warn"); return; }
-  const maxK = Math.min(ANIM_MAX_K, prepCache.regionIds.length - 1);
+  const maxK = animMaxK();
   if (maxK < 1) return;
 
   stopAnimation(); // don't run the live sweep and the export at once
   try {
     setStatus("Preparing animation frames…");
-    // Base render opts (features, bbox, caption…). For the animation we hide the
-    // country borders (strongBorderFeatures=null) and instead draw the dynamic
-    // cluster boundaries in the medium "countryFeatures" slot — matching on screen.
-    const baseOpts = { ...buildRenderOpts(1080), strongBorderFeatures: null };
+    // Base render opts (features, bbox, caption, AND the country/state borders).
+    // Like the on-screen animation, clusters are shown by fill colour + focus/split
+    // fade — there's no cluster-boundary overlay — so each frame only swaps the fill
+    // colours and the title; the borders come straight from buildRenderOpts.
+    const baseOpts = buildRenderOpts(1080);
     const seq = buildAnimationSequence(maxK);
-    if (!prepCache.borderSegs) prepCache.borderSegs = buildClusterBorderIndex(prepCache.clusterFeatures);
-    const segs = prepCache.borderSegs;
     const frames = [];
-    // colorById = phase fill; labels/restrict define the cluster outline geometry.
-    const push = (colorById, labels, restrict, k, seconds) => frames.push({
-      renderOpts: {
-        ...baseOpts,
-        colorById,
-        title: autoTitle(k),
-        countryFeatures: buildClusterBorderFC(segs, labels, restrict).features,
-        countryBorderColor: CLUSTER_BORDER_COLOR,
-      },
+    const push = (colorById, k, seconds) => frames.push({
+      renderOpts: { ...baseOpts, colorById, title: autoTitle(k) },
       seconds,
     });
 
     // Start: all clusters in colour at K=1.
-    push(phaseColorById(seq.colorsAt[1], null), seq.labelsAt[1], null, 1, ANIM_REST_MS / 1000);
+    push(phaseColorById(seq.colorsAt[1], null), 1, ANIM_REST_MS / 1000);
     for (let k = 1; k < maxK; k++) {
       const splitIdx = seq.splits[k];
       if (!splitIdx) continue;
-      const splitSet = new Set(splitIdx);
       // focus (still K), split (K+1, isolated), restore (K+1, all coloured)
-      push(phaseColorById(seq.colorsAt[k], splitIdx), seq.labelsAt[k], splitSet, k, ANIM_FOCUS_MS / 1000);
-      push(phaseColorById(seq.colorsAt[k + 1], splitIdx), seq.labelsAt[k + 1], splitSet, k + 1, ANIM_SPLIT_MS / 1000);
+      push(phaseColorById(seq.colorsAt[k], splitIdx), k, ANIM_FOCUS_MS / 1000);
+      push(phaseColorById(seq.colorsAt[k + 1], splitIdx), k + 1, ANIM_SPLIT_MS / 1000);
       const lastStep = k === maxK - 1;
-      push(phaseColorById(seq.colorsAt[k + 1], null), seq.labelsAt[k + 1], null, k + 1, (ANIM_REST_MS / 1000) * (lastStep ? 2.5 : 1));
+      push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, (ANIM_REST_MS / 1000) * (lastStep ? 2.5 : 1));
       if (k % 4 === 0) await sleep(0); // yield so the "Preparing…" status can paint
     }
 
@@ -1575,7 +1635,10 @@ function paintClusters(fc) {
       paint: {
         "line-color": "#ffffff",
         "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.3, 5, 0.7, 8, 1.2],
-        "line-opacity": 0.9,
+        // Fade the white region mesh IN with zoom: invisible at the zoomed-out
+        // default view (where it looked too busy, especially on mobile), softly
+        // appearing only as you zoom in to inspect individual regions.
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0, 6, 0.3, 9, 0.5],
       },
     }, beforeId);
     // Click-highlight layers: hidden (filter matches no feature) until a cluster
@@ -1590,8 +1653,11 @@ function paintClusters(fc) {
       filter: HI_NONE,
       paint: {
         "line-color": "#ffffff",
-        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 2, 5, 3.2, 8, 4.5],
-        "line-opacity": 0.85,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 1.4, 5, 2.4, 8, 3.6],
+        // Like the white mesh, the click-highlight outline fades in with zoom — at the
+        // zoomed-out (mobile) default view the strong fill dimming alone marks the
+        // selected cluster, and the heavier outline only appears as you zoom in.
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0, 6, 0.45, 9, 0.7],
       },
     }, beforeId);
     map.addLayer({
@@ -1602,8 +1668,8 @@ function paintClusters(fc) {
       filter: HI_NONE,
       paint: {
         "line-color": HI_LINE_COLOR,
-        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.7, 5, 1.2, 8, 1.8],
-        "line-opacity": 0.9,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.6, 5, 1.0, 8, 1.6],
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 4, 0, 6, 0.5, 9, 0.85],
       },
     }, beforeId);
     wireHover();
@@ -1622,7 +1688,7 @@ function unionBox(a, b) {
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 }
 
-// Curated zoom box for the current selection, mirroring the Map Generator's
+// Curated zoom box for the current selection, mirroring the Map Maker's
 // selectionBbox(): use bounds.json's hand-tuned boxes (continent groups +
 // mainland country boxes) instead of the raw geometry extent, which inflates for
 // countries with far-flung overseas territories (France, UK, …) and for
@@ -1740,7 +1806,7 @@ async function applyBorders() {
           id: ADMIN_LAYER,
           type: "line",
           source: ADMIN_SOURCE,
-          layout: { "line-join": "round" },
+          layout: { "line-join": "round", "line-cap": "round" },
           paint: {
             "line-color": ADMIN_BORDER_COLOR,
             "line-width": ["interpolate", ["linear"], ["zoom"], 2, 0.4, 5, 0.9, 8, 1.6],
@@ -1766,15 +1832,17 @@ async function applyBorders() {
       map.getSource(COUNTRY_SOURCE).setData(countryFc);
     }
     if (!map.getLayer(COUNTRY_LAYER)) {
+      // Explorer's country-outline treatment, a bit darker + thicker so national
+      // borders read clearly (it's now the only border line during the animation).
       map.addLayer({
         id: COUNTRY_LAYER,
         type: "line",
         source: COUNTRY_SOURCE,
-        layout: { "line-join": "round", "line-cap": "round" },
+        layout: { "line-join": "round" },
         paint: {
           "line-color": COUNTRY_BORDER_COLOR,
-          "line-width": ["interpolate", ["linear"], ["zoom"], 2, 1.2, 5, 2.4, 8, 3.8],
-          "line-opacity": 0.95,
+          "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.6, 4, 1.3, 7, 2.2],
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.7, 4, 0.9],
         },
       }, beforeId);
     } else {
@@ -1804,10 +1872,12 @@ function highlightCluster(ci) {
   selectedCluster = ci;
   if (!map.getLayer(FILL_LAYER)) return;
   const hasSel = ci != null;
+  if (!hasSel) hideCaption(); // clearing the highlight (K-change, generate, empty click) clears the name
+
   // Brighten the selected cluster, fade the rest (fall back to the hover default
   // when nothing is selected so hover still works).
   map.setPaintProperty(FILL_LAYER, "fill-opacity", hasSel
-    ? ["case", ["==", ["get", "cluster"], ci], 0.95, 0.32]
+    ? ["case", ["==", ["get", "cluster"], ci], 0.95, 0.15]
     : ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.82]);
   const filter = ["==", ["get", "cluster"], hasSel ? ci : -1];
   for (const id of [HI_CASE_LAYER, HI_LINE_LAYER]) {
@@ -1854,15 +1924,18 @@ function wireHover() {
     if (!e.features.length) return;
     const f = e.features[0];
     const ci = f.properties.cluster;
-    if (ci == null) { highlightCluster(null); setStatus(""); return; }
+    if (ci == null) { highlightCluster(null); setStatus(""); hideCaption(); return; }
     const deselect = selectedCluster === ci;
     highlightCluster(deselect ? null : ci);
-    setStatus(deselect ? "" : `${regionLabel(f.properties)} — Cluster ${ci + 1}`);
+    // Show the clicked region's name prominently on the map (the small panel status
+    // line was easy to miss); clear it when deselecting.
+    if (deselect) { setStatus(""); hideCaption(); }
+    else { setStatus(""); setCaption(`${regionLabel(f.properties)} — Cluster ${ci + 1}`); }
   });
   map.on("click", (e) => {
     if (!map.getLayer(FILL_LAYER)) return;
     const hits = map.queryRenderedFeatures(e.point, { layers: [FILL_LAYER] });
-    if (!hits.length) { highlightCluster(null); setStatus(""); }
+    if (!hits.length) { highlightCluster(null); setStatus(""); hideCaption(); }
   });
 }
 
@@ -1894,7 +1967,7 @@ function buildRenderOpts(width) {
     strongBorderColor: COUNTRY_BORDER_COLOR,
     title: r.title,
     subtitle: "",
-    // Exactly the Map Generator's caption (src/main.js CAPTION).
+    // Exactly the Map Maker's caption (src/generator/generator.js CAPTION).
     caption: "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab · social-connectedness.org",
     // No colour-scale legend on the clustered image (communities are categorical).
     legend: null,
@@ -1924,13 +1997,8 @@ async function download(fmt) {
   if (!lastResult) return;
   const name = slug(lastResult.title);
   try {
-    if (fmt === "map") {
-      // Whatever is currently on screen (includes the basemap).
-      map.getCanvas().toBlob((blob) => { if (blob) downloadBlob(blob, name + "_view.png"); }, "image/png");
-      return;
-    }
     if (fmt === "mp4") {
-      // 9:16 reel for Instagram/TikTok — same format as the Map Generator, from
+      // 9:16 reel for Instagram/TikTok — same format as the Map Maker, from
       // the same clean (basemap-free) static render. buildReelCanvas re-renders at
       // reel width, so the passed-in width here is just a placeholder.
       if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/SVG.");
@@ -1938,7 +2006,7 @@ async function download(fmt) {
       return;
     }
     if (fmt === "mp4anim") {
-      // The on-screen 1→30 animation as a 9:16 video (same focus/split/restore reel).
+      // The on-screen 1→K animation as a 9:16 video (same focus/split/restore reel).
       await downloadAnimationReel();
       return;
     }
@@ -2001,6 +2069,7 @@ async function init() {
   $("anim-manual").addEventListener("click", () => setAnimMode("manual"));
   $("anim-prev").addEventListener("click", stepBackward);
   $("anim-next").addEventListener("click", stepForward);
+  $("anim-pause").addEventListener("click", togglePause);
   $("anim-stop").addEventListener("click", exitAnimation);
   // Toggle the optional state/province overlay live (re-applies to the last map).
   $("show-borders").addEventListener("change", () => { applyBorders(); });
@@ -2043,11 +2112,9 @@ async function init() {
     const btn = $("panel-toggle"), panel = $("panel");
     if (!btn || !panel) return;
     btn.addEventListener("click", () => {
-      const collapsed = panel.classList.toggle("collapsed");
-      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
-      const label = collapsed ? "Expand panel" : "Collapse panel";
-      btn.setAttribute("aria-label", label);
-      btn.setAttribute("title", label);
+      // A manual toggle clears the auto-collapse flag so Stop won't fight the user.
+      panelAutoCollapsed = false;
+      setPanelCollapsed(!panel.classList.contains("collapsed"));
     });
   })();
 
