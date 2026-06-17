@@ -50,9 +50,8 @@
           <div class="tool-card-body">
             <h2>Connected Communities</h2>
             <p>
-              Pick a region or country and how many clusters to divide it into, and watch its
-              regions group into clusters of tightly-connected places. See which places truly
-              belong together.
+              Pick a region or country and a number of clusters, then watch its places group by
+              how tightly they're connected — revealing which truly belong together.
             </p>
             <span class="tool-cta">Find clusters →</span>
           </div>
@@ -65,7 +64,17 @@
            Add more papers by copying a <li class="citation"> block.
            ============================================================ -->
       <section class="citations" id="citations">
-        <p class="citations-intro">If you use the Social Connectedness Index in your work, please cite:</p>
+        <div class="citations-head">
+          <p class="citations-intro">If you use the Social Connectedness Index in your work, please cite:</p>
+          <button type="button" id="bibtex-btn" class="bibtex-btn" title="Download citations as BibTeX">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12" />
+              <path d="m7 11 5 5 5-5" />
+              <path d="M5 21h14" />
+            </svg>
+            BibTeX
+          </button>
+        </div>
         <ol class="citation-list">
           <li class="citation">
             <span class="citation-text">Johnston, D., Kuchler, T., Kulkarni, M., & Stroebel, J. (2026). <a href="https://www.sciencedirect.com/science/article/pii/S2352340926004579" target="_blank" rel="noopener">The Social Connectedness Index: A Large-Scale Dataset of Social Ties Across Geographic Locations</a>. <em>Data in Brief</em>, 67, 112905.</span>
@@ -74,21 +83,56 @@
             <span class="citation-text">Bailey, M., Cao, R., Kuchler, T., Stroebel, J., & Wong, A. (2018). <a href="https://www.aeaweb.org/articles?id=10.1257/jep.32.3.259" target="_blank" rel="noopener">Social Connectedness: Measurement, Determinants, and Effects</a>. <em>Journal of Economic Perspectives</em>, 32(3), 259-280.</span>
           </li>
         </ol>
+        <p class="data-source">
+          Data: <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Facebook Social Connectedness Index</a> (Humanitarian Data Exchange)
+        </p>
       </section>
 
       <footer class="landing-foot">
-        <p>
-          Data:
-          <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">
-            Facebook Social Connectedness Index
-          </a>
-          (Humanitarian Data Exchange).
-        </p>
         <a class="lab-credit" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener">
           <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" class="lab-logo" />
           <span><strong>Social Capital Lab</strong></span>
         </a>
       </footer>
     </main>
+
+    <script type="module">
+      // BibTeX for the two cited papers, downloaded as a single .bib file.
+      const BIBTEX = `@article{johnston2026social,
+  title = {The Social Connectedness Index: A large-scale dataset of social ties across geographic locations},
+  author = {Drew Johnston and Theresa Kuchler and Manas Kulkarni and Johannes Stroebel},
+  journal = {Data in Brief},
+  volume = {67},
+  pages = {112905},
+  year = {2026},
+  issn = {2352-3409},
+  doi = {https://doi.org/10.1016/j.dib.2026.112905},
+  url = {https://www.sciencedirect.com/science/article/pii/S2352340926004579}
+}
+
+@article{bailey2018social,
+  title   = {Social Connectedness: Measurement, Determinants, and Effects},
+  author  = {Bailey, Michael and Cao, Rachel and Kuchler, Theresa and Stroebel, Johannes and Wong, Arlene},
+  journal = {Journal of Economic Perspectives},
+  volume  = {32},
+  number  = {3},
+  pages   = {259--280},
+  year    = {2018}, 
+  doi = {https://doi.org/10.1257/jep.32.3.259},
+  url = {https://www.aeaweb.org/articles?id=10.1257/jep.32.3.259}
+}
+`;
+      document.getElementById("bibtex-btn")?.addEventListener("click", () => {
+        const blob = new Blob([BIBTEX], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "social-connectedness-index.bib";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+    </script>
   </body>
 </html>

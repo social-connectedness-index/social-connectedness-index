@@ -14,17 +14,17 @@ html, body {
 .landing {
   max-width: 1140px;
   margin: 0 auto;
-  padding: 64px 24px 48px;
+  padding: 36px 24px 28px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
 }
 
-.landing-head { text-align: center; margin-bottom: 44px; }
+.landing-head { text-align: center; margin-bottom: 26px; }
 .landing-head h1 {
   font-size: 38px;
   line-height: 1.1;
-  margin: 0 0 16px;
+  margin: 0 0 12px;
   letter-spacing: -0.02em;
   color: #10617b;
 }
@@ -62,7 +62,7 @@ html, body {
 }
 
 .tool-card-art {
-  height: 158px;
+  height: 130px;
   overflow: hidden;
   background-position: center;
   background-repeat: no-repeat;
@@ -97,16 +97,16 @@ html, body {
   background-position: center;
 }
 
-.tool-card-body { padding: 22px 24px 26px; }
+.tool-card-body { padding: 18px 24px 20px; }
 .tool-card-body h2 {
-  margin: 0 0 10px;
+  margin: 0 0 9px;
   font-size: 22px;
   color: #10617b;
 }
 .tool-card-body p {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   font-size: 14.5px;
-  line-height: 1.55;
+  line-height: 1.4;
   color: #4a5862;
 }
 .tool-cta {
@@ -118,13 +118,13 @@ html, body {
 
 /* ---- citations card ---- */
 .citations {
-  margin: 48px auto 0;
+  margin: 26px auto 0;
   max-width: 760px;
   width: 100%;
   background: #fff;
   border: 1px solid #e1e8ec;
   border-radius: 16px;
-  padding: 28px 32px;
+  padding: 20px 32px;
   box-shadow: 0 2px 8px rgba(16, 97, 123, 0.06);
 }
 .citations h2 {
@@ -133,8 +133,16 @@ html, body {
   color: #10617b;
   text-align: center;
 }
+.citations-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin: 0 0 14px;
+}
 .citations-intro {
-  margin: 0 0 18px;
+  margin: 0;
   text-align: center;
   font-size: 15px;
   color: #4a5862;
@@ -148,16 +156,56 @@ html, body {
 }
 .citation {
   font-size: 14.5px;
-  line-height: 1.6;
+  line-height: 1.4;
   color: #1b2329;
 }
 .citation::marker { color: #10617b; font-weight: 600; }
-.citation a { color: #1879d5; text-decoration: none; }
+.citation a { color: #1879d5; font-weight: 600; text-decoration: none; }
 .citation a:hover { text-decoration: underline; }
+
+/* ---- data source (inside the citations card) ---- */
+.data-source {
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid #eef2f4;
+  text-align: center;
+  font-size: 14.5px;
+  line-height: 1.4;
+  color: #4a5862;
+}
+
+/* ---- download BibTeX button ---- */
+.bibtex-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #10617b;
+  background: #fff;
+  border: 1px solid #cdd3d8;
+  border-radius: 999px;
+  padding: 2px 9px;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.bibtex-btn svg { width: 12px; height: 12px; }
+.bibtex-btn:hover {
+  background: #10617b;
+  border-color: #10617b;
+  color: #fff;
+}
+.data-source a {
+  color: #1879d5;
+  font-weight: 600;
+  text-decoration: none;
+}
+.data-source a:hover { text-decoration: underline; }
 
 /* ---- footer ---- */
 .landing-foot {
-  padding-top: 20px;
+  padding-top: 16px;
   text-align: center;
   font-size: 14px;
   color: #4a5862;
@@ -169,7 +217,7 @@ html, body {
 }
 .landing-foot a:hover { text-decoration: underline; }
 .lab-credit {
-  margin-top: 18px;
+  margin-top: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -192,12 +192,10 @@ input[type="number"] { width: 110px; }
 .seg-btn + .seg-btn { border-left: 1px solid #b9d0da; }
 .seg-btn:hover:not(.active) { background: #eef5f8; }
 .seg-btn.active { background: #10617b; color: #fff; }
-/* Back / Next stepper (only shown in manual mode). */
-.anim-steps:not([hidden]) { display: flex; gap: 6px; }
-.anim-steps .btn-secondary { flex: 1; }
-/* Pause/Play + Stop on one row (Pause is hidden in manual mode, so Stop fills it). */
-.anim-play-row { display: flex; gap: 6px; }
-.anim-play-row .btn-secondary { flex: 1; }
+/* Action buttons share ONE row; only the buttons relevant to the current mode are
+   shown — manual = Back · Next · Stop, automatic = Pause/Play · Stop. */
+.anim-buttons { display: flex; gap: 6px; }
+.anim-buttons .btn-secondary { flex: 1; }
 
 .download-menu {
   position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;

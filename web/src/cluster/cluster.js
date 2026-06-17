@@ -1120,11 +1120,14 @@ function setAnimControls(state) {
 // Reflect ANIM.mode on the segmented Automatic/Manual buttons and show the
 // Back/Next stepper only in manual mode.
 function syncAnimModeUI() {
-  const auto = $("anim-auto"), manual = $("anim-manual"), steps = $("anim-steps");
+  const auto = $("anim-auto"), manual = $("anim-manual");
   const isManual = ANIM.mode === "manual";
   if (auto) { auto.classList.toggle("active", !isManual); auto.setAttribute("aria-pressed", String(!isManual)); }
   if (manual) { manual.classList.toggle("active", isManual); manual.setAttribute("aria-pressed", String(isManual)); }
-  if (steps) steps.hidden = !isManual;
+  // Back/Next show only in manual mode (they share the action row with Stop).
+  const prev = $("anim-prev"), next = $("anim-next");
+  if (prev) prev.hidden = !isManual;
+  if (next) next.hidden = !isManual;
   // Pause/Play exists only in automatic mode; its label reflects the paused state.
   const pause = $("anim-pause");
   if (pause) {
@@ -1178,9 +1181,19 @@ function stopAnimation() {
 }
 
 // Per-phase timing for the "focus → split → restore" choreography (ms).
-const ANIM_FOCUS_MS = 1000; // splitting cluster kept in colour, the rest faded back
-const ANIM_SPLIT_MS = 1400; // the split revealed (rest still faded)
-const ANIM_REST_MS = 1100;  // all clusters back in colour
+const ANIM_FOCUS_MS = 1500; // splitting cluster kept in colour, the rest faded back
+const ANIM_SPLIT_MS = 2000; // the split revealed (rest still faded)
+const ANIM_REST_MS = 2400;  // all clusters back in colour — held a beat longer so the
+                            // full map "lands" before the next split begins
+
+// The first several splits carve the map into a handful of large blocks, where the
+// "focus on the cluster about to split, then reveal the split" choreography adds
+// little. So those early splits are shown as a direct jump between clean frames; the
+// step-by-step focus → split beats only kick in for the finer, harder-to-follow
+// splits. Choreography applies when the source cluster count k >= this value — i.e.
+// from the 9th split (9 → 10 clusters) onward. Applies to automatic, manual, and the
+// downloaded MP4 reel alike.
+const ANIM_CHOREO_FROM_K = 9;
 // How far non-focused clusters fade toward white during a split. They keep their
 // own hue but become light/out-of-focus, so the eye is drawn to the cluster that's
 // splitting rather than to a flat grey backdrop.
@@ -1387,7 +1400,9 @@ function updateAnimStatus() {
 async function playStep(k, direction) {
   const splitIdx = ANIM.seq.splits[k];
   const targetK = direction > 0 ? k + 1 : k;
-  if (!splitIdx) { renderStep(targetK); return true; } // degenerate: nothing splits — just jump
+  // Degenerate (nothing splits) OR an early split (below the choreography threshold):
+  // skip the focus/split beats and jump straight to the clean target frame.
+  if (!splitIdx || k < ANIM_CHOREO_FROM_K) { renderStep(targetK); return true; }
   const token = animToken;
   ANIM.busy = true;
   updateStepButtons();
@@ -1454,6 +1469,13 @@ function enterAnimation() {
   ANIM.paused = false;
   $("num-clusters").disabled = true;
   $("panel")?.classList.add("animating"); // lets the collapsed panel still expose the controls on mobile
+  // Collapse the panel out of the way so the map is fully visible while the
+  // animation plays (mobile only — desktop has no panel collapse). It's expanded
+  // back automatically when the animation stops (see teardownAnimation).
+  if (isMobileView() && !$("panel")?.classList.contains("collapsed")) {
+    setPanelCollapsed(true);
+    panelAutoCollapsed = true;
+  }
   // Keep the (subtle grey) country borders visible during the sweep — same as the
   // static view — and draw only the inter-cluster divisions on top (perimeter off).
   setCountryBordersVisible(true);
@@ -1475,12 +1497,6 @@ function setAnimMode(mode) {
     autoLoop();
   } else {
     updateAnimStatus();
-    // On mobile, collapse the panel out of the way so you can watch the map while
-    // stepping — the Back/Next controls stay visible (see cluster.css .animating).
-    if (isMobileView() && !$("panel")?.classList.contains("collapsed")) {
-      setPanelCollapsed(true);
-      panelAutoCollapsed = true;
-    }
   }
 }
 
@@ -1524,7 +1540,9 @@ function stepForward() {
   const k = ANIM.k, phase = ANIM.phase || 0;
   if (phase === 0) {
     if (k >= ANIM.maxK) return;
-    if (!ANIM.seq.splits[k]) { renderStep(k + 1); return; } // nothing splits — jump
+    // Nothing splits, or an early split (below the choreography threshold) — jump
+    // straight to the next clean frame with no focus/split beats.
+    if (!ANIM.seq.splits[k] || k < ANIM_CHOREO_FROM_K) { renderStep(k + 1); return; }
     paintPhaseFrame(k, 1);
     setStatus(`Step ${k} of ${ANIM.maxK} — splitting`);
     setCaption("Next cluster to split");
@@ -1549,7 +1567,9 @@ function stepBackward() {
   } else { // phase 0 → step back into the previous split's "split" beat
     if (k <= 1) return;
     const prevK = k - 1;
-    if (!ANIM.seq.splits[prevK]) { renderStep(prevK); return; } // degenerate — jump back
+    // Degenerate, or an early split shown as a jump — step straight back to the
+    // previous clean frame (no focus/split beats for early splits).
+    if (!ANIM.seq.splits[prevK] || prevK < ANIM_CHOREO_FROM_K) { renderStep(prevK); return; }
     paintPhaseFrame(prevK, 2);
     setStatus(`Step ${prevK} of ${ANIM.maxK} — splitting`);
     setCaption("Split into two subclusters");
@@ -1590,11 +1610,18 @@ async function downloadAnimationReel() {
     for (let k = 1; k < maxK; k++) {
       const splitIdx = seq.splits[k];
       if (!splitIdx) continue;
-      // focus (still K), split (K+1, isolated), restore (K+1, all coloured)
-      push(phaseColorById(seq.colorsAt[k], splitIdx), k, ANIM_FOCUS_MS / 1000);
-      push(phaseColorById(seq.colorsAt[k + 1], splitIdx), k + 1, ANIM_SPLIT_MS / 1000);
       const lastStep = k === maxK - 1;
-      push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, (ANIM_REST_MS / 1000) * (lastStep ? 2.5 : 1));
+      const restSecs = (ANIM_REST_MS / 1000) * (lastStep ? 2.5 : 1);
+      if (k < ANIM_CHOREO_FROM_K) {
+        // Early split: no focus/split beats — just hold the clean K+1 frame, mirroring
+        // the on-screen jump-then-rest for the first several splits.
+        push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, restSecs);
+      } else {
+        // focus (still K), split (K+1, isolated), restore (K+1, all coloured)
+        push(phaseColorById(seq.colorsAt[k], splitIdx), k, ANIM_FOCUS_MS / 1000);
+        push(phaseColorById(seq.colorsAt[k + 1], splitIdx), k + 1, ANIM_SPLIT_MS / 1000);
+        push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, restSecs);
+      }
       if (k % 4 === 0) await sleep(0); // yield so the "Preparing…" status can paint
     }
 
