@@ -66,16 +66,61 @@ input[type="number"] { width: 110px; }
   outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15);
 }
 
-/* group quick-select chips */
-.group-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
-.chip {
-  font: inherit; font-size: 11.5px;
-  padding: 3px 9px; border-radius: 999px;
-  border: 1px solid #cfd9df; background: #f4f7f9; color: #3b4954;
-  cursor: pointer; transition: background 0.12s, border-color 0.12s;
+/* ---- region picker: mode tabs + panels ---- */
+.mode-tabs { display: flex; border: 1px solid #b9d0da; border-radius: 7px; overflow: hidden; margin-bottom: 10px; }
+.mode-tab {
+  flex: 1; font: inherit; font-weight: 600; font-size: 12.5px;
+  padding: 7px 8px; cursor: pointer; border: none; background: #fff; color: #10617b;
 }
-.chip:hover { background: #e7eef2; border-color: #b9d0da; }
-.chip-clear { color: #9a4a4a; border-color: #e3c9c9; background: #fbf2f2; }
+.mode-tab + .mode-tab { border-left: 1px solid #b9d0da; }
+.mode-tab:hover:not(.active) { background: #eef5f8; }
+.mode-tab.active { background: #10617b; color: #fff; }
+
+.mode-panel[hidden] { display: none; }
+.sublabel { display: block; margin: 10px 0 5px; font-size: 11.5px; color: #5a6873; }
+
+/* Regional-grouping buttons (broad continents). */
+.region-buttons { display: flex; flex-wrap: wrap; gap: 5px; }
+.region-btn {
+  font: inherit; font-size: 11.5px; font-weight: 500;
+  padding: 4px 10px; border-radius: 999px;
+  border: 1px solid #cfd9df; background: #f4f7f9; color: #3b4954;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.region-btn:hover:not(.active) { background: #e7eef2; border-color: #b9d0da; }
+.region-btn.active { background: #10617b; border-color: #10617b; color: #fff; }
+
+/* "More regional groupings" dropdown. */
+.region-select {
+  width: 100%; padding: 7px 9px; border: 1px solid #cfd9df; border-radius: 6px;
+  font-family: inherit; font-size: 13px; color: #2a3942; background: #fff; cursor: pointer;
+}
+.region-select:focus { outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15); }
+
+/* Single-country single-select list rows. */
+.country-row {
+  display: block; width: 100%; text-align: left;
+  font: inherit; font-size: 13px; color: #2a3942;
+  padding: 5px 7px; border: none; border-radius: 4px; background: none; cursor: pointer;
+}
+.country-row:hover { background: #f1f6f8; }
+.country-row.selected { background: #10617b; color: #fff; font-weight: 600; }
+.check-empty { padding: 8px 7px; font-size: 12.5px; color: #8a97a0; }
+
+/* Custom (advanced) combination — desktop only, behind an expander. */
+.custom-advanced { margin-top: 12px; border-top: 1px dashed #d7e0e5; padding-top: 8px; }
+.custom-advanced > summary {
+  cursor: pointer; font-size: 12.5px; font-weight: 600; color: #5a6873;
+  list-style: none; padding: 4px 2px; user-select: none;
+}
+.custom-advanced > summary::-webkit-details-marker { display: none; }
+.custom-advanced > summary::before { content: "▸ "; color: #8a97a0; }
+.custom-advanced[open] > summary::before { content: "▾ "; }
+.custom-advanced.mode-active > summary { color: #10617b; }
+.custom-warn {
+  margin: 6px 2px 8px; font-size: 11.5px; line-height: 1.45; color: #8a5a2a;
+  background: #fdf6ec; border: 1px solid #f0ddc0; border-radius: 6px; padding: 7px 9px;
+}
 
 /* country checklist */
 .checklist {
@@ -117,9 +162,20 @@ input[type="number"] { width: 110px; }
 .btn-secondary:hover:not(:disabled) { background: #eef5f8; }
 .btn-secondary:disabled { color: #aab8c0; border-color: #dde6ea; cursor: default; }
 
-/* Pause + Stop sit side-by-side while the animation runs. */
-.anim-controls:not([hidden]) { display: flex; gap: 8px; }
-.anim-controls .btn-secondary { flex: 1; }
+/* Animation controls: mode toggle, an optional stepper, and Stop, stacked. */
+.anim-controls:not([hidden]) { display: flex; flex-direction: column; gap: 8px; }
+/* Segmented Automatic | Manual toggle. */
+.anim-mode { display: flex; gap: 0; border: 1px solid #b9d0da; border-radius: 7px; overflow: hidden; }
+.seg-btn {
+  flex: 1; font: inherit; font-weight: 600; font-size: 14px;
+  padding: 8px 10px; cursor: pointer; border: none; background: #fff; color: #10617b;
+}
+.seg-btn + .seg-btn { border-left: 1px solid #b9d0da; }
+.seg-btn:hover:not(.active) { background: #eef5f8; }
+.seg-btn.active { background: #10617b; color: #fff; }
+/* Back / Next stepper (only shown in manual mode). */
+.anim-steps:not([hidden]) { display: flex; gap: 8px; }
+.anim-steps .btn-secondary { flex: 1; }
 
 .download-menu {
   position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
@@ -193,20 +249,6 @@ input[type="number"] { width: 110px; }
 .panel-toggle:hover { color: #3b464f; }
 
 /* ---- collapsible Countries section ---- */
-.countries-label { display: flex; align-items: center; }
-.section-toggle {
-  flex: none; margin-left: auto;
-  /* Comfortable tap target. */
-  width: 38px; height: 38px; display: inline-flex;
-  align-items: center; justify-content: center;
-  background: none; border: none; cursor: pointer; line-height: 0; color: #6a7480;
-}
-.section-toggle .chev { display: inline-block; font-size: 24px; transition: transform 0.18s ease; }
-/* Expanded → chevron up (tap to collapse); collapsed → down. */
-#countries-field:not(.section-collapsed) .section-toggle .chev { transform: rotate(180deg); }
-.section-toggle:hover { color: #3b464f; }
-#countries-field.section-collapsed #countries-body { display: none; }
-
 /* ---- about panel ---- */
 #about {
   position: fixed; left: 14px; top: 14px; width: 340px; max-width: calc(100vw - 28px);
@@ -297,6 +339,9 @@ input[type="number"] { width: 110px; }
   .panel-lede { display: none; }
   .field { margin-bottom: 8px; }
   .checklist { max-height: 116px; }
+  /* Custom (arbitrary multi-country) mode is desktop-only — it can kick off slow,
+     un-precomputed in-browser clustering that weak phones may not finish. */
+  .custom-advanced { display: none; }
   /* Show the collapse toggle and shrink the whole sheet to just its header. */
   .panel-toggle { display: inline-flex; }
   #panel.collapsed {

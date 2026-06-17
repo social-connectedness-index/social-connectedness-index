@@ -1,4 +1,4 @@
-// Connected Communities — a third SCI tool that groups sub-national regions into
+// Connected Communities — an SCI tool that groups sub-national regions into
 // communities by the strength of Facebook friendship ties between them, with
 // hierarchical agglomerative clustering (population-weighted average linkage by
 // default — see agglomerative.js; the method's lineage is Bailey et al. 2018).
@@ -8,16 +8,20 @@
 // range-indexed worldwide region->region SCI) and Mapbox basemap setup, plus the
 // Map Generator's static renderer (render.js) for the downloadable image/MP4.
 //
-// Flow: pick countries + a number of communities K -> load those countries'
-// region geometry -> range-fetch each region's SCI row (kept to just the
-// in-selection friends) -> build a -log(SCI) distance matrix -> population-weighted
-// average-linkage cluster to K groups -> colour each region by its community.
-// All client-side.
+// Flow: pick a regional grouping / single country / custom combination + a number
+// of clusters K -> load those countries' region geometry -> range-fetch each
+// region's SCI row (kept to just the in-selection friends) -> build a -log(SCI)
+// distance matrix -> population-weighted average-linkage cluster to K groups ->
+// colour each region by its community. All client-side. Regional-grouping and
+// single-country selections are precomputed (just a tree load + O(n) cut).
 
 import { createTour } from "../tour.js";
 import { buildDistanceMatrix, buildDendrogram, cutDendrogram, buildCentroids, buildWeights, SPATIAL_ALPHA, MIN_CLUSTER_FRAC } from "./agglomerative.js";
 import { renderMap, renderSvg, computeBbox, naturalHeight } from "../render.js";
 import { downloadReel, downloadReelAnimation, mp4Supported } from "../reel.js";
+// Hand-authored regional-grouping presets (see cluster_presets.json). Bundled at
+// build time so it lives in version control (public/data/ is gitignored data).
+import CLUSTER_PRESETS from "./cluster_presets.json";
 
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that cluster.html loads config.js before cluster.js.");
@@ -43,7 +47,7 @@ const TOUR_STEPS = [
     body: "Group regions into clusters by how tightly they're linked on Facebook. Here's a quick tour; skip anytime.",
     targets: null,
   },
-  { title: "Pick countries", body: "Choose one or more countries (or a whole continent with the quick buttons). All their regions are pooled and clustered together.", targets: ["#countries-field"] },
+  { title: "Pick what to cluster", body: "Choose a ready-made regional grouping or a single country — both load instantly. (Advanced users can build a custom combination of countries.)", targets: ["#picker-field"] },
   { title: "Choose how many clusters", body: "Set the number of clusters to split the regions into. Each one gets its own color.", targets: ["#num-clusters"] },
   { title: "Generate", body: "Click Generate. The tool fetches the connectedness between every pair of selected regions, clusters them, and colors the map.", targets: ["#generate"] },
   { title: "Download", body: "Once a map is generated you can download it.", targets: ["#download"] },
@@ -365,14 +369,48 @@ function hslToHex(h, s, l) {
   };
   return "#" + f(0) + f(8) + f(4);
 }
-function clusterPalette(k) {
-  const out = [];
-  for (let i = 0; i < k; i++) {
-    const hue = (i * 137.508) % 360;          // golden angle
-    const sat = 62 + ((i % 3) * 8);           // 62/70/78 — gentle variation
-    const lit = 52 + ((i % 2) * 8);           // 52/60 — alternate lightness
-    out.push(hslToHex(hue, sat, lit));
+// A palette of k colours that are as visually DISTINCT as possible. A plain
+// golden-angle hue sweep spreads hues evenly but, because human colour perception
+// is non-uniform (and equal HSL lightness isn't equal perceived lightness), it
+// still yields clumps of near-identical-looking colours — so the map seems to use
+// only a handful of hues. Instead we build a dense candidate set spanning hue ×
+// several saturation/lightness bands and farthest-point sample k of them in a
+// perceptual-ish RGB space (the same rgbDist2 used for neighbour contrast): each
+// pick is the candidate most different from everything already chosen. The result
+// fills the colour space, so every cluster on screen looks genuinely distinct.
+const PALETTE_BANDS = [[68, 54], [60, 64], [74, 46], [56, 72], [82, 50]]; // [sat, lit]
+const PALETTE_HUES = 30;
+let paletteCandidates = null; // {hex[], rgb[]} — built once, reused for every k
+function getPaletteCandidates() {
+  if (paletteCandidates) return paletteCandidates;
+  const hex = [];
+  for (let h = 0; h < PALETTE_HUES; h++) {
+    const hue = (h * 360) / PALETTE_HUES;
+    for (const [s, l] of PALETTE_BANDS) hex.push(hslToHex(hue, s, l));
   }
+  paletteCandidates = { hex, rgb: hex.map(hexToRgb) };
+  return paletteCandidates;
+}
+function clusterPalette(k) {
+  const { hex, rgb } = getPaletteCandidates();
+  const grey = [200, 200, 200];
+  // Seed deterministically with the most vivid candidate (farthest from grey).
+  let seed = 0, seedD = -1;
+  for (let i = 0; i < rgb.length; i++) { const d = rgbDist2(rgb[i], grey); if (d > seedD) { seedD = d; seed = i; } }
+  const minD = rgb.map((c) => rgbDist2(c, rgb[seed])); // dist of each candidate to the chosen set
+  minD[seed] = -1; // chosen marker
+  const out = [hex[seed]];
+  while (out.length < k && out.length < hex.length) {
+    let best = -1, bestD = -1;
+    for (let i = 0; i < hex.length; i++) if (minD[i] > bestD) { bestD = minD[i]; best = i; }
+    if (best < 0) break;
+    out.push(hex[best]);
+    const br = rgb[best];
+    for (let i = 0; i < hex.length; i++) { if (minD[i] < 0) continue; const d = rgbDist2(rgb[i], br); if (d < minD[i]) minD[i] = d; }
+    minD[best] = -1;
+  }
+  // More clusters than candidates (shouldn't happen for k≤30): top up via golden angle.
+  for (let i = out.length; i < k; i++) out.push(hslToHex((i * 137.508) % 360, 65, 55));
   return out;
 }
 function hexToRgb(hex) {
@@ -527,6 +565,15 @@ const selectedCountries = new Set();
 // e.g. "South America" includes France (its sovereign covers French Guiana), so a
 // geometry/per-country-box union would stretch the frame all the way to Europe.
 const selectedGroups = new Set();
+// Region picker mode. The picker has three mutually-exclusive modes so users can't
+// accidentally build a slow, un-precomputed selection (e.g. clicking Europe then the
+// US without clearing). "regional" + "country" are single-select and always
+// precomputed (instant); "custom" is the advanced multi-select (may run live).
+// Switching modes clears the selection.
+let pickMode = "regional";        // "regional" | "country" | "custom"
+let presetsMeta = null;           // cluster_presets.json: {buttons:[], dropdown:[]}
+let regionalPresets = [];         // [{id, label, members, groupName}] (buttons + dropdown)
+let activeRegionalId = null;      // id of the currently chosen regional preset, if any
 let lastResult = null;       // { features, ids, countryCodes, colorById, usedK, title, bbox, adminFeatures, countryBorderFeatures }
 // Caches the K-independent prep (geometry + fetched SCI -> distance matrix) for the
 // current country selection, so changing only the number of communities re-clusters
@@ -611,41 +658,124 @@ function regionLabel(props) {
 }
 
 // ---------------------------------------------------------------------------
-// Country picker UI.
+// Region picker UI — three mutually-exclusive modes so a user can't accidentally
+// build a slow, un-precomputed selection (e.g. Europe + the US). "regional" and
+// "country" are single-select and always precomputed (instant); "custom" is the
+// advanced multi-select that may run live. Switching modes clears the selection.
 // ---------------------------------------------------------------------------
-function renderGroupChips() {
-  const wrap = $("group-chips");
-  if (!wrap) return;
-  // Continent quick-selects (skip "All countries" / "United States" — too heavy /
-  // redundant with the country list).
-  const skip = new Set(["All countries", "United States"]);
-  const names = Object.keys(groupsMeta).filter((g) => !skip.has(g));
-  wrap.innerHTML = names
-    .map((g) => `<button type="button" class="chip" data-group="${escapeHtml(g)}">${escapeHtml(g)}</button>`)
-    .join("") + `<button type="button" class="chip chip-clear" data-clear="1">Clear</button>`;
-  wrap.querySelectorAll(".chip").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.dataset.clear) {
-        selectedCountries.clear();
-        selectedGroups.clear();
-      } else {
-        const members = groupsMeta[btn.dataset.group] || [];
-        // Only add countries we actually have region data for.
-        const known = new Set(countriesMeta.map((c) => c.id));
-        members.forEach((cc) => { if (known.has(cc)) selectedCountries.add(cc); });
-        selectedGroups.add(btn.dataset.group); // remembered for the curated zoom box
-      }
-      syncCountryList();
-      updateSelectedSummary();
-    });
-  });
+const knownSet = () => new Set(countriesMeta.map((c) => c.id));
+
+// Resolve a dropdown item / button name into {label, members, groupName|null}.
+// `{group: name}` references a groups.json continent (membership + a curated zoom
+// box); `{name, members}` is an explicit cluster-app preset (no curated box — the
+// camera falls back to the per-country mainland boxes, which frame compact presets
+// fine). Members are filtered to the countries we actually have data for.
+function resolvePreset(item, known) {
+  if (item.group) {
+    const members = (groupsMeta[item.group] || []).filter((cc) => known.has(cc));
+    return { label: item.group, members, groupName: item.group };
+  }
+  return { label: item.name, members: (item.members || []).filter((cc) => known.has(cc)), groupName: null };
 }
 
+// Build the regional-grouping buttons (broad continents) + the "more regions"
+// dropdown (sub-regional presets, grouped by continent). Both feed the same
+// `regionalPresets` list keyed by a stable id.
+function renderRegional() {
+  const known = knownSet();
+  regionalPresets = [];
+
+  const btnWrap = $("region-buttons");
+  if (btnWrap) {
+    const html = [];
+    for (const name of (presetsMeta && presetsMeta.buttons) || []) {
+      const p = resolvePreset({ group: name }, known);
+      if (!p.members.length) continue;
+      const id = "r" + regionalPresets.length;
+      regionalPresets.push({ id, ...p });
+      html.push(`<button type="button" class="region-btn" data-id="${id}">${escapeHtml(p.label)}</button>`);
+    }
+    btnWrap.innerHTML = html.join("");
+    btnWrap.querySelectorAll(".region-btn").forEach((b) =>
+      b.addEventListener("click", () => activateRegional(b.dataset.id)));
+  }
+
+  const sel = $("region-select");
+  if (sel) {
+    const parts = ['<option value="">More regional groupings</option>'];
+    for (const section of (presetsMeta && presetsMeta.dropdown) || []) {
+      const opts = [];
+      for (const item of section.items || []) {
+        const p = resolvePreset(item, known);
+        if (!p.members.length) continue;
+        const id = "r" + regionalPresets.length;
+        regionalPresets.push({ id, ...p });
+        opts.push(`<option value="${id}">${escapeHtml(p.label)}</option>`);
+      }
+      if (opts.length) parts.push(`<optgroup label="${escapeHtml(section.heading)}">${opts.join("")}</optgroup>`);
+    }
+    sel.innerHTML = parts.join("");
+    sel.onchange = () => { if (sel.value) activateRegional(sel.value); };
+  }
+  syncRegionalUI();
+}
+
+// Choose a regional preset (replaces the whole selection — single-select).
+function activateRegional(id) {
+  const p = regionalPresets.find((x) => x.id === id);
+  if (!p) return;
+  selectedCountries.clear();
+  selectedGroups.clear();
+  p.members.forEach((cc) => selectedCountries.add(cc));
+  if (p.groupName) selectedGroups.add(p.groupName); // curated continent zoom box (if any)
+  activeRegionalId = id;
+  syncRegionalUI();
+  updateSelectedSummary();
+}
+
+// Reflect the active preset: highlight its button (and reset the dropdown), or show
+// it in the dropdown (and clear the button highlight).
+function syncRegionalUI() {
+  const btnWrap = $("region-buttons");
+  let inButtons = false;
+  if (btnWrap) btnWrap.querySelectorAll(".region-btn").forEach((b) => {
+    const on = b.dataset.id === activeRegionalId;
+    if (on) inButtons = true;
+    b.classList.toggle("active", on);
+  });
+  const sel = $("region-select");
+  if (sel) sel.value = (activeRegionalId && !inButtons) ? activeRegionalId : "";
+}
+
+// Single-country mode: a searchable single-select list (clicking a country replaces
+// the whole selection).
 function renderCountryList() {
   const list = $("country-list");
   if (!list) return;
   const q = foldText(($("country-search").value || "").trim());
-  // Selected first (alpha), then the rest (alpha), filtered by search.
+  const rows = [];
+  for (const c of countriesMeta) {
+    if (q && !foldText(c.name).includes(q) && !foldText(c.id).includes(q)) continue;
+    const on = pickMode === "country" && selectedCountries.size === 1 && selectedCountries.has(c.id);
+    rows.push(`<button type="button" class="country-row${on ? " selected" : ""}" role="option" aria-selected="${on}" data-cc="${c.id}">${escapeHtml(c.name)}</button>`);
+  }
+  list.innerHTML = rows.join("") || '<div class="check-empty">No matches.</div>';
+  list.querySelectorAll(".country-row").forEach((b) =>
+    b.addEventListener("click", () => selectSingleCountry(b.dataset.cc)));
+}
+function selectSingleCountry(cc) {
+  selectedCountries.clear();
+  selectedGroups.clear();
+  selectedCountries.add(cc);
+  renderCountryList(); // reflect the new highlight
+  updateSelectedSummary();
+}
+
+// Custom mode: the classic multi-select checklist (advanced; may run live).
+function renderCustomList() {
+  const list = $("custom-list");
+  if (!list) return;
+  const q = foldText(($("custom-search").value || "").trim());
   const sel = [], rest = [];
   for (const c of countriesMeta) {
     if (q && !foldText(c.name).includes(q) && !foldText(c.id).includes(q)) continue;
@@ -663,48 +793,49 @@ function renderCountryList() {
   });
 }
 
-// Re-render the list without losing the search box focus position too jarringly.
-function syncCountryList() { renderCountryList(); }
+// Switch the picker mode. Clears the selection so the three intents never mix —
+// this is what makes "click Europe, then accidentally add the US" impossible.
+function setPickMode(mode) {
+  pickMode = mode;
+  selectedCountries.clear();
+  selectedGroups.clear();
+  activeRegionalId = null;
 
-// Collapse state for the country picker. We auto-collapse it once the user has
-// picked at least one country (so the Generate button comes into view), but only
-// the first time per selection and never after the user has manually toggled it —
-// so manually re-expanding to add more countries sticks. Clearing the selection
-// re-arms the auto behavior.
-let countriesAutoCollapsed = false;
-let countriesToggledByUser = false;
-
-function setCountriesCollapsed(collapsed) {
-  const section = $("countries-field"), btn = $("countries-toggle");
-  if (!section) return;
-  section.classList.toggle("section-collapsed", collapsed);
-  if (btn) {
-    btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
-    const label = collapsed ? "Expand country picker" : "Collapse country picker";
-    btn.setAttribute("aria-label", label);
-    btn.setAttribute("title", label);
+  document.querySelectorAll(".mode-tab").forEach((t) => {
+    const on = t.dataset.mode === mode;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", String(on));
+  });
+  const reg = $("panel-regional"), ctry = $("panel-country"), custom = $("custom-advanced");
+  if (reg) reg.hidden = mode !== "regional";
+  if (ctry) ctry.hidden = mode !== "country";
+  if (custom) {
+    custom.classList.toggle("mode-active", mode === "custom");
+    if (mode !== "custom" && custom.open) custom.open = false; // toggle handler is a no-op now (pickMode already moved)
   }
+
+  if (mode === "regional") syncRegionalUI();
+  else if (mode === "country") { const s = $("country-search"); if (s) s.value = ""; renderCountryList(); }
+  else if (mode === "custom") { const s = $("custom-search"); if (s) s.value = ""; renderCustomList(); }
+  updateSelectedSummary();
+}
+
+function updateGenerateEnabled() {
+  const g = $("generate");
+  if (g) g.disabled = selectedCountries.size === 0;
 }
 
 function updateSelectedSummary() {
+  updateGenerateEnabled();
   const el = $("selected-summary");
   if (!el) return;
   const ids = [...selectedCountries];
-
-  // Auto-collapse / re-arm based on whether anything is selected. Auto-collapse is
-  // MOBILE-ONLY (the panel is tight there); on desktop the picker stays open and is
-  // only collapsed if the user taps the chevron. Matches the ≤720px CSS breakpoint.
-  const isMobile = window.matchMedia("(max-width: 720px)").matches;
   if (!ids.length) {
-    setCountriesCollapsed(false);
-    countriesAutoCollapsed = false;
-    countriesToggledByUser = false;
-  } else if (isMobile && !countriesAutoCollapsed && !countriesToggledByUser) {
-    setCountriesCollapsed(true);
-    countriesAutoCollapsed = true;
+    el.textContent = pickMode === "regional" ? "Pick a regional grouping above."
+      : pickMode === "country" ? "Pick a country above."
+      : "Pick countries to combine.";
+    return;
   }
-
-  if (!ids.length) { el.textContent = "No countries selected."; return; }
   const names = ids.map(countryNameOf).sort();
   const shown = names.slice(0, 4).join(", ");
   el.textContent = names.length + (names.length === 1 ? " country: " : " countries: ") +
@@ -724,11 +855,11 @@ async function generate() {
   // Sorted ISO order so the live leaf order matches the precompute script (which
   // sorts), keeping a live-built tree identical to the shipped one for a selection.
   const ids = [...selectedCountries].sort();
-  if (!ids.length) { setStatus("Pick at least one country first.", "warn"); return; }
+  if (!ids.length) { setStatus("Pick a region or country first.", "warn"); return; }
   let k = parseInt($("num-clusters").value, 10);
   if (isNaN(k) || k < 2) k = 2;
 
-  stopAnimation(); // a new generate cancels any running K-sweep
+  teardownAnimation(); // a new generate cancels any running animation (generate repaints)
   $("num-clusters").disabled = false;
   $("generate").disabled = true;
   $("download").hidden = true; // shown again only once a map is generated
@@ -866,7 +997,7 @@ async function generate() {
   } finally {
     hideSpinner();
     showCancel(false);
-    $("generate").disabled = false;
+    updateGenerateEnabled(); // re-enable unless the selection is somehow empty
   }
 }
 
@@ -935,50 +1066,88 @@ function applyClusterCount(k) {
 }
 
 // ---------------------------------------------------------------------------
-// Animation — sweep K from 1 up to ANIM_MAX_K so you can watch communities split,
-// one merge undone at a time. buildAnimationSequence precomputes the whole sweep
-// from RAW dendrogram cuts (so every step is exactly one clean split) with stable,
-// contrast-aware colours. Each step plays a three-phase choreography to make the
-// split easy to follow: focus (grey everything but the splitting community),
-// split (reveal the two halves, a new boundary appears), restore (all back in
-// colour at K+1). During the sweep country borders are hidden and the dynamic
-// cluster-boundary overlay is shown instead. The camera stays put throughout.
-// The same sequence drives the MP4 export (downloadAnimationReel).
+// Animation — step K from 1 up to ANIM_MAX_K so you can watch communities split,
+// one merge undone at a time. Two modes: AUTOMATIC plays the sweep on its own (and
+// loops); MANUAL freezes and lets you step Back / Next through the splits (each step
+// can also be run in reverse as a merge). buildAnimationSequence precomputes the
+// whole sweep from RAW dendrogram cuts (so every step is exactly one clean split)
+// with stable, contrast-aware colours. Each step plays a three-phase choreography to
+// make it easy to follow: focus (fade everything but the splitting community), split
+// (reveal the two halves, a new boundary appears), restore (all back in colour at
+// K+1). During the sweep country borders are hidden and the dynamic cluster-boundary
+// overlay is shown instead. The camera stays put throughout. The same sequence drives
+// the MP4 export (downloadAnimationReel).
 // ---------------------------------------------------------------------------
 const ANIM_MAX_K = 30;
-let animating = false; // the K-sweep loop is active
-let paused = false;    // ...but currently frozen on a frame
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Animation state. Instead of a Play/Pause sweep, the animation has two MODES:
+//   "auto"   — plays the split sequence forward on its own (loops at the end)
+//   "manual" — frozen on the current step; the user drives it with Back / Next
+// Switching to manual pauses; switching back to auto resumes. `k` is the last
+// fully-coloured step painted; `busy` guards against overlapping step animations;
+// `animToken` is bumped to cancel any in-flight loop/transition (mode change, stop,
+// new step) so timers/loops unwind promptly.
+const ANIM = { active: false, mode: "auto", k: 1, maxK: 1, seq: null, segs: null, busy: false };
+let animToken = 0;
+
 // The animation controls have three UI states:
-//   "idle"    — a single "▶ Animate 1→30" button (a map exists, not animating)
-//   "running" — "Pause"/"Play" + "Stop" side by side (animating)
-//   "hidden"  — none shown (no map yet, e.g. while generating)
+//   "idle"   — a single "▶ Animate" button (a map exists, not animating)
+//   "active" — the Automatic/Manual toggle (+ Back/Next in manual) and Stop
+//   "hidden" — none shown (no map yet, e.g. while generating)
 function setAnimControls(state) {
-  const a = $("animate"), ctl = $("anim-controls"), pause = $("anim-pause");
+  const a = $("animate"), ctl = $("anim-controls");
   if (!a || !ctl) return;
   a.hidden = state !== "idle";
-  a.textContent = "▶ Animate 1→" + ANIM_MAX_K; // single source of truth for the count
-  ctl.hidden = state !== "running";
-  if (state === "running" && pause) pause.textContent = paused ? "▶ Play" : "⏸ Pause";
+  ctl.hidden = state !== "active";
+  if (state === "active") syncAnimModeUI();
 }
 
-// Stop: end the sweep and return to the single Animate button (map stays on the
-// current frame). Also used as a "reset" by generate() and the animation export.
-function stopAnimation() {
-  animating = false;
-  paused = false;
+// Reflect ANIM.mode on the segmented Automatic/Manual buttons and show the
+// Back/Next stepper only in manual mode.
+function syncAnimModeUI() {
+  const auto = $("anim-auto"), manual = $("anim-manual"), steps = $("anim-steps");
+  const isManual = ANIM.mode === "manual";
+  if (auto) { auto.classList.toggle("active", !isManual); auto.setAttribute("aria-pressed", String(!isManual)); }
+  if (manual) { manual.classList.toggle("active", isManual); manual.setAttribute("aria-pressed", String(isManual)); }
+  if (steps) steps.hidden = !isManual;
+  updateStepButtons();
+}
+function updateStepButtons() {
+  const prev = $("anim-prev"), next = $("anim-next");
+  if (prev) prev.disabled = !ANIM.active || ANIM.busy || ANIM.k <= 1;
+  if (next) next.disabled = !ANIM.active || ANIM.busy || ANIM.k >= ANIM.maxK;
+}
+
+// Tear down the animation's transient map state (cluster-boundary overlay off,
+// country borders back) and cancel any running loop/transition. Does NOT touch the
+// controls or repaint — callers do that. Used by generate() (which repaints anyway)
+// and exitAnimation().
+function teardownAnimation() {
+  animToken++;
+  ANIM.active = false;
+  ANIM.busy = false;
+  hideClusterBorders();
+  setCountryBordersVisible(true);
   $("num-clusters").disabled = false;
-  setAnimControls("idle");
 }
 
-// Pause toggles between freezing on the current frame and resuming.
-function togglePause() {
-  if (!animating) return;
-  paused = !paused;
-  setAnimControls("running");
-  if (paused && lastResult) setStatus(`Paused — ${lastResult.usedK} ${lastResult.usedK === 1 ? "cluster" : "clusters"}`);
+// Stop: leave the map on a clean fully-coloured frame at the current step and
+// return to the single Animate button. Also used by the animation export so the
+// live view isn't left mid-transition.
+function stopAnimation() {
+  if (ANIM.active && ANIM.seq && ANIM.seq.colorsAt[ANIM.k]) {
+    const k = ANIM.k;
+    paintAnimFrame(ANIM.seq.colorsAt[k], ANIM.seq.labelsAt[k]);
+    lastResult.colorById = animColorById(ANIM.seq.colorsAt[k]);
+    lastResult.usedK = k;
+    lastResult.title = autoTitle(k);
+    $("num-clusters").value = k;
+  }
+  teardownAnimation();
+  setAnimControls(lastResult ? "idle" : "hidden");
+  setStatus("");
 }
 
 // Per-phase timing for the "focus → split → restore" choreography (ms).
@@ -1021,21 +1190,29 @@ function buildAnimationSequence(maxK) {
   const splits = [];    // splits[k] (k=1..maxK-1): region indices of the splitting cluster
   const colorIdxOf = new Int32Array(nFeat); // current palette index per region
 
-  // Pick the unused palette colour that maximises the minimum contrast to the given
-  // neighbour palette indices (falls back to any colour if all are used).
-  const pickColor = (neighIdx) => {
+  // Pick a palette colour for a newly-split-off piece. We maximise a score that is
+  // the min contrast to the piece's neighbours PLUS an extra-weighted contrast to
+  // its SIBLING (the other half of the cluster that just split): when a community
+  // splits, the two halves should read as clearly different colours, so the split
+  // is obvious. Prefers unused colours; falls back to the best-scoring used one.
+  const SIBLING_WEIGHT = 1.6;
+  const pickColor = (neighIdx, siblingIdx) => {
+    const score = (p) => {
+      let mn = Infinity;
+      for (const q of neighIdx) { const d = rgbDist2(paletteRgb[p], paletteRgb[q]); if (d < mn) mn = d; }
+      if (!neighIdx.size) mn = 0;
+      const sib = siblingIdx >= 0 ? SIBLING_WEIGHT * rgbDist2(paletteRgb[p], paletteRgb[siblingIdx]) : 0;
+      return mn + sib;
+    };
     let best = -1, bestScore = -Infinity;
     for (let p = 0; p < palette.length; p++) {
       if (usedColor[p]) continue;
-      let mn = Infinity;
-      for (const q of neighIdx) { const d = rgbDist2(paletteRgb[p], paletteRgb[q]); if (d < mn) mn = d; }
-      const score = neighIdx.size ? mn : -p; // no neighbours yet → lowest index
-      if (score > bestScore) { bestScore = score; best = p; }
+      const s = (neighIdx.size || siblingIdx >= 0) ? score(p) : -p; // first pick → lowest index
+      if (s > bestScore) { bestScore = s; best = p; }
     }
-    if (best < 0) for (let p = 0; p < palette.length; p++) { // all used: reuse best-contrast
-      let mn = Infinity;
-      for (const q of neighIdx) { const d = rgbDist2(paletteRgb[p], paletteRgb[q]); if (d < mn) mn = d; }
-      if (mn > bestScore) { bestScore = mn; best = p; }
+    if (best < 0) for (let p = 0; p < palette.length; p++) { // all used: reuse best-scoring
+      const s = score(p);
+      if (s > bestScore) { bestScore = s; best = p; }
     }
     return best;
   };
@@ -1085,7 +1262,11 @@ function buildAnimationSequence(maxK) {
     const newSet = new Set(newPiece);
     const neighIdx = new Set();
     for (const r of newPiece) for (const q of adj[r]) if (!newSet.has(q)) neighIdx.add(colorIdxOf[q]);
-    const best = pickColor(neighIdx);
+    // The sibling half keeps the cluster's current colour — contrast against it hard
+    // so the two halves of the split look clearly different.
+    let siblingIdx = -1;
+    for (let i = 0; i < nFeat; i++) if (prevLabels[i] === splitPrev && nextLabels[i] === keepSub) { siblingIdx = colorIdxOf[i]; break; }
+    const best = pickColor(neighIdx, siblingIdx);
     usedColor[best] = true;
 
     const next = colorsAt[k].slice();
@@ -1167,98 +1348,147 @@ function setCountryBordersVisible(on) {
   if (map.getLayer(COUNTRY_LAYER)) map.setLayoutProperty(COUNTRY_LAYER, "visibility", on ? "visible" : "none");
 }
 
-// Sleep `ms`, sliced so Pause freezes and Stop aborts promptly. Returns false if the
-// animation was stopped (caller should bail).
-async function animSleep(ms) {
-  for (let t = 0; t < ms && animating; t += 50) {
-    while (paused && animating) await sleep(100);
-    if (!animating) return false;
+// Sleep `ms`, sliced so a mode change / Stop / new step (which bump animToken)
+// aborts promptly. Returns false if cancelled (caller should bail).
+async function animDelay(ms, token) {
+  for (let t = 0; t < ms; t += 50) {
+    if (!ANIM.active || animToken !== token) return false;
     await sleep(50);
   }
-  return animating;
+  return ANIM.active && animToken === token;
 }
 
-async function startAnimation() {
-  if (animating || !prepCache || !lastResult) return;
-  const maxK = Math.min(ANIM_MAX_K, prepCache.regionIds.length - 1);
-  if (maxK < 1) return;
+// Paint the clean, fully-coloured frame for step `k` (the "restore" look): every
+// cluster in colour, the cluster-boundary overlay matching, and lastResult / the
+// K input synced so a Stop / download here is correct. Sets ANIM.k.
+function renderStep(k) {
+  paintAnimFrame(ANIM.seq.colorsAt[k], ANIM.seq.labelsAt[k]);
+  setClusterBorders(buildClusterBorderFC(ANIM.segs, ANIM.seq.labelsAt[k], null));
+  ANIM.k = k;
+  lastResult.colorById = animColorById(ANIM.seq.colorsAt[k]);
+  lastResult.usedK = k;
+  lastResult.title = autoTitle(k);
+  $("num-clusters").value = k;
+  updateStepButtons();
+  updateAnimStatus();
+}
 
-  animating = true;
-  paused = false;
-  setAnimControls("running");
-  $("num-clusters").disabled = true;
-  highlightCluster(null); // clear any click-highlight before we start repainting
+function updateAnimStatus() {
+  const k = ANIM.k, plural = k === 1 ? "cluster" : "clusters";
+  if (ANIM.mode === "manual") setStatus(`Step ${k} of ${ANIM.maxK} — ${k} ${plural}`);
+  else if (k >= ANIM.maxK) setStatus(`${k} ${plural} (animation complete).`, "ok");
+  else setStatus(`Animating… ${k} ${plural}`);
+}
 
-  const seq = buildAnimationSequence(maxK);
-  // Boundary segments (cached) for the dynamic cluster-outline overlay.
-  if (!prepCache.borderSegs) prepCache.borderSegs = buildClusterBorderIndex(prepCache.clusterFeatures);
-  const segs = prepCache.borderSegs;
-  // During the animation: hide country borders, show cluster boundaries instead.
-  setCountryBordersVisible(false);
-
-  let shownK = 1; // last FULLY-COLOURED K painted (so Stop never leaves a grey frame)
-  const plural = (k) => (k === 1 ? "cluster" : "clusters");
-  const showColoured = (k) => {
-    paintAnimFrame(seq.colorsAt[k], seq.labelsAt[k]);
-    setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k], null));
-    lastResult.colorById = animColorById(seq.colorsAt[k]);
-    lastResult.usedK = k;
-    lastResult.title = autoTitle(k);
-    $("num-clusters").value = k;
-    shownK = k;
-  };
-
+// Play the split between levels k and k+1 as a focus → split → restore choreography.
+// direction +1 animates the split (k → k+1); -1 animates the reverse merge
+// (k+1 → k). Returns true if it ran to completion, false if cancelled mid-way (in
+// which case ANIM.k is unchanged and the caller restores a clean frame).
+async function playStep(k, direction) {
+  const splitIdx = ANIM.seq.splits[k];
+  const targetK = direction > 0 ? k + 1 : k;
+  if (!splitIdx) { renderStep(targetK); return true; } // degenerate: nothing splits — just jump
+  const token = animToken;
+  ANIM.busy = true;
+  updateStepButtons();
   try {
-    // Start with every cluster in colour at K=1.
-    showColoured(1);
-    setStatus(`Animating… 1 cluster`);
-    if (!(await animSleep(ANIM_REST_MS))) return;
+    const splitSet = new Set(splitIdx);
+    const one = ANIM.seq.colorsAt[k];     // splitting cluster as one colour
+    const two = ANIM.seq.colorsAt[k + 1]; // ...split into two colours
+    // Fade everything but the splitting cluster (it keeps its own hues).
+    const faded = (arr) => { const f = arr.map((c) => fadeHex(c, ANIM_FADE)); for (const i of splitIdx) f[i] = arr[i]; return f; };
+    // Phase A → B: forward shows one→two; reverse shows two→one.
+    const a = direction > 0 ? one : two;
+    const b = direction > 0 ? two : one;
+    const aLabels = direction > 0 ? ANIM.seq.labelsAt[k] : ANIM.seq.labelsAt[k + 1];
+    const bLabels = direction > 0 ? ANIM.seq.labelsAt[k + 1] : ANIM.seq.labelsAt[k];
 
-    for (let k = 1; k < maxK; k++) {
-      const splitIdx = seq.splits[k];
-      if (!splitIdx) continue;
-      const splitSet = new Set(splitIdx);
-      const before = seq.colorsAt[k];   // splitting cluster all one colour
-      const after = seq.colorsAt[k + 1]; // splitting cluster now two colours
+    // Phase 1 — focus: the cluster about to change, in colour, the rest faded.
+    paintAnimFrame(faded(a), null);
+    setClusterBorders(buildClusterBorderFC(ANIM.segs, aLabels, splitSet));
+    setStatus(direction > 0 ? `Splitting into ${k + 1}…` : `Merging into ${k}…`);
+    if (!(await animDelay(ANIM_FOCUS_MS, token))) return false;
 
-      // Phase 1 — focus: fade everything except the cluster about to split (each
-      // region keeps its own hue but lightens), and draw just that cluster's outline.
-      const focus = before.map((c) => fadeHex(c, ANIM_FADE));
-      for (const i of splitIdx) focus[i] = before[i];
-      paintAnimFrame(focus, null);
-      setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k], splitSet));
-      setStatus(`Splitting into ${k + 1}…`);
-      if (!(await animSleep(ANIM_FOCUS_MS))) return;
+    // Phase 2 — change: reveal the split (or merge) inside the focused cluster.
+    paintAnimFrame(faded(b), null);
+    setClusterBorders(buildClusterBorderFC(ANIM.segs, bLabels, splitSet));
+    if (!(await animDelay(ANIM_SPLIT_MS, token))) return false;
 
-      // Phase 2 — split: reveal the split inside the focused cluster (rest faded);
-      // the new dividing boundary appears.
-      const split = after.map((c) => fadeHex(c, ANIM_FADE));
-      for (const i of splitIdx) split[i] = after[i];
-      paintAnimFrame(split, null);
-      setClusterBorders(buildClusterBorderFC(segs, seq.labelsAt[k + 1], splitSet));
-      if (!(await animSleep(ANIM_SPLIT_MS))) return;
-
-      // Phase 3 — restore: bring every cluster back into colour at K+1.
-      showColoured(k + 1);
-      setStatus(`Animating… ${k + 1} ${plural(k + 1)}`);
-      if (!(await animSleep(ANIM_REST_MS))) return;
-    }
-    setStatus(`${maxK} ${plural(maxK)} (animation complete).`, "ok");
+    // Phase 3 — restore: every cluster back in colour at the target K.
+    renderStep(targetK);
+    return true;
   } finally {
-    // Always leave the map on a fully-coloured frame, never a greyed split frame.
-    if (seq.colorsAt[shownK]) {
-      paintAnimFrame(seq.colorsAt[shownK], seq.labelsAt[shownK]);
-      lastResult.colorById = animColorById(seq.colorsAt[shownK]);
-      lastResult.usedK = shownK;
-      lastResult.title = autoTitle(shownK);
-      $("num-clusters").value = shownK;
-    }
-    // Restore the normal static look: country borders back, cluster overlay off.
-    hideClusterBorders();
-    setCountryBordersVisible(true);
-    stopAnimation();
+    ANIM.busy = false;
+    updateStepButtons();
   }
 }
+
+// Auto mode loop: advance one split per beat, looping back to the start after a
+// longer hold on the final frame. Each call bumps animToken so only the newest
+// loop survives; it unwinds as soon as the mode changes or the animation stops.
+async function autoLoop() {
+  const token = ++animToken;
+  while (ANIM.active && ANIM.mode === "auto" && animToken === token) {
+    if (ANIM.k >= ANIM.maxK) {
+      updateAnimStatus();
+      if (!(await animDelay(ANIM_REST_MS * 2.5, token))) return;
+      if (!(ANIM.active && ANIM.mode === "auto" && animToken === token)) return;
+      renderStep(1);
+      if (!(await animDelay(ANIM_REST_MS, token))) return;
+      continue;
+    }
+    if (!(await playStep(ANIM.k, +1))) return;
+    if (!(await animDelay(ANIM_REST_MS, token))) return;
+  }
+}
+
+// Enter animation mode: build the sequence, hide country borders for the dynamic
+// cluster-boundary overlay, start at K=1 and begin playing automatically.
+function enterAnimation() {
+  if (ANIM.active || !prepCache || !lastResult) return;
+  const maxK = Math.min(ANIM_MAX_K, prepCache.regionIds.length - 1);
+  if (maxK < 1) return;
+  highlightCluster(null); // clear any click-highlight before we start repainting
+  ANIM.seq = buildAnimationSequence(maxK);
+  if (!prepCache.borderSegs) prepCache.borderSegs = buildClusterBorderIndex(prepCache.clusterFeatures);
+  ANIM.segs = prepCache.borderSegs;
+  ANIM.maxK = maxK;
+  ANIM.mode = "auto";
+  ANIM.active = true;
+  ANIM.busy = false;
+  $("num-clusters").disabled = true;
+  setCountryBordersVisible(false); // during the sweep the cluster boundaries carry the structure
+  renderStep(1);
+  setAnimControls("active");
+  autoLoop();
+}
+
+// Switch between automatic playback and manual stepping. Auto → manual pauses on
+// the current step; manual → auto resumes playing from it.
+function setAnimMode(mode) {
+  if (!ANIM.active || ANIM.mode === mode) return;
+  ANIM.mode = mode;
+  animToken++; // cancel the auto loop / any in-flight transition
+  if (ANIM.busy) { renderStep(ANIM.k); ANIM.busy = false; } // snap a mid-transition to a clean frame
+  syncAnimModeUI();
+  if (mode === "auto") autoLoop();
+  else updateAnimStatus();
+}
+
+// Manual stepping (only reachable in manual mode — the stepper is hidden in auto).
+async function stepForward() {
+  if (!ANIM.active || ANIM.busy || ANIM.k >= ANIM.maxK) return;
+  animToken++;
+  await playStep(ANIM.k, +1);
+}
+async function stepBackward() {
+  if (!ANIM.active || ANIM.busy || ANIM.k <= 1) return;
+  animToken++;
+  await playStep(ANIM.k - 1, -1);
+}
+
+// Stop button → leave animation mode (stopAnimation restores a clean static view).
+function exitAnimation() { stopAnimation(); }
 
 // Export the animation as a 9:16 MP4 reel that plays EXACTLY like the on-screen
 // sweep: the same stable-colour focus → split → restore choreography (built from the
@@ -1742,22 +1972,36 @@ async function init() {
     groupsMeta = groups || {};
     countryNames = names || {};
     boundsMeta = bounds;
+    presetsMeta = CLUSTER_PRESETS; // bundled regional-grouping presets
   } catch (e) {
     console.error("[SCI] failed to load metadata:", e);
     setStatus("Could not load country list.", "warn");
     return;
   }
 
-  renderGroupChips();
+  renderRegional();
   renderCountryList();
-  updateSelectedSummary();
+  renderCustomList();
+  setPickMode("regional"); // shows the right panel + sets the summary
 
+  // Mode tabs + searches + the custom (advanced) expander.
+  document.querySelectorAll(".mode-tab").forEach((t) =>
+    t.addEventListener("click", () => setPickMode(t.dataset.mode)));
   $("country-search").addEventListener("input", renderCountryList);
+  $("custom-search").addEventListener("input", renderCustomList);
+  $("custom-advanced").addEventListener("toggle", (e) => {
+    const d = e.currentTarget;
+    if (d.open && pickMode !== "custom") setPickMode("custom");
+    else if (!d.open && pickMode === "custom") setPickMode("regional");
+  });
   $("generate").addEventListener("click", generate);
   $("cancel").addEventListener("click", cancelClustering);
-  $("animate").addEventListener("click", startAnimation);
-  $("anim-pause").addEventListener("click", togglePause);
-  $("anim-stop").addEventListener("click", stopAnimation);
+  $("animate").addEventListener("click", enterAnimation);
+  $("anim-auto").addEventListener("click", () => setAnimMode("auto"));
+  $("anim-manual").addEventListener("click", () => setAnimMode("manual"));
+  $("anim-prev").addEventListener("click", stepBackward);
+  $("anim-next").addEventListener("click", stepForward);
+  $("anim-stop").addEventListener("click", exitAnimation);
   // Toggle the optional state/province overlay live (re-applies to the last map).
   $("show-borders").addEventListener("change", () => { applyBorders(); });
 
@@ -1804,20 +2048,6 @@ async function init() {
       const label = collapsed ? "Expand panel" : "Collapse panel";
       btn.setAttribute("aria-label", label);
       btn.setAttribute("title", label);
-    });
-  })();
-
-  // Collapse/expand the country picker so the (tall) checklist doesn't push the
-  // Generate button below the fold — especially on mobile. The selected-summary
-  // stays visible when collapsed, so you always see what's picked.
-  (function setupCountriesToggle() {
-    const btn = $("countries-toggle"), section = $("countries-field");
-    if (!btn || !section) return;
-    btn.addEventListener("click", () => {
-      // A manual toggle disables auto-collapse until the selection is cleared, so
-      // re-expanding to add more countries doesn't immediately re-collapse.
-      countriesToggledByUser = true;
-      setCountriesCollapsed(!section.classList.contains("section-collapsed"));
     });
   })();
 

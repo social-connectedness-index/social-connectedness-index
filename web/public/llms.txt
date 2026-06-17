@@ -1,13 +1,19 @@
 # Social Connectedness Index map maker — social-connectedness.org
 
 A free, browser-based tool for mapping the Social Connectedness Index (SCI), a
-measure of the relative probability of Facebook friendship between places. Two
+measure of the relative probability of Facebook friendship between places. Three
 tools share one dataset:
 
 - /generator — Map Generator: makes a static map image (PNG/JPG/SVG, plus an MP4
   reel) for one "home" region's friendship pattern, or a two-region comparison.
 - /explore   — Interactive Explorer: a Mapbox globe; click a country/region to
   recolor the world by its SCI. (No programmatic API; human/visual use.)
+- /cluster   — Connected Communities: groups a region's sub-national units into
+  clusters by Facebook connectedness (hierarchical agglomerative clustering). Pick
+  a regional grouping or single country (precomputed, instant) or a custom country
+  combination (clustered live in-browser), choose how many clusters K, optionally
+  animate the 1→K split sequence; PNG/SVG/MP4 downloads. (No programmatic API;
+  human/visual use.)
 
 Everything runs client-side; there is no server-side API. The Map Generator can,
 however, be driven programmatically in two ways — both work in a headless browser

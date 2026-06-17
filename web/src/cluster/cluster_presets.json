@@ -1,0 +1,63 @@
+{
+  "_comment": "Hand-authored preset groupings for the Connected Communities 'Regional grouping' mode. CANONICAL, version-controlled source — lives in src/ (NOT public/data/, which is gitignored R-exported data) and is bundled into the app via an import in cluster.js, and read directly off disk by scripts/precompute_clusters.mjs. Kept SEPARATE from groups.json (which the Map Generator also reads) so these sub-regional presets don't leak into that tool. 'buttons' name continent groups defined in groups.json (membership resolved at runtime). 'dropdown' optgroups list either {group:<groups.json name>} references or {name,members} explicit presets. Every option here is precomputed by the precompute script, so it runs instantly — after editing this file, re-run `npm run precompute` and rebuild. Members are filtered to countries.json at runtime; the precompute uses the same filter so the selection keys match.",
+  "buttons": ["Europe", "Africa", "North America", "South America", "South Asia"],
+  "dropdown": [
+    {
+      "heading": "Europe",
+      "items": [
+        { "name": "DACH", "members": ["DE", "AT", "CH"] },
+        { "name": "Nordic", "members": ["DK", "FI", "IS", "NO", "SE"] },
+        { "name": "Benelux", "members": ["BE", "NL", "LU"] },
+        { "name": "Iberia", "members": ["ES", "PT"] },
+        { "name": "Baltics", "members": ["EE", "LV", "LT"] },
+        { "name": "British Isles", "members": ["GB", "IE"] },
+        { "name": "Visegrád", "members": ["PL", "CZ", "SK", "HU"] },
+        { "name": "Central Europe", "members": ["DE", "AT", "CH", "PL", "CZ", "SK", "HU", "SI"] },
+        { "name": "Balkans", "members": ["RS", "HR", "BA", "SI", "ME", "MK", "AL", "XK", "BG", "RO"] }
+      ]
+    },
+    {
+      "heading": "Asia",
+      "items": [
+        { "group": "Southeast Asia" },
+        { "group": "Maritime SE Asia" },
+        { "group": "East Asia" },
+        { "group": "Central Asia" }
+      ]
+    },
+    {
+      "heading": "Middle East & Caucasus",
+      "items": [
+        { "group": "West Asia" },
+        { "name": "Gulf (GCC)", "members": ["SA", "AE", "QA", "KW", "BH", "OM"] },
+        { "name": "Levant", "members": ["LB", "JO", "IL"] },
+        { "name": "Caucasus", "members": ["GE", "AM", "AZ"] }
+      ]
+    },
+    {
+      "heading": "Africa",
+      "items": [
+        { "name": "Maghreb", "members": ["MA", "DZ", "TN", "LY", "MR"] },
+        { "name": "Horn of Africa", "members": ["ET", "SO", "ER", "DJ"] },
+        { "name": "East Africa", "members": ["KE", "TZ", "UG", "RW", "BI", "ET"] },
+        { "name": "West Africa", "members": ["NG", "GH", "CI", "SN", "ML", "BF", "BJ", "TG", "GN", "SL", "LR", "GM", "NE"] },
+        { "name": "Southern Africa", "members": ["ZA", "NA", "BW", "ZW", "ZM", "MZ", "LS", "SZ", "MW"] }
+      ]
+    },
+    {
+      "heading": "Americas",
+      "items": [
+        { "group": "Central America" },
+        { "name": "Andean", "members": ["CO", "EC", "PE", "BO", "VE"] },
+        { "name": "Southern Cone", "members": ["AR", "CL", "UY", "PY"] },
+        { "name": "Greater Antilles", "members": ["DO", "HT", "JM"] }
+      ]
+    },
+    {
+      "heading": "Oceania",
+      "items": [
+        { "name": "Australia & NZ", "members": ["AU", "NZ"] }
+      ]
+    }
+  ]
+}

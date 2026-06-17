@@ -46,6 +46,12 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g
 const idx = readJSON(path.join(DATA, "sci", SCI_TYPE, "index.json"));
 const countries = readJSON(path.join(DATA, "countries.json")); // [{ id, name }]
 const groups = readJSON(path.join(DATA, "groups.json"));        // { name: [iso2...] }
+// Cluster-app-only sub-regional presets (Regional-grouping dropdown). Each explicit
+// {name, members} preset must be precomputed too so it runs instantly. {group}
+// references are already covered by the groups.json loop below. CANONICAL copy is the
+// version-controlled src file (the app bundles the same one); not in public/data.
+const presetsPath = path.resolve(__dirname, "..", "src", "cluster", "cluster_presets.json");
+const clusterPresets = fs.existsSync(presetsPath) ? readJSON(presetsPath) : { dropdown: [] };
 
 // Region ids (leaf order) for a list of ISO2 countries: geometry-shard order,
 // deduped, keeping only ids that have an SCI row — exactly mirrors cluster.js.
@@ -135,6 +141,21 @@ for (const [name, rawMembers] of Object.entries(groups)) {
   const members = rawMembers.filter((m) => known.has(m));
   if (members.length < 2) continue; // 0/1-member groups are covered by the country list
   selections.push({ iso: members, file: "g-" + slug(name) + ".json", label: name });
+}
+// Cluster-app sub-regional presets (explicit {name, members} entries only; {group}
+// refs are continents already built above). Same filtered-to-`known` membership and
+// slug scheme as groups, so the selection key matches what cluster.js computes.
+const seenKeys = new Set(selections.map((s) => [...s.iso].sort().join(",")));
+for (const section of clusterPresets.dropdown || []) {
+  for (const item of section.items || []) {
+    if (!item || !Array.isArray(item.members)) continue; // skip {group} refs
+    const members = item.members.filter((m) => known.has(m));
+    if (members.length < 2) continue;
+    const key = [...members].sort().join(",");
+    if (seenKeys.has(key)) continue; // a continent/Asia group with identical membership
+    seenKeys.add(key);
+    selections.push({ iso: members, file: "g-" + slug(item.name) + ".json", label: item.name });
+  }
 }
 if (only.length) selections = selections.filter((s) => s.iso.length === 1 && only.includes(s.iso[0]));
 
