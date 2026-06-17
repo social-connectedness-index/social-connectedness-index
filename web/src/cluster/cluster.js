@@ -364,12 +364,30 @@ function hslToHex(h, s, l) {
 // is non-uniform (and equal HSL lightness isn't equal perceived lightness), it
 // still yields clumps of near-identical-looking colours — so the map seems to use
 // only a handful of hues. Instead we build a dense candidate set spanning hue ×
-// several saturation/lightness bands and farthest-point sample k of them in a
+// many saturation/lightness bands and farthest-point sample k of them in a
 // perceptual-ish RGB space (the same rgbDist2 used for neighbour contrast): each
 // pick is the candidate most different from everything already chosen. The result
 // fills the colour space, so every cluster on screen looks genuinely distinct.
-const PALETTE_BANDS = [[68, 54], [60, 64], [74, 46], [56, 72], [82, 50]]; // [sat, lit]
-const PALETTE_HUES = 30;
+//
+// The bands deliberately span the WHOLE value range — deep/dark, vivid mid, bright,
+// pale/pastel, and muted/greyish — not just one medium-bright zone. This is what
+// lets the sampler vary brightness and saturation (not only hue), so two clusters
+// can differ by being "dark teal vs pale teal" or "vivid vs muted", multiplying the
+// number of visibly-different colours far beyond a hue-only sweep. (Saturation is
+// kept >= ~30 so no fill collapses into the grey used for no-data regions.)
+const PALETTE_BANDS = [ // [saturation, lightness]
+  [90, 46], // vivid, deep
+  [82, 60], // vivid, bright
+  [70, 72], // bright, light
+  [85, 80], // light, vivid (near-pastel but punchy)
+  [52, 82], // pale pastel
+  [60, 36], // rich, dark
+  [42, 30], // dark, muted (charcoal-tinted)
+  [38, 55], // muted mid (dusty)
+  [48, 68], // soft, light
+  [95, 52], // maximally saturated
+];
+const PALETTE_HUES = 36;
 let paletteCandidates = null; // {hex[], rgb[]} — built once, reused for every k
 function getPaletteCandidates() {
   if (paletteCandidates) return paletteCandidates;
@@ -981,6 +999,106 @@ async function generate() {
   }
 }
 
+// Rough centroid (mean of all vertices) — used only for the rare fully-isolated
+// no-data region fallback in ensureNoDataLinks().
+function featureCentroidXY(f) {
+  let sx = 0, sy = 0, n = 0;
+  forEachVertex(f.geometry, (x, y) => { sx += x; sy += y; n++; });
+  return n ? [sx / n, sy / n] : null;
+}
+
+// Parent administrative unit of a GADM id (drop the last dotted segment): e.g.
+// "SWE.1.1_1" -> "SWE.1", "GUM.10_1" -> "GUM". Used as the "state" proxy when
+// deciding which cluster a boundary no-data region belongs to.
+function parentUnitOf(id) {
+  const dot = id.lastIndexOf(".");
+  return dot > 0 ? id.slice(0, dot) : id;
+}
+
+// ---------------------------------------------------------------------------
+// No-data (grey) region absorption. Regions without SCI data would otherwise be
+// drawn flat grey, which looks glitchy and patchy. We instead give each one a
+// "host" — a nearby CLUSTERED region whose colour it copies at every K (and every
+// animation frame), so the map has no grey holes. Host selection runs ONCE per
+// selection and is K-INDEPENDENT, so the grey region tracks its host's colour
+// across all K and all animation frames with no flicker. The priority mirrors the
+// intended rule:
+//   1. A clustered neighbour in the SAME parent unit (state) — a region at the
+//      boundary of two clusters belongs with the rest of its own state/country.
+//   2. Otherwise any clustered neighbour — a region fully surrounded by one cluster
+//      is simply absorbed into it.
+//   3. Grey regions touching only other grey regions inherit a hosted neighbour's
+//      host, propagated through grey chains (preferring same-state links).
+//   4. Fully isolated grey regions (no clustered region reachable by adjacency) fall
+//      back to the nearest clustered region by centroid — same state, else same
+//      country, else anywhere.
+// Returns/caches prepCache.noDataLinks = [{grey, host}] (feature pairs); empty when
+// every region has data.
+function ensureNoDataLinks() {
+  if (prepCache.noDataLinks) return prepCache.noDataLinks;
+  const { displayFeatures, regionIds } = prepCache;
+  const clustered = new Set(regionIds);
+  const N = displayFeatures.length;
+  const isClustered = displayFeatures.map((f) => clustered.has(f.properties.id));
+  const greyIdx = [];
+  for (let i = 0; i < N; i++) if (!isClustered[i]) greyIdx.push(i);
+  if (!greyIdx.length) return (prepCache.noDataLinks = []);
+
+  // Adjacency over ALL display features (shared boundary vertices), including grey.
+  const edges = buildAdjacency(displayFeatures);
+  const adj = Array.from({ length: N }, () => []);
+  for (const e of edges) { const s = e.indexOf(","); const a = +e.slice(0, s), b = +e.slice(s + 1); adj[a].push(b); adj[b].push(a); }
+
+  const state = displayFeatures.map((f) => parentUnitOf(f.properties.id));
+  const country = displayFeatures.map((f) => f.properties.country);
+  const host = new Int32Array(N).fill(-1); // grey display index -> clustered display index
+
+  // Phase 1: grey regions that touch at least one clustered region.
+  for (const g of greyIdx) {
+    const nbC = adj[g].filter((nb) => isClustered[nb]);
+    if (!nbC.length) continue;
+    const sameState = nbC.filter((nb) => state[nb] === state[g]);
+    host[g] = (sameState.length ? sameState : nbC)[0];
+  }
+  // Phase 2: propagate through chains of grey regions (touching only other grey).
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const g of greyIdx) {
+      if (host[g] >= 0) continue;
+      const nbHosted = adj[g].filter((nb) => !isClustered[nb] && host[nb] >= 0);
+      if (!nbHosted.length) continue;
+      const sameState = nbHosted.filter((nb) => state[host[nb]] === state[g] || state[nb] === state[g]);
+      host[g] = host[(sameState.length ? sameState : nbHosted)[0]];
+      changed = true;
+    }
+  }
+  // Phase 3: fully isolated grey regions → nearest clustered region by centroid,
+  // preferring same state, then same country, then anywhere.
+  const leftovers = greyIdx.filter((g) => host[g] < 0);
+  if (leftovers.length) {
+    const clusteredIdx = []; for (let i = 0; i < N; i++) if (isClustered[i]) clusteredIdx.push(i);
+    const cent = new Array(N);
+    const centroidOf = (i) => cent[i] || (cent[i] = featureCentroidXY(displayFeatures[i]));
+    for (const g of leftovers) {
+      const cg = centroidOf(g); if (!cg) continue;
+      let best = -1, bestD = Infinity, tier = 3;
+      for (const c of clusteredIdx) {
+        const t = state[c] === state[g] ? 0 : country[c] === country[g] ? 1 : 2;
+        if (t > tier) continue;
+        const cc = centroidOf(c); if (!cc) continue;
+        const d = (cc[0] - cg[0]) ** 2 + (cc[1] - cg[1]) ** 2;
+        if (t < tier || d < bestD) { tier = t; bestD = d; best = c; }
+      }
+      if (best >= 0) host[g] = best;
+    }
+  }
+
+  const links = [];
+  for (const g of greyIdx) if (host[g] >= 0) links.push({ grey: displayFeatures[g], host: displayFeatures[host[g]] });
+  return (prepCache.noDataLinks = links);
+}
+
 // Cut the cached dendrogram at k and compute the max-contrast colouring — a PURE
 // O(n) step that touches neither the live map nor the feature properties, so it's
 // safe to call repeatedly (e.g. to pre-render every K for the animation export).
@@ -1021,6 +1139,11 @@ function computeClusterColors(k) {
     colorById[f.properties.id] = palette[paletteOf[ci]];
     clusterById[f.properties.id] = ci;
   });
+  // No-data regions take the colour/cluster of their host so there are no grey holes.
+  for (const { grey, host } of ensureNoDataLinks()) {
+    const hid = host.properties.id;
+    if (colorById[hid] != null) { colorById[grey.properties.id] = colorById[hid]; clusterById[grey.properties.id] = clusterById[hid]; }
+  }
   return { colorById, clusterById, usedK };
 }
 
@@ -1030,9 +1153,10 @@ function computeClusterColors(k) {
 // change with k). Only clustered regions get a clusterColor; the rest fall through
 // to NO_DATA_FILL grey (see the fill layer's coalesce in paintClusters).
 function applyClusterCount(k) {
-  const { displayFeatures, clusterFeatures } = prepCache;
+  const { displayFeatures } = prepCache;
   const cc = computeClusterColors(k);
-  clusterFeatures.forEach((f) => {
+  // cc covers every display feature (clustered + absorbed no-data), so loop them all.
+  displayFeatures.forEach((f) => {
     const id = f.properties.id;
     f.properties.cluster = cc.clusterById[id];
     f.properties.clusterColor = cc.colorById[id];
@@ -1169,8 +1293,14 @@ function teardownAnimation() {
 function stopAnimation() {
   if (ANIM.active && ANIM.seq && ANIM.seq.colorsAt[ANIM.k]) {
     const k = ANIM.k;
+    // Settle on the clean frame via feature-state (instant, no setData) so Stop
+    // doesn't flash/re-tessellate. The colours stay shown via feature-state; we also
+    // sync properties.clusterColor in memory so a later repaint is correct WITHOUT a
+    // setData here (the next Generate / K-change clears the feature-state for us).
     paintAnimFrame(ANIM.seq.colorsAt[k], ANIM.seq.labelsAt[k]);
-    lastResult.colorById = animColorById(ANIM.seq.colorsAt[k]);
+    const cById = animColorById(ANIM.seq.colorsAt[k]);
+    for (const f of prepCache.displayFeatures) { const c = cById[f.properties.id]; if (c != null) f.properties.clusterColor = c; }
+    lastResult.colorById = cById;
     lastResult.usedK = k;
     lastResult.title = autoTitle(k);
     $("num-clusters").value = k;
@@ -1321,19 +1451,30 @@ function buildAnimationSequence(maxK) {
 
 // Paint one animation frame: set each clustered region's colour (and optionally its
 // cluster label, so click-to-highlight keeps working after the animation stops).
+// Recolour the existing source IN PLACE via feature-state — NO setData, so Mapbox
+// keeps the already-uploaded geometry and only re-evaluates the fill colour. The
+// whole map recolours instantly instead of "painting in" region-by-region (which is
+// what setData's per-frame re-tessellation caused). colorArr is per clusterFeature;
+// no-data regions copy their host's colour (incl. any fade) via animColorById.
 function paintAnimFrame(colorArr, labelArr) {
   const { displayFeatures, clusterFeatures } = prepCache;
-  clusterFeatures.forEach((f, i) => {
-    f.properties.clusterColor = colorArr[i];
-    if (labelArr) f.properties.cluster = labelArr[i];
-  });
-  paintClusters({ type: "FeatureCollection", features: displayFeatures });
+  const cById = animColorById(colorArr);
+  for (const f of displayFeatures) {
+    const c = cById[f.properties.id];
+    map.setFeatureState({ source: SOURCE_ID, id: f.id }, { color: c == null ? NO_DATA_FILL : c });
+  }
+  // Keep properties.cluster in sync (used by click-highlight after the animation).
+  if (labelArr) {
+    clusterFeatures.forEach((f, i) => { f.properties.cluster = labelArr[i]; });
+    for (const { grey, host } of ensureNoDataLinks()) if (host.properties.cluster != null) grey.properties.cluster = host.properties.cluster;
+  }
 }
 
 // id -> colour map for lastResult (downloads/state) from a per-region colour array.
 function animColorById(colorArr) {
   const m = {};
   prepCache.clusterFeatures.forEach((f, i) => { m[f.properties.id] = colorArr[i]; });
+  for (const { grey, host } of ensureNoDataLinks()) if (m[host.properties.id] != null) m[grey.properties.id] = m[host.properties.id];
   return m;
 }
 
@@ -1351,6 +1492,9 @@ function phaseColorById(colorArr, keepIdx) {
   } else {
     clusterFeatures.forEach((f, i) => { m[f.properties.id] = colorArr[i]; });
   }
+  // No-data regions copy their host's (possibly-faded) colour so the exported MP4
+  // has no grey holes and they fade exactly like the cluster they belong to.
+  for (const { grey, host } of ensureNoDataLinks()) if (m[host.properties.id] != null) m[grey.properties.id] = m[host.properties.id];
   return m;
 }
 
@@ -1441,15 +1585,17 @@ async function autoLoop() {
   const token = ++animToken;
   while (ANIM.active && ANIM.mode === "auto" && !ANIM.paused && animToken === token) {
     if (ANIM.k >= ANIM.maxK) {
+      // Reached the chosen K: hold the final frame longer, then loop back to K=1.
       updateAnimStatus();
       if (!(await animDelay(ANIM_REST_MS * 2.5, token))) return;
       if (!(ANIM.active && ANIM.mode === "auto" && animToken === token)) return;
       renderStep(1);
-      if (!(await animDelay(ANIM_REST_MS, token))) return;
       continue;
     }
-    if (!(await playStep(ANIM.k, +1))) return;
+    // Hold the CURRENT clean frame before splitting it — this is why the sweep
+    // visibly starts on K=1 (the initial frame) rather than jumping straight to 2.
     if (!(await animDelay(ANIM_REST_MS, token))) return;
+    if (!(await playStep(ANIM.k, +1))) return;
   }
 }
 
@@ -1636,12 +1782,17 @@ async function downloadAnimationReel() {
 // Paint (or re-paint) the cluster choropleth on the map.
 let layersAdded = false;
 function paintClusters(fc) {
-  // Numeric feature ids are required for feature-state (hover) to work.
+  // Numeric feature ids are required for feature-state (hover + the animation's
+  // per-frame recolour) to work.
   fc.features.forEach((f, i) => { f.id = i + 1; });
   if (!map.getSource(SOURCE_ID)) {
     map.addSource(SOURCE_ID, { type: "geojson", data: fc });
   } else {
     map.getSource(SOURCE_ID).setData(fc);
+    // This is the STATIC paint path (colours come from properties.clusterColor).
+    // Clear any per-frame animation colours left in feature-state so they don't
+    // override the freshly-set properties.
+    map.removeFeatureState({ source: SOURCE_ID });
   }
   if (!layersAdded) {
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
@@ -1650,7 +1801,10 @@ function paintClusters(fc) {
       type: "fill",
       source: SOURCE_ID,
       paint: {
-        "fill-color": ["coalesce", ["get", "clusterColor"], NO_DATA_FILL],
+        // During the animation the colour comes from feature-state (set per frame,
+        // instantly, with no setData re-tessellation); the static map falls back to
+        // the baked properties.clusterColor, then grey for any region without data.
+        "fill-color": ["coalesce", ["feature-state", "color"], ["get", "clusterColor"], NO_DATA_FILL],
         "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.82],
       },
     }, beforeId);
