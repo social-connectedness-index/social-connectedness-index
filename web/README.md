@@ -46,10 +46,12 @@ R tool now lives on only as the batch/scripting backend and the data export belo
 
 It supports these controls: origin/destination type selection,
 source-region search, country-group and custom-country filtering (with a
-searchable metro filter for ZIP maps), palette, SCI scaling (reference quantile
-or absolute value), break scheme (quantile / even / log / custom), borders,
-home-region coloring, and titles. Both **single-region** and
-**comparison** (two-region, diverging) maps are supported.
+searchable metro filter for ZIP maps), a 15-color palette (single maps), SCI
+scaling (reference quantile or absolute value), break scheme (quantile / even /
+log / custom), borders, home-region coloring, and titles. Both **single-region**
+and **comparison** maps are supported; comparison maps pick a color per side
+(Region A / Region B, same named palettes as single maps, default Red / Blue) and
+render a diverging A -> white -> B scale.
 
 **Map types:** 18 of the standalone R tool's map types are available. Excluded
 from the web app: the six geoBoundaries types (`adm1`, `adm2`, and their

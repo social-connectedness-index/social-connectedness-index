@@ -42,7 +42,9 @@ Parameters (all optional):
                 (e.g. regions=Europe  or  regions=Nordic  or  regions=US,CA,MX)
 - metro         CBSA code to restrict a US ZIP map to one metro area
 - palette       single-map palette name (see SCI.listPalettes())
-- comparePalette   diverging palette name (mode=compare)
+- comparePaletteA / comparePaletteB   palette name per side (mode=compare; same
+                names as single palettes; the diverging map runs A -> white -> B;
+                defaults Red / Blue)
 - refMode       quantile | absolute        (how the SCI scale is anchored)
 - refq          reference quantile, 0-1    (default 0.25)
 - refval        absolute SCI value         (used when refMode=absolute)
