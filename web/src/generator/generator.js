@@ -83,7 +83,7 @@ const CAPTION = "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Soci
 const SHARE_URL = "https://social-connectedness.org/";
 const MAX_OPTIONS = 1500; // cap rendered <option>s for huge levels (us_zcta)
 // Palettes whose colors clash with a red home-region highlight (use black instead).
-const REDISH_PALETTES = new Set(["Red", "Orange"]);
+const REDISH_PALETTES = new Set(["Red", "Orange", "Magenta", "Pink", "Gold", "Brown"]);
 
 // ---- type system ----------------------------------------------------------
 // Levels are the selectable granularities; types are origin->dest combos. We
@@ -350,7 +350,7 @@ const firstOptValue = (el) => el.querySelector(".opt")?.dataset.v || "";
 // $("sourceA").value / addEventListener("change") unchanged, while the picker
 // renders as an inline scrollable list that filters live on mobile (a native
 // <select size> would instead open a tap-to-select picker).
-function initListbox(id) {
+function initListbox(id, searchId) {
   const el = $(id);
   if (!el || el._lbInit) return;
   el._lbInit = true;
@@ -366,6 +366,9 @@ function initListbox(id) {
     const opt = e.target.closest(".opt");
     if (!opt || !el.contains(opt)) return;
     el.value = opt.dataset.v;
+    // Reflect the click in the search box so the user sees their pick took effect.
+    // Setting .value programmatically doesn't fire "input", so the list isn't refiltered.
+    if (searchId && $(searchId)) $(searchId).value = opt.textContent.trim();
     el.dispatchEvent(new Event("change", { bubbles: true }));
   });
 }
@@ -732,6 +735,28 @@ function autoSubtitle() {
   return names ? `Across ${joinNames(names)}` : "Across the world";
 }
 
+// A solid endpoint colour for a comparison side, derived from a single-map palette
+// name: the second-darkest ramp swatch — saturated and clearly readable, but not so
+// dark that the strongest-difference regions go near-black. Falls back gracefully.
+function compareSolid(name) {
+  const ramp = (palettes && palettes.single && palettes.single[name]) || [];
+  return ramp[ramp.length - 2] || ramp[ramp.length - 1] || "#888888";
+}
+
+// Wire a "Show" checkbox to its text input. When the box is unchecked the input is
+// shown muted (.show-off) but stays focusable, so clicking into it or typing
+// auto-ticks the box — you never have to flip "Show" on first.
+function wireShowToggle(inputId, checkId) {
+  const inp = $(inputId), chk = $(checkId);
+  if (!inp || !chk) return;
+  const sync = () => inp.classList.toggle("show-off", !chk.checked);
+  const enable = () => { if (!chk.checked) { chk.checked = true; sync(); } };
+  chk.addEventListener("change", sync);
+  inp.addEventListener("focus", enable);
+  inp.addEventListener("input", enable);
+  sync();
+}
+
 function manualBbox() {
   const v = ["xmin", "ymin", "xmax", "ymax"].map((id) => parseFloat($(id).value));
   return v.every((n) => !Number.isNaN(n)) ? v : null;
@@ -889,8 +914,9 @@ async function generate() {
       const lr = active.map((id) => logr[id]).filter((v) => v != null);
       if (lr.length === 0) throw new Error("No overlapping SCI data for these two regions.");
       const breaks = parseCompareBreaks($("cbreaks").value) || comparisonBreaks(lr);
-      const cp = palettes.comparison[$("cpalette").value];
-      const palette = divergingPalette(cp.color_a, cp.color_mid, cp.color_b, breaks.length + 1);
+      // Region A and B colours are picked independently from the same named palettes
+      // as single maps; each side's diverging endpoint is a strong shade of its ramp.
+      const palette = divergingPalette(compareSolid($("cpaletteA").value), "white", compareSolid($("cpaletteB").value), breaks.length + 1);
       colorById = colorsForComparison(logr, active, breaks, palette);
       legend = { title: comparisonLegendTitle(), colors: palette,
         labels: breaks.map(labelComparison) };
@@ -1110,10 +1136,12 @@ function reset() {
   syncRefModeUI();
   $("width").value = "30"; $("height").value = "25"; $("dpi").value = "300";
   $("palette").selectedIndex = 0;
+  if ($("cpaletteA")) setSelectByValue("cpaletteA", "Red");
+  if ($("cpaletteB")) setSelectByValue("cpaletteB", "Blue");
   $("borders").checked = true;
   $("highlight").checked = false;
-  if ($("titleOn")) { $("titleOn").checked = true; $("title").disabled = false; }
-  if ($("subtitleOn")) { $("subtitleOn").checked = false; $("subtitle").disabled = true; }
+  if ($("titleOn")) { $("titleOn").checked = true; $("title").classList.remove("show-off"); }
+  if ($("subtitleOn")) { $("subtitleOn").checked = false; $("subtitle").classList.add("show-off"); }
   $("status").textContent = "";
   lastCanvas = null; lastRender = null;
   $("mapContainer").style.display = "none";
@@ -1226,12 +1254,15 @@ async function init() {
     .join("");
   stampChecklistOrder("group");
   stampChecklistOrder("customCountries");
-  $("palette").innerHTML = Object.keys(palettes.single).map((p) => `<option>${p}</option>`).join("");
-  if ($("cpalette")) $("cpalette").innerHTML = Object.keys(palettes.comparison).map((p) => `<option>${p}</option>`).join("");
+  const paletteOpts = Object.keys(palettes.single).map((p) => `<option>${p}</option>`).join("");
+  $("palette").innerHTML = paletteOpts;
+  // Comparison maps: Region A & B each pick from the same named palettes; default Red/Blue.
+  if ($("cpaletteA")) { $("cpaletteA").innerHTML = paletteOpts; setSelectByValue("cpaletteA", "Red"); }
+  if ($("cpaletteB")) { $("cpaletteB").innerHTML = paletteOpts; setSelectByValue("cpaletteB", "Blue"); }
 
-  initListbox("sourceA");
-  initListbox("sourceB");
-  initListbox("destCbsa");
+  initListbox("sourceA", "searchA");
+  initListbox("sourceB", "searchB");
+  initListbox("destCbsa", "searchCbsa");
   syncCompareUI();
   syncRefModeUI();
   syncCbsaUI();
@@ -1242,16 +1273,8 @@ async function init() {
   $("destType").addEventListener("change", onDestChange);
   if ($("destCbsa")) $("destCbsa").addEventListener("change", () => { onCbsaChange(); refreshBreaksPreview(); });
   if ($("searchCbsa")) $("searchCbsa").addEventListener("input", renderCbsaOptions);
-  if ($("titleOn")) {
-    const syncTitle = () => { $("title").disabled = !$("titleOn").checked; };
-    $("titleOn").addEventListener("change", syncTitle);
-    syncTitle();
-  }
-  if ($("subtitleOn")) {
-    const syncSubtitle = () => { $("subtitle").disabled = !$("subtitleOn").checked; };
-    $("subtitleOn").addEventListener("change", syncSubtitle);
-    syncSubtitle();
-  }
+  wireShowToggle("title", "titleOn");
+  wireShowToggle("subtitle", "subtitleOn");
   $("group").addEventListener("change", (e) => {
     if (e.target.checked) {
       if (SCOPE_OPTS.includes(e.target.value)) {
@@ -1361,7 +1384,7 @@ async function init() {
 //   us_county, us_cbsa, us_zcta), source / sourceName (id or name), sourceB /
 //   sourceBName, regions (all | same-country | same-subcontinent | a continent
 //   group name | ISO2 codes, comma-separated), metro (CBSA code), palette,
-//   comparePalette, refMode "quantile"|"absolute", refq, refval, breakScheme,
+//   comparePaletteA, comparePaletteB, refMode "quantile"|"absolute", refq, refval, breakScheme,
 //   breaks, compareBreaks, borders, highlight, title, subtitle, labelA, labelB,
 //   width, height, dpi, bbox [xmin,ymin,xmax,ymax].
 // ---------------------------------------------------------------------------
@@ -1446,7 +1469,8 @@ async function applyConfig(cfg = {}) {
   }
 
   if (cfg.palette) setSelectByValue("palette", cfg.palette);
-  if (cfg.comparePalette) setSelectByValue("cpalette", cfg.comparePalette);
+  if (cfg.comparePaletteA) setSelectByValue("cpaletteA", cfg.comparePaletteA);
+  if (cfg.comparePaletteB) setSelectByValue("cpaletteB", cfg.comparePaletteB);
   if (cfg.refMode === "quantile" || cfg.refMode === "absolute") { setRadio("refMode", cfg.refMode); syncRefModeUI(); }
   if (cfg.refq != null) $("refq").value = cfg.refq;
   if (cfg.refval != null && $("refval")) $("refval").value = cfg.refval;
@@ -1459,7 +1483,7 @@ async function applyConfig(cfg = {}) {
   // Title is on by default; an explicit `titleOn` flag can turn it off.
   if ($("titleOn")) {
     if (cfg.titleOn != null) $("titleOn").checked = !!cfg.titleOn;
-    $("title").disabled = !$("titleOn").checked;
+    $("title").classList.toggle("show-off", !$("titleOn").checked);
   }
   // A programmatically supplied subtitle (URL param / window.SCI) turns the toggle
   // on so it renders; an explicit `subtitleOn` flag can also drive it on its own.
@@ -1467,7 +1491,7 @@ async function applyConfig(cfg = {}) {
   if ($("subtitleOn")) {
     if (cfg.subtitleOn != null) $("subtitleOn").checked = !!cfg.subtitleOn;
     else if (cfg.subtitle != null) $("subtitleOn").checked = true;
-    $("subtitle").disabled = !$("subtitleOn").checked;
+    $("subtitle").classList.toggle("show-off", !$("subtitleOn").checked);
   }
   if (cfg.labelA != null && $("labelA")) $("labelA").value = cfg.labelA;
   if (cfg.labelB != null && $("labelB")) $("labelB").value = cfg.labelB;
@@ -1504,7 +1528,8 @@ function configFromUrl() {
   if (s("regions")) cfg.regions = s("regions");
   if (s("metro")) cfg.metro = s("metro");
   if (s("palette")) cfg.palette = s("palette");
-  if (s("comparePalette")) cfg.comparePalette = s("comparePalette");
+  if (s("comparePaletteA")) cfg.comparePaletteA = s("comparePaletteA");
+  if (s("comparePaletteB")) cfg.comparePaletteB = s("comparePaletteB");
   if (s("refMode")) cfg.refMode = s("refMode");
   if (p.has("refq")) cfg.refq = num("refq");
   if (p.has("refval")) cfg.refval = num("refval");
@@ -1581,7 +1606,7 @@ window.SCI = {
   findRegions: sciFindRegions,
   listTypes: () => Object.keys(manifest.types),
   listLevels: () => ({ origins: ORIGIN_LEVELS, destForOrigin: DEST_FOR_ORIGIN, labels: LEVEL_LABEL }),
-  listPalettes: () => ({ single: Object.keys(palettes.single), comparison: Object.keys(palettes.comparison) }),
+  listPalettes: () => ({ single: Object.keys(palettes.single), comparison: Object.keys(palettes.single) }),
   listGroups: () => Object.keys(groups),
 };
 

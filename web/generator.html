@@ -24,7 +24,7 @@
       <div class="section-label">Map configuration</div>
       <div id="mapModeToggle" class="mode-toggle">
         <label><input type="radio" name="mapMode" value="single" checked /> Single region</label>
-        <label><input type="radio" name="mapMode" value="compare" /> Compare two regions</label>
+        <label><input type="radio" name="mapMode" value="compare" /> Compare two</label>
       </div>
 
       <hr />
@@ -72,7 +72,7 @@
 
         <label>Subtitle (optional)</label>
         <div class="input-with-toggle">
-          <input id="subtitle" type="text" disabled />
+          <input id="subtitle" type="text" class="show-off" />
           <label class="check inline-check"><input id="subtitleOn" type="checkbox" /> Show</label>
         </div>
 
@@ -81,8 +81,17 @@
           <select id="palette"></select>
         </div>
         <div id="cpaletteWrap" style="display:none">
-          <label>Color palette</label>
-          <select id="cpalette"></select>
+          <label>Comparison colors</label>
+          <div class="compare-colors">
+            <div class="compare-color">
+              <label for="cpaletteA">Region A</label>
+              <select id="cpaletteA"></select>
+            </div>
+            <div class="compare-color">
+              <label for="cpaletteB">Region B</label>
+              <select id="cpaletteB"></select>
+            </div>
+          </div>
           <label>Legend label for Region A (optional)</label>
           <input id="labelA" type="text" />
           <label>Legend label for Region B (optional)</label>

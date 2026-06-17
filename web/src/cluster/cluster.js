@@ -746,14 +746,31 @@ function renderCountryList() {
   }
   list.innerHTML = rows.join("") || '<div class="check-empty">No matches.</div>';
   list.querySelectorAll(".country-row").forEach((b) =>
-    b.addEventListener("click", () => selectSingleCountry(b.dataset.cc)));
+    b.addEventListener("click", () => setSingleCountry(b.dataset.cc, { fillSearch: true })));
 }
-function selectSingleCountry(cc) {
+// Make `cc` the single selected country. `fillSearch` writes the country's name into
+// the search box (used for a CLICK, to confirm the pick) but is OFF for typing-driven
+// auto-select so it never overwrites what the user is typing.
+function setSingleCountry(cc, { fillSearch = false } = {}) {
   selectedCountries.clear();
   selectedGroups.clear();
   selectedCountries.add(cc);
-  renderCountryList(); // reflect the new highlight
+  renderCountryList(); // reflect the new highlight (keeps the current filter)
+  if (fillSearch) {
+    // Set AFTER renderCountryList so the list isn't refiltered to one row.
+    const meta = countriesMeta.find((c) => c.id === cc);
+    if (meta && $("country-search")) $("country-search").value = meta.name;
+  }
   updateSelectedSummary();
+}
+// Search handler: filter the list and auto-select the first match (like the Map
+// Maker's region pickers), so typing + Generate needs no extra click. Only when the
+// box is non-empty, so an empty box keeps the "nothing selected" initial state.
+function onCountrySearch() {
+  renderCountryList();
+  if (!($("country-search").value || "").trim()) return;
+  const first = $("country-list") && $("country-list").querySelector(".country-row[data-cc]");
+  if (first && !selectedCountries.has(first.dataset.cc)) setSingleCountry(first.dataset.cc);
 }
 
 // Custom mode: the classic multi-select checklist (advanced; may run live).
@@ -1099,6 +1116,79 @@ function ensureNoDataLinks() {
   return (prepCache.noDataLinks = links);
 }
 
+// Spatial cleanup: fold TINY, geographically-isolated cluster fragments into the
+// cluster that surrounds them. The clustering has no contiguity constraint (so real
+// long-distance ties survive), but that lets a few socially-unusual regions (e.g.
+// resort counties) land in a cluster with far-away regions, producing a tiny cluster
+// scattered across the map. After the cut we split each cluster into geographically
+// connected components and reassign any small NON-main component (<= this many
+// regions) to whichever neighbouring cluster it borders most. LARGE long-distance
+// pieces (a whole sub-region genuinely tied elsewhere) exceed the threshold and are
+// left untouched — only tiny scattered bits are absorbed.
+const MAX_FRAGMENT_REGIONS = 3;
+
+// Build (once, cached) a plain adjacency list among clusterFeatures from adjEdges.
+function clusterAdjList(n) {
+  if (prepCache.adjList) return prepCache.adjList;
+  if (!prepCache.adjEdges) prepCache.adjEdges = buildAdjacency(prepCache.clusterFeatures);
+  const a = Array.from({ length: n }, () => []);
+  for (const e of prepCache.adjEdges) { const s = e.indexOf(","); const u = +e.slice(0, s), v = +e.slice(s + 1); a[u].push(v); a[v].push(u); }
+  return (prepCache.adjList = a);
+}
+
+// Reassign tiny non-contiguous fragments to their surrounding cluster (see above).
+// Mutates and returns `labels`.
+function relabelTinyFragments(labels, n) {
+  const adj = clusterAdjList(n);
+  const wt = prepCache.weights;
+  const w = (i) => (wt && wt[i] > 0 ? wt[i] : 1);
+
+  // Connected components within each cluster label.
+  const comp = new Int32Array(n).fill(-1);
+  const comps = []; // { label, regions[], pop }
+  for (let i = 0; i < n; i++) {
+    if (comp[i] !== -1) continue;
+    const lab = labels[i], regions = [i], stack = [i]; comp[i] = comps.length; let pop = w(i);
+    while (stack.length) {
+      const u = stack.pop();
+      for (const v of adj[u]) if (comp[v] === -1 && labels[v] === lab) { comp[v] = comps.length; regions.push(v); pop += w(v); stack.push(v); }
+    }
+    comps.push({ label: lab, regions, pop });
+  }
+  // The "main" component of each label is its most-populous one; also count how many
+  // components each label has (a label with >1 is geographically scattered).
+  const main = new Map();
+  const compCount = new Map();
+  for (const c of comps) {
+    const m = main.get(c.label); if (!m || c.pop > m.pop) main.set(c.label, c);
+    compCount.set(c.label, (compCount.get(c.label) || 0) + 1);
+  }
+
+  // Fold small components into the dominant bordering cluster. We KEEP a component
+  // (don't reassign) when it is either (a) substantial — more than the fragment
+  // threshold of regions — or (b) the cluster's sole, contiguous component (a small
+  // but legitimate stand-alone cluster). Everything else — small non-main fragments,
+  // and the pieces of a cluster that is itself tiny AND scattered — is absorbed into
+  // whichever neighbouring cluster it borders most. A few passes so a fragment whose
+  // only neighbours were other fragments settles after they do.
+  for (let pass = 0; pass < 6; pass++) {
+    let changed = false;
+    for (const c of comps) {
+      if (c.done || c.regions.length > MAX_FRAGMENT_REGIONS) continue;
+      const isMain = main.get(c.label) === c, sole = compCount.get(c.label) === 1;
+      if (isMain && sole) continue; // tiny but contiguous whole cluster — legitimate, keep
+      const votes = new Map(); // bordering cluster label -> shared-edge count
+      for (const r of c.regions) for (const v of adj[r]) { const lv = labels[v]; if (lv !== c.label) votes.set(lv, (votes.get(lv) || 0) + 1); }
+      if (!votes.size) continue; // isolated island — nothing sensible to merge into
+      let bestLab = -1, bestV = -1; for (const [l, v] of votes) if (v > bestV) { bestV = v; bestLab = l; }
+      for (const r of c.regions) labels[r] = bestLab;
+      c.done = true; changed = true;
+    }
+    if (!changed) break;
+  }
+  return labels;
+}
+
 // Cut the cached dendrogram at k and compute the max-contrast colouring — a PURE
 // O(n) step that touches neither the live map nor the feature properties, so it's
 // safe to call repeatedly (e.g. to pre-render every K for the animation export).
@@ -1108,6 +1198,8 @@ function computeClusterColors(k) {
 
   // Absorb tiny (low-POPULATION) fragments into their nearest cluster (usedK may be < k).
   const labels = cutDendrogram(merges, n, k, { minClusterFrac: MIN_CLUSTER_FRAC, weights });
+  // Then fold tiny, geographically-scattered fragments into the cluster around them.
+  relabelTinyFragments(labels, n);
   const usedK = new Set(labels).size;
 
   const palette = clusterPalette(usedK);
@@ -2236,7 +2328,7 @@ async function init() {
   // Mode tabs + searches + the custom (advanced) expander.
   document.querySelectorAll(".mode-tab").forEach((t) =>
     t.addEventListener("click", () => setPickMode(t.dataset.mode)));
-  $("country-search").addEventListener("input", renderCountryList);
+  $("country-search").addEventListener("input", onCountrySearch);
   $("custom-search").addEventListener("input", renderCustomList);
   $("custom-advanced").addEventListener("toggle", (e) => {
     const d = e.currentTarget;

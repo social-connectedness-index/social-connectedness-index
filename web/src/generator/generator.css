@@ -93,6 +93,17 @@ body { display: flex; height: 100vh; overflow: hidden; }
 .input-with-toggle input[type="text"] { flex: 1; min-width: 0; }
 #panel .input-with-toggle label.inline-check { margin: 0; white-space: nowrap; font-size: 13px; }
 .input-with-toggle input[type="text"]:disabled { background: #f1f4f6; color: #9aa6b0; cursor: not-allowed; }
+/* "Show" turned off: muted like a disabled field, but still focusable — clicking in
+   or typing auto-ticks the Show checkbox (see wireShowToggle in generator.js). */
+.input-with-toggle input[type="text"].show-off { background: #f1f4f6; color: #9aa6b0; }
+
+/* Comparison maps: two side-by-side colour pickers (Region A / Region B). The row
+   hugs the "Comparison colors" heading, and the per-side captions are tight/muted so
+   the whole block reads as one group (not a floating heading). */
+.compare-colors { display: flex; gap: 12px; margin-top: 4px; }
+.compare-color { flex: 1; min-width: 0; }
+.compare-color select { width: 100%; }
+.compare-color > label { font-size: 12px; color: #6a7480; margin: 0 0 2px; }
 hr { border: none; border-top: 1px solid #eef2f4; margin: 12px 0; }
 
 .help-hint { color: #6a7480; font-size: 12px; margin-top: 3px; line-height: 1.35; }

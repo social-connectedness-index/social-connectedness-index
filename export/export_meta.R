@@ -79,19 +79,26 @@ export_meta <- function(out_root) {
     auto_unbox = FALSE, pretty = TRUE
   )
 
+  # `single` ramps are reused for BOTH single maps (the full gradient) and the two
+  # comparison-map colour pickers (the web app derives one solid endpoint per side
+  # from the ramp). So there is no separate `comparison` block anymore.
   palettes <- list(
     single = list(
       "Blue (default)" = default_map_colors,
-      "Red"            = c("#fde0dd", "#fcc5c0", "#fa9fb5", "#f768a1", "#dd3497", "#ae017e", "#7a0177"),
+      "Red"            = c("#fee5d9", "#fcbba1", "#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d"),
+      "Blue"           = c("#eff3ff", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#084594"),
       "Green"          = c("#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#005a32"),
       "Purple"         = c("#efedf5", "#dadaeb", "#bcbddc", "#9e9ac8", "#807dba", "#6a51a3", "#4a1486"),
-      "Orange"         = c("#fee6ce", "#fdd0a2", "#fdae6b", "#fd8d3c", "#f16913", "#d94801", "#8c2d04")
-    ),
-    comparison = list(
-      "Red vs Blue"        = list(color_a = "#d73027", color_b = "#4575b4", color_mid = "white"),
-      "Orange vs Teal"     = list(color_a = "#e66101", color_b = "#018571", color_mid = "white"),
-      "Green vs Purple"    = list(color_a = "#1b7837", color_b = "#762a83", color_mid = "white"),
-      "Brown vs Blue-Green"= list(color_a = "#a6611a", color_b = "#018571", color_mid = "white")
+      "Orange"         = c("#fee6ce", "#fdd0a2", "#fdae6b", "#fd8d3c", "#f16913", "#d94801", "#8c2d04"),
+      "Teal"           = c("#e5f5f9", "#ccece6", "#99d8c9", "#66c2a4", "#41ae76", "#238b45", "#005824"),
+      "Magenta"        = c("#feebe2", "#fcc5c0", "#fa9fb5", "#f768a1", "#dd3497", "#ae017e", "#7a0177"),
+      "Pink"           = c("#f1eef6", "#d4b9da", "#c994c7", "#df65b0", "#e7298a", "#ce1256", "#91003f"),
+      "Gold"           = c("#ffffd4", "#fee391", "#fec44f", "#fe9929", "#ec7014", "#cc4c02", "#8c2d04"),
+      "Brown"          = c("#f6e8c3", "#dfc27d", "#d8b365", "#bf812d", "#a6611a", "#8c510a", "#543005"),
+      "Grey"           = c("#f0f0f0", "#d9d9d9", "#bdbdbd", "#969696", "#737373", "#525252", "#252525"),
+      "Cyan"           = c("#f1eef6", "#d0d1e6", "#a6bddb", "#74a9cf", "#3690c0", "#0570b0", "#034e7b"),
+      "Indigo"         = c("#edf8fb", "#bfd3e6", "#9ebcda", "#8c96c6", "#8c6bb1", "#88419d", "#6e016b"),
+      "Olive"          = c("#ffffcc", "#d9f0a3", "#addd8e", "#78c679", "#41ab5d", "#238443", "#005a32")
     ),
     na_color = "#BFBFBF",
     highlight_color = "#FF0000"

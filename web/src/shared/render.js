@@ -147,7 +147,7 @@ function layoutChrome(W, opts) {
   const { title = "", subtitle = "", caption = "", titleScale = 1, captionScale = 1 } = opts;
   const margin = Math.round(W * 0.025);
   const titleFs = Math.round((W / 40) * titleScale);
-  const subFs = Math.round(W / 52);
+  const subFs = Math.round(W / 44);
   const capFs = Math.round((W / 78) * captionScale);  // caption (dataset link + handle)
   const legendFs = Math.round(W / 68); // legend title + tick labels
   const textMaxW = W - margin * 2;
