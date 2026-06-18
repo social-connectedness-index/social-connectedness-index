@@ -1929,9 +1929,9 @@ function paintPhaseFrame(k, phase) {
 // Degenerate steps (no real split) collapse to a single jump between clean frames.
 // Manual mode lets you click a region to read its name; the moment you step (Back/
 // Next) we drop that click-selection so the animation frame paints cleanly again.
-// highlightCluster(null) restores the default fill-opacity the animation expects;
-// updateAnimStatus() restores the clean-frame caption the click had replaced (the
-// step's own phase caption, if any, overrides it just below).
+// highlightCluster(null) drops the click-selection's feature-state recolour so the
+// animation frame paints cleanly again; updateAnimStatus() restores the clean-frame
+// caption the click had replaced (the step's own phase caption, if any, overrides it).
 function clearStepSelection() {
   if (selectedCluster == null) return;
   highlightCluster(null);
@@ -2312,10 +2312,14 @@ const hoverPopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false,
 // highlights the cluster. Evaluated live so a hybrid laptop's trackpad still gets it.
 const supportsHover = () => !window.matchMedia || window.matchMedia("(hover: hover)").matches;
 
-// Click-to-highlight a whole cluster. Dims the other clusters and outlines the
-// selected one (incl. its non-contiguous parts) so users can see its full extent.
-// Passing null clears the highlight. This is a temporary, interaction-only state —
-// it isn't baked into the generated/downloaded image.
+// Click-to-highlight a whole cluster. Gives the selection the SAME look as the
+// animation's "about to split" focus beat: the selected cluster's regions are
+// vivified and every other cluster fades toward white (keeping its hue) by
+// ANIM_FADE — recoloured via feature-state, exactly like phaseColorById's focus
+// path — rather than the old opacity dimming. The selected cluster is also outlined
+// (incl. its non-contiguous parts) so its full extent reads. Passing null clears the
+// highlight. This is a temporary, interaction-only state — it isn't baked into the
+// generated/downloaded image.
 let selectedCluster = null;
 function highlightCluster(ci) {
   selectedCluster = ci;
@@ -2323,11 +2327,19 @@ function highlightCluster(ci) {
   const hasSel = ci != null;
   if (!hasSel) hideCaption(); // clearing the highlight (K-change, generate, empty click) clears the name
 
-  // Brighten the selected cluster, fade the rest (fall back to the hover default
-  // when nothing is selected so hover still works).
-  map.setPaintProperty(FILL_LAYER, "fill-opacity", hasSel
-    ? ["case", ["==", ["get", "cluster"], ci], 0.95, 0.15]
-    : ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.82]);
+  // Recolour via feature-state to mirror the animation focus: vivify the selected
+  // cluster, fade the rest toward white. Clearing drops the per-region colours so the
+  // static clusterColor (or the live animation frame) shows through again. fill-opacity
+  // is left at its default so the look is colour-driven, identical to the animation.
+  if (hasSel && prepCache) {
+    for (const f of prepCache.displayFeatures) {
+      const base = f.properties.clusterColor || NO_DATA_FILL;
+      const color = f.properties.cluster === ci ? vivifyHex(base) : fadeHex(base, ANIM_FADE);
+      map.setFeatureState({ source: SOURCE_ID, id: f.id }, { color });
+    }
+  } else {
+    map.removeFeatureState({ source: SOURCE_ID });
+  }
   const filter = ["==", ["get", "cluster"], hasSel ? ci : -1];
   for (const id of [HI_CASE_LAYER, HI_LINE_LAYER]) {
     if (!map.getLayer(id)) continue;

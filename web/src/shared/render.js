@@ -179,6 +179,11 @@ function layoutChrome(W, opts) {
   const subLines = subArr.length;
   const capLines = capArr.length;
   const captionSpace = capLines ? capLines * capFs * 1.4 + margin * 0.3 : 0;
+  // Optional phase-caption pill (cluster animation) gets its OWN reserved band
+  // below the map and above the dataset caption, so it never overlaps the map.
+  const phaseText = opts.phaseCaption ? String(opts.phaseCaption) : "";
+  const phase = phaseText ? phaseCaptionMetrics(W, phaseText, margin) : null;
+  const phaseCaptionSpace = phase ? phase.pillH + Math.round(margin * 0.9) : 0;
   // No vertical band reserved for the legend when there isn't one (e.g. the
   // clustering tool's categorical map passes no legend).
   const hasLegend = !!(opts.legend && opts.legend.colors && opts.legend.colors.length);
@@ -191,7 +196,23 @@ function layoutChrome(W, opts) {
   return {
     margin, subFs, capFs, legendFs, titleArr, titleDrawFs, subArr, capArr,
     titleLines, subLines, capLines, captionSpace, legendSpace, mapTop,
+    phaseText, phase, phaseCaptionSpace,
   };
+}
+
+// Lay out the floating "phase" caption pill (see drawScene / opts.phaseCaption).
+// Shrinks the font to keep the text on one line within the frame and returns the
+// pill's metrics so layoutChrome can reserve a band and drawScene can draw it.
+function phaseCaptionMetrics(W, text, margin) {
+  const maxW = W - margin * 2;
+  const padFor = (s) => Math.round(s * 0.85);
+  let fs = Math.round(W / 26);
+  while (fs > 12 && measureWidth(text, fs, true) + padFor(fs) * 2 > maxW) fs--;
+  const padX = padFor(fs), padY = Math.round(fs * 0.5);
+  const tw = measureWidth(text, fs, true);
+  const pillW = Math.min(maxW, tw + padX * 2);
+  const pillH = fs + padY * 2;
+  return { fs, padX, padY, pillW, pillH };
 }
 
 // The output height at which a width-fit map leaves NO vertical letterbox: the
@@ -208,7 +229,7 @@ export function naturalHeight(opts) {
   const L = layoutChrome(W, opts);
   const availW = W - L.margin * 2;
   const drawH = latSpan * (availW / lonSpan); // map height when width is the binding fit
-  return Math.round(L.mapTop + drawH + L.legendSpace + L.captionSpace + L.margin);
+  return Math.round(L.mapTop + drawH + L.legendSpace + L.phaseCaptionSpace + L.captionSpace + L.margin);
 }
 
 // ---- shared scene ---------------------------------------------------------
@@ -236,6 +257,7 @@ function drawScene(g, opts) {
   const {
     margin, subFs, capFs, legendFs, titleArr, titleDrawFs, subArr, capArr,
     titleLines, subLines, capLines, captionSpace, legendSpace, mapTop,
+    phaseText, phase, phaseCaptionSpace,
   } = L;
 
   g.background("#ffffff");
@@ -250,7 +272,7 @@ function drawScene(g, opts) {
     y += subLines * subFs * 1.4 + subFs;
   }
 
-  const mapBottom = H - legendSpace - captionSpace - margin;
+  const mapBottom = H - legendSpace - phaseCaptionSpace - captionSpace - margin;
   const mapLeft = margin;
   const mapRight = W - margin;
   const availW = mapRight - mapLeft;
@@ -331,28 +353,17 @@ function drawScene(g, opts) {
 
   // Optional prominent "phase" caption pill. The cluster animation reel uses it to
   // bake the on-screen step text — e.g. "Europe in 5 clusters", "Next cluster to
-  // split", "Split into two subclusters" — INTO each video frame. It floats over
-  // the lower part of the map, mirroring the app's on-map caption pill. Only drawn
-  // when a caller passes opts.phaseCaption, so static PNG/SVG exports are unaffected.
-  if (opts.phaseCaption) drawPhaseCaption(g, String(opts.phaseCaption), { W, margin, mapBottom });
-}
-
-// Draw the floating "phase" caption pill (see drawScene). Shrinks the font to keep
-// the text on one line within the frame, then centres a rounded white pill with the
-// app's teal label colour just inside the bottom of the map area.
-function drawPhaseCaption(g, text, { W, margin, mapBottom }) {
-  const maxW = W - margin * 2;
-  const padFor = (s) => Math.round(s * 0.85);
-  let fs = Math.round(W / 26);
-  while (fs > 12 && measureWidth(text, fs, true) + padFor(fs) * 2 > maxW) fs--;
-  const padX = padFor(fs), padY = Math.round(fs * 0.5);
-  const tw = measureWidth(text, fs, true);
-  const pw = Math.min(maxW, tw + padX * 2);
-  const ph = fs + padY * 2;
-  const px = (W - pw) / 2;
-  const py = mapBottom - Math.round(margin * 0.5) - ph;
-  g.roundRect(px, py, pw, ph, ph / 2, "rgba(255,255,255,0.94)", "#d4dde2", Math.max(1, W / 1300));
-  g.text(text, W / 2, Math.round(py + ph / 2 + fs * 0.34), fs, "#10617b", true, "center");
+  // split", "Split into two subclusters" — INTO each video frame. It sits in its
+  // OWN reserved band (phaseCaptionSpace) BELOW the map and ABOVE the dataset
+  // caption, so it never covers the map. Only drawn when opts.phaseCaption is set,
+  // so static PNG/SVG exports are unaffected.
+  if (phase) {
+    const bandTop = mapBottom + legendSpace;
+    const py = bandTop + Math.round((phaseCaptionSpace - phase.pillH) / 2);
+    const px = (W - phase.pillW) / 2;
+    g.roundRect(px, py, phase.pillW, phase.pillH, phase.pillH / 2, "rgba(255,255,255,0.94)", "#d4dde2", Math.max(1, W / 1300));
+    g.text(phaseText, W / 2, Math.round(py + phase.pillH / 2 + phase.fs * 0.34), phase.fs, "#10617b", true, "center");
+  }
 }
 
 function drawLegend(g, legend, W, yTop, baseFs) {
