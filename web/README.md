@@ -48,7 +48,8 @@ It supports these controls: origin/destination type selection,
 source-region search, country-group and custom-country filtering (with a
 searchable metro filter for ZIP maps), a 15-color palette (single maps), SCI
 scaling (reference quantile or absolute value), break scheme (quantile / even /
-log / custom), borders, home-region coloring, and titles. Both **single-region**
+log / custom), borders, home-region coloring across same- and cross-level maps,
+and titles. Both **single-region**
 and **comparison** maps are supported; comparison maps pick a color per side
 (Region A / Region B, same named palettes as single maps, default Red / Blue) and
 render a diverging A -> white -> B scale.

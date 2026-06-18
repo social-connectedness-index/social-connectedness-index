@@ -53,7 +53,8 @@ Parameters (all optional):
 - breaks        custom legend breaks, e.g. breaks=1,2,5,10,25
 - compareBreaks custom multipliers for comparison maps
 - borders       1|0   show state/province borders     (default 1)
-- highlight     1|0   color the home region           (default 0)
+- highlight     1|0   color the home region, including across origin/dest levels
+                (default 0)
 - title, subtitle      text (auto-generated title if omitted)
 - width, height, dpi   output size in inches / DPI     (default 30 x 25 @ 300)
 - xmin, ymin, xmax, ymax   explicit map bounds (all four required together)
