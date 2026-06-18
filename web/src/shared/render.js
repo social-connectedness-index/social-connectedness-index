@@ -240,7 +240,7 @@ function drawScene(g, opts) {
     showBorders = true, borderFeatures = null, adminBorderColor = "#595959",
     countryFeatures = null, countryBorderColor = "#333333",
     strongBorderFeatures = null, strongBorderColor = "#1f2937",
-    highlightId = null, highlightColor = "#FF0000",
+    highlightId = null, highlightFeatures = null, highlightColor = "#FF0000",
     title = "", subtitle = "", caption = "", legend,
   } = opts;
   const W = g.W, H = g.H;
@@ -335,12 +335,13 @@ function drawScene(g, opts) {
     const slw = Math.max(1.1, W / 900);
     for (const f of strongBorderFeatures) g.stroke(buildPath(f.geometry), strongBorderColor, slw);
   }
-  // Highlight source region
-  if (highlightId) {
-    for (const f of friendGeo.features) {
-      if (f.properties.id !== highlightId) continue;
-      g.fill(buildPath(f.geometry), highlightColor, true);
-    }
+  // Highlight source region. highlightFeatures lets the generator draw a home
+  // region whose geography level differs from the friend/destination layer.
+  const homeFeatures = Array.isArray(highlightFeatures)
+    ? highlightFeatures
+    : (highlightId ? friendGeo.features.filter((f) => f.properties.id === highlightId) : []);
+  for (const f of homeFeatures) {
+    g.fill(buildPath(f.geometry), highlightColor, true);
   }
 
   g.popClip();

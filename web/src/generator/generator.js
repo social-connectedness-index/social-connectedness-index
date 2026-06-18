@@ -579,6 +579,22 @@ async function loadCountryFeatures(t, codes) {
   return codeSet ? geo.features.filter((f) => codeSet.has(f.properties.country)) : geo.features;
 }
 
+function sourceShardKeys(level, id) {
+  if (!isSharded(level) || !id) return null;
+  if (level === "us_zcta") return new Set([String(id)[0]]);
+  const cc = namesCache[level] && namesCache[level][id] ? namesCache[level][id][1] : null;
+  return cc ? new Set([cc]) : null;
+}
+
+async function loadHomeRegionFeatures(t) {
+  if (compareMode() || !$("highlight").checked) return null;
+  const id = $("sourceA").value;
+  if (!id) return null;
+  const geo = await getGeometry(t.sourceGeo, sourceShardKeys(t.sourceGeo, id));
+  const features = geo.features.filter((f) => f.properties.id === id);
+  return features.length ? features : null;
+}
+
 function parseBreaks(text) {
   const nums = text.split(",").map((s) => parseFloat(s.trim())).filter((n) => !Number.isNaN(n));
   return nums.length ? nums.sort((a, b) => a - b) : null;
@@ -993,10 +1009,11 @@ async function generate() {
     }
 
     step("rendering…");
-    const borderFeatures = await loadBorderFeatures(t, codes, metroZctas, activeFeatures);
-    const countryFeatures = await loadCountryFeatures(t, codes);
-    const highlightId = !compareMode() && $("highlight").checked && t.sourceGeo === t.friendGeo
-      ? $("sourceA").value : null;
+    const [borderFeatures, countryFeatures, highlightFeatures] = await Promise.all([
+      loadBorderFeatures(t, codes, metroZctas, activeFeatures),
+      loadCountryFeatures(t, codes),
+      loadHomeRegionFeatures(t),
+    ]);
     // The home-region fill is red by default, but red/orange palettes make a red
     // highlight indistinguishable from the data — use black for those.
     const highlightColor = REDISH_PALETTES.has($("palette").value) ? "#000000" : "#FF0000";
@@ -1011,7 +1028,7 @@ async function generate() {
       // selection box (the latter is the whole-US box for ZIP→ZIP) so the
       // metro-filtered geometry's extent wins.
       bbox: (metroZctas ? null : (manualBbox() || selectionBboxArray())) || computeBbox(friendGeo, active),
-      showBorders: $("borders").checked, borderFeatures, countryFeatures, highlightId, highlightColor,
+      showBorders: $("borders").checked, borderFeatures, countryFeatures, highlightFeatures, highlightColor,
       // Title shows by default (toggle on); subtitle is opt-in (off by default).
       // When shown, a typed value wins; an empty box falls back to the auto default.
       title: $("titleOn").checked ? ($("title").value || autoTitle()) : "",
