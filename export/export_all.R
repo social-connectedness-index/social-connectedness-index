@@ -28,6 +28,7 @@ source("src/make_map.R")
 source("export/export_geometry.R")
 source("export/export_sci.R")
 source("export/export_meta.R")
+source("export/export_aliases.R")
 
 ensure_node_on_path() # rmapshaper ms_simplify(sys = TRUE) needs node + mapshaper
 
@@ -39,22 +40,25 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) == 0) {
   export_meta(OUT_ROOT)
   export_geometry(OUT_ROOT)
+  export_aliases(OUT_ROOT)
   export_sci(OUT_ROOT)
 } else {
   # Selective rebuild. A plain name runs BOTH geo + sci for it (when applicable).
   # Prefix to target one stage only: `geo:gadm2` (geometry only), `sci:gadm2`
   # (sci only) — useful because gadm2/us_zcta are both a geo level AND an sci type.
   export_meta(OUT_ROOT)
-  geo_only <- sub("^geo:", "", grep("^geo:", args, value = TRUE))
-  sci_only <- sub("^sci:", "", grep("^sci:", args, value = TRUE))
-  plain <- args[!grepl("^(geo|sci):", args)]
+  work_args <- setdiff(args, "meta")
+  geo_only <- sub("^geo:", "", grep("^geo:", work_args, value = TRUE))
+  sci_only <- sub("^sci:", "", grep("^sci:", work_args, value = TRUE))
+  plain <- work_args[!grepl("^(geo|sci):", work_args)]
   geo_sel <- intersect(c(plain, geo_only), names(geo_levels))
   sci_sel <- intersect(c(plain, sci_only), names(sci_types))
   if (length(geo_sel) > 0) export_geometry(OUT_ROOT, geo_sel)
+  export_aliases(OUT_ROOT)
   if (length(sci_sel) > 0) export_sci(OUT_ROOT, sci_sel)
-  if (length(geo_sel) == 0 && length(sci_sel) == 0) {
+  if (length(work_args) > 0 && length(geo_sel) == 0 && length(sci_sel) == 0) {
     message("No matching geo levels or sci types in args: ",
-            paste(args, collapse = ", "))
+            paste(work_args, collapse = ", "))
   }
 }
 

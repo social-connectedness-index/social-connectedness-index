@@ -20,8 +20,9 @@ There are **three ways** to use this tool, from easiest to most flexible:
    interactively. It produces the same static maps as the tool below, supports
    most of the map types listed in [Map Types](#map-types) (country, GADM1/2,
    US county/ZIP/metro, and their region↔country directions), and can render both
-   single-region and comparison maps with PNG/JPG/SVG/MP4 downloads. Source
-   and deploy instructions are in [`web/README.md`](web/README.md).
+   single-region and comparison maps with PNG/JPG/SVG/MP4 downloads. The site also
+   includes the Interactive Explorer and Connected Communities clustering tools.
+   Source and deploy instructions are in [`web/README.md`](web/README.md).
 1. **Batch mode** — Edit `src/map_structs.R` and run `src/main.R` to generate multiple maps at once (see [Quick Start](#quick-start))
 2. **Scripting** — Call `make_map()` directly in R for full control (see [Using make_map() Directly](#using-make_map-directly))
 

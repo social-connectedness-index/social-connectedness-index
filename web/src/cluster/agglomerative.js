@@ -53,10 +53,10 @@
 // weighting further stabilises the merges, so average is back as the default. Ward
 // (also population-weight-aware) stays available via `linkage` for comparison.
 //
-// SMALL-CLUSTER absorption happens at cut time (cutDendrogram), not in the tree, so
-// it costs nothing extra and needs no precompute regeneration. With weights it is
-// POPULATION-based: a cluster is a fragment when its total population (not its
-// region count) is tiny, so a lone megacity (one region, many people) is kept.
+// Cutting the dendrogram (cutDendrogram) yields an EXACT k-cluster partition. There
+// is NO population/size-based small-cluster absorption here; any tidy-up of tiny
+// SCATTERED (non-contiguous) fragments lives in the app layer
+// (cluster.js relabelTinyFragments), not in this pure clustering core.
 //
 // All functions are pure (no DOM, no fetch) so they can be unit-tested in Node.
 const DEFAULT_LINKAGE = "average";
@@ -68,9 +68,6 @@ const DEFAULT_LINKAGE = "average";
 export const SPATIAL_ALPHA = 0;
 // Quantile of observed distances used to fill unknown (no-SCI) pairs.
 export const MISSING_QUANTILE = 0.9;
-// Clusters smaller than this fraction of the average cluster size (n/k) are treated
-// as fragments and absorbed into their nearest cluster at cut time. 0 disables it.
-export const MIN_CLUSTER_FRAC = 0.15;
 
 // Lance–Williams leaf weights (populations) for the clustering, sanitised so the
 // linkage updates never divide by zero. `populations` is an array aligned with the
@@ -348,28 +345,21 @@ export function buildDendrogram(dist, n, onProgress, linkage = DEFAULT_LINKAGE, 
   return merges;
 }
 
-// Cut a dendrogram (from buildDendrogram) into k clusters.
+// Cut a dendrogram (from buildDendrogram) into EXACTLY k clusters.
 //
 //   merges: Int32Array of length 2*(n-1) as returned by buildDendrogram
 //   n:      number of items (leaves)
 //   k:      desired number of clusters (clamped to 1..n)
-//   opts.minClusterFrac: if > 0, clusters smaller than this fraction of the
-//                        average cluster size are absorbed into the nearest cluster
-//                        (in dendrogram-merge order), so tiny fragments don't
-//                        survive. The result may then have FEWER than k clusters.
-//                        0 (default) = exact k-cut, no absorption.
-//   opts.weights:        per-leaf weights (populations); when given, "size" above
-//                        is total population, so the fragment test is population-
-//                        based (a lone megacity is kept; a low-population scatter is
-//                        folded). Without weights it falls back to county count.
 //
 // Returns an Int32Array of length n giving each leaf's cluster label, compacted in
 // first-seen leaf order. O(n) — applies the first (n-k) merges via union-find,
-// which is equivalent to cutting the dendrogram so k clusters remain.
-export function cutDendrogram(merges, n, k, opts = {}) {
+// which is equivalent to cutting the dendrogram so k clusters remain. There is no
+// small-cluster absorption: a k-cut always yields k clusters, so no requested K is
+// silently collapsed. (Tidy-up of tiny SCATTERED fragments is the caller's job — see
+// cluster.js relabelTinyFragments.)
+export function cutDendrogram(merges, n, k) {
   if (n === 0) return new Int32Array(0);
   k = Math.max(1, Math.min(k | 0, n));
-  const minClusterFrac = opts.minClusterFrac || 0;
 
   const parent = new Int32Array(n);
   for (let i = 0; i < n; i++) parent[i] = i;
@@ -396,67 +386,7 @@ export function cutDendrogram(merges, n, k, opts = {}) {
     if (c === undefined) { c = remap.size; remap.set(r, c); }
     baseLabel[i] = c;
   }
-  const K = remap.size;
-
-  if (minClusterFrac <= 0 || K <= 1) return baseLabel;
-
-  // --- Absorb fragments ----------------------------------------------------
-  // Give every remaining dendrogram node a representative leaf (without merging
-  // base clusters), so each later merge can be mapped to the two base clusters it
-  // would join. Then replay those merges in height order: whenever one side is
-  // still a fragment, fold it into the other. Merges between two already-big
-  // clusters are skipped, so the k-cut's main structure is preserved.
-  for (let mi = applyCount; mi < n - 1; mi++) nodeRep[n + mi] = nodeRep[merges[2 * mi]];
-
-  // Cluster "size" is total population when weights are supplied, else county count.
-  const weights = opts.weights && opts.weights.length === n ? opts.weights : null;
-  const csize = new Float64Array(K);
-  for (let i = 0; i < n; i++) {
-    const s = weights ? (weights[i] > 0 ? weights[i] : 0) : 1;
-    csize[baseLabel[i]] += s;
-  }
-  const cparent = new Int32Array(K);
-  for (let c = 0; c < K; c++) cparent[c] = c;
-  const cfind = (x) => { while (cparent[x] !== x) { cparent[x] = cparent[cparent[x]]; x = cparent[x]; } return x; };
-
-  // Fragment threshold = a fraction of a REFERENCE cluster size. For populations we
-  // use the MEDIAN cluster size, not the mean: population is heavily skewed, so a
-  // single huge cluster would inflate the mean and make every normal cluster look
-  // like a fragment (collapsing everything into the giant). The unweighted (count)
-  // path uses the mean n/k with a floor of 2, since counts aren't skewed that way.
-  let threshold;
-  if (weights) {
-    const sorted = Array.from(csize).sort((a, b) => a - b);
-    const median = sorted[(sorted.length - 1) >> 1];
-    threshold = median * minClusterFrac;
-  } else {
-    threshold = Math.max(2, Math.floor((n / k) * minClusterFrac));
-  }
-  // Never let absorption collapse the map below this many clusters.
-  const MIN_CLUSTERS = 2;
-  let liveCount = K;
-  for (let mi = applyCount; mi < n - 1 && liveCount > MIN_CLUSTERS; mi++) {
-    const la = baseLabel[nodeRep[merges[2 * mi]]];
-    const lb = baseLabel[nodeRep[merges[2 * mi + 1]]];
-    let ca = cfind(la), cb = cfind(lb);
-    if (ca === cb) continue;
-    if (csize[ca] < threshold || csize[cb] < threshold) {
-      if (csize[ca] < csize[cb]) { const t = ca; ca = cb; cb = t; } // fold smaller into larger
-      cparent[cb] = ca;
-      csize[ca] += csize[cb];
-      liveCount--;
-    }
-  }
-
-  const labels = new Int32Array(n).fill(-1);
-  const remap2 = new Map();
-  for (let i = 0; i < n; i++) {
-    const r = cfind(baseLabel[i]);
-    let c = remap2.get(r);
-    if (c === undefined) { c = remap2.size; remap2.set(r, c); }
-    labels[i] = c;
-  }
-  return labels;
+  return baseLabel;
 }
 
 // Unweighted average-linkage (UPGMA) clustering into k groups — convenience

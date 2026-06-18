@@ -301,6 +301,14 @@ async function getJSON(path) {
   return r.json();
 }
 
+let aliasesCache = null;
+async function getAliases() {
+  if (aliasesCache) return aliasesCache;
+  try { aliasesCache = await getJSON("geo/aliases.json"); }
+  catch (_) { aliasesCache = {}; }
+  return aliasesCache;
+}
+
 // ISO2 → full country name (e.g. "DE" → "Germany"), loaded once for the
 // selection labels. Falls back to the raw code until loaded / if unknown.
 let countryNames = null;
@@ -1145,8 +1153,9 @@ map.on("load", async function () {
 
     // Per-level search index (cached on cfg): one entry per clickable region.
     // Built lazily on first search — the Region level holds tens of thousands.
-    function buildIndex(cfg) {
+    async function buildIndex(cfg) {
       if (cfg._search) return cfg._search;
+      const aliases = (await getAliases())[cfg.sciType] || {};
       const seen = new Set(), out = [];
       for (const f of (cfg.geojson ? cfg.geojson.features : [])) {
         const p = f.properties;
@@ -1157,7 +1166,10 @@ map.on("load", async function () {
           const cn = countryNameOf(p.country);
           if (cn && cn !== label) label += ", " + cn;
         }
-        out.push({ id: p.id, name: p.name, country: p.country, label, fold: foldText(label) });
+        const rawAliases = aliases[p.id];
+        const al = Array.isArray(rawAliases) ? rawAliases : (rawAliases ? [rawAliases] : []);
+        const folds = [label, ...al].map(foldText).filter(Boolean);
+        out.push({ id: p.id, name: p.name, country: p.country, label, folds, fold: folds.join(" ") });
       }
       out.sort((a, b) => a.label.localeCompare(b.label));
       cfg._search = out;
@@ -1183,14 +1195,23 @@ map.on("load", async function () {
       selectRegion(gSel, cfg, entry.id, entry.name, entry.country, true);
     }
 
-    function render() {
+    function matchScore(entry, q) {
+      if (!q) return 0;
+      if (entry.folds.some((f) => f === q)) return 0;
+      if (entry.folds.some((f) => f.startsWith(q))) return 1;
+      return entry.fold.includes(q) ? 2 : Infinity;
+    }
+
+    async function render() {
       const cfg = LEVELS[gSel];
       const q = foldText(input.value.trim());
       if (!cfg || !cfg.geojson || !q) { close(); return; }
-      hits = [];
-      for (const e of buildIndex(cfg)) {
-        if (e.fold.includes(q)) { hits.push(e); if (hits.length >= 40) break; }
-      }
+      hits = (await buildIndex(cfg))
+        .map((e) => ({ e, score: matchScore(e, q) }))
+        .filter((x) => Number.isFinite(x.score))
+        .sort((a, b) => (a.score - b.score) || a.e.label.localeCompare(b.e.label))
+        .slice(0, 40)
+        .map((x) => x.e);
       box.innerHTML = hits.length
         ? hits.map((h, i) => `<div class="search-opt" role="option" data-idx="${i}">${escapeHtml(h.label)}</div>`).join("")
         : '<div class="search-empty">No matches</div>';
@@ -1198,8 +1219,8 @@ map.on("load", async function () {
       highlight(hits.length ? 0 : -1); // auto-highlight the top match so Enter picks it
     }
 
-    input.addEventListener("input", render);
-    input.addEventListener("focus", () => { if (input.value.trim()) render(); });
+    input.addEventListener("input", () => { render().catch(console.warn); });
+    input.addEventListener("focus", () => { if (input.value.trim()) render().catch(console.warn); });
 
     // Keyboard nav: ↑/↓ move (wrapping), Enter selects, Escape closes.
     input.addEventListener("keydown", function (e) {

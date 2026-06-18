@@ -202,21 +202,20 @@
       <p>Weighting by population matters because administrative regions vary wildly in size.
         Without it, a country carved into hundreds of tiny districts would out-vote one split
         into a few large provinces. With it, a community's “pull” reflects its <em>people</em>:
-        populous places anchor communities, and sparse areas are absorbed into their neighbours.</p>
+        larger populations carry more weight, while small administrative units do not get extra
+        influence just because there are many of them.</p>
 
       <h4>4. Choosing how many communities</h4>
       <p>Because every merge was recorded, the full hierarchy forms a tree. Asking for K
         communities just means cutting that tree so K branches remain.</p>
 
       <h4>5. Tidying small fragments</h4>
-      <p>After cutting, any community whose total population is tiny compared with the others
-        is folded into its nearest neighbour, so the map isn't peppered with one-off
-        fragments. A single very populous region (a major metro) is kept even though it is one
-        unit — the test is on people, not on the count of regions. To keep the number honest,
-        the tree is then cut a little deeper until exactly the number of clusters you asked for
-        survive this tidying — so the count always matches what you see on the map. Some
-        selections have a natural ceiling: once deeper cuts only produce fragments that get
-        absorbed, the slider simply stops there.</p>
+      <p>Cutting the tree gives exactly K communities. After that, the map does one small visual
+        cleanup: if a cluster has a tiny non-contiguous piece of three regions or fewer, that
+        piece is assigned to the neighbouring cluster it borders most. This removes isolated
+        specks without imposing a general geographic constraint or folding low-population
+        communities away. If this cleanup changes the visible count, the tree is cut a little
+        deeper so the number of clusters still matches what you see on the map.</p>
 
       <h4>6. Colours, borders and the animation</h4>
       <p>Colours are chosen to be as distinct from one another as possible across the whole map,

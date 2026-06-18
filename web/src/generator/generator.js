@@ -169,6 +169,7 @@ let cbsaOpts = null;       // [{ id, label }] for the searchable metro listbox
 const geoCache = {};      // level (or "level/shard") -> FeatureCollection
 const partsCache = {};    // sharded level -> [shardKey,...]
 const namesCache = {};    // level -> { id: [name, country] }
+let aliasesCache = null;  // optional geo/aliases.json search aliases
 const indexCache = {};    // range type -> index.json
 const sourcesCache = {};  // type -> Set(sourceId)
 const sciCache = {};      // "type/id" -> { fid: sci }
@@ -194,6 +195,12 @@ async function getJSON(p) {
 async function getNames(level) {
   if (!namesCache[level]) namesCache[level] = await getJSON(`geo/${level}_names.json`);
   return namesCache[level];
+}
+async function getAliases() {
+  if (aliasesCache) return aliasesCache;
+  try { aliasesCache = await getJSON("geo/aliases.json"); }
+  catch (_) { aliasesCache = {}; }
+  return aliasesCache;
 }
 async function getParts(level) {
   if (!partsCache[level]) partsCache[level] = await getJSON(`geo/${level}/_parts.json`);
@@ -296,10 +303,19 @@ async function refreshSources() {
   if (!t) return;
   $("countryWrap").style.display = t.friendByCountry ? "" : "none";
 
-  const [names, sources] = await Promise.all([getNames(t.sourceGeo), getSources(type)]);
+  const [names, sources, aliasData] = await Promise.all([getNames(t.sourceGeo), getSources(type), getAliases()]);
+  const aliases = aliasData[t.sourceGeo] || {};
   allSourceOpts = Object.keys(names)
     .filter((id) => sources.has(id))
-    .map((id) => ({ id, country: names[id][1], label: sourceLabel(t.sourceGeo, names[id][0], names[id][1]) }))
+    .map((id) => {
+      const al = aliases[id];
+      return {
+        id,
+        country: names[id][1],
+        label: sourceLabel(t.sourceGeo, names[id][0], names[id][1]),
+        aliases: Array.isArray(al) ? al : (al ? [al] : []),
+      };
+    })
     .sort((a, b) => compareLabels(a.label, b.label));
   renderSourceOptions();
   renderSourceOptionsB();
@@ -327,12 +343,29 @@ const compareLabels = (a, b) => {
   if (aa !== ba) return aa ? -1 : 1; // alphanumeric first, specials last
   return a.localeCompare(b);
 };
+function optionFolds(o) {
+  if (!o._folds) o._folds = [o.label, ...(o.aliases || [])].map(fold).filter(Boolean);
+  return o._folds;
+}
+const optionFold = (o) => (o._fold || (o._fold = optionFolds(o).join(" ")));
+function optionMatchScore(o, q) {
+  if (!q) return 0;
+  const parts = optionFolds(o);
+  if (parts.some((p) => p === q)) return 0;
+  if (parts.some((p) => p.startsWith(q))) return 1;
+  return optionFold(o).includes(q) ? 2 : Infinity;
+}
 
 function optionsHtml(list, prevValue, query) {
   const q = fold((query || "").trim());
   // Cache each option's folded label so we don't re-normalize on every keystroke
   // (the source lists can hold tens of thousands of regions).
-  let opts = q ? list.filter((o) => (o._fold || (o._fold = fold(o.label))).includes(q)) : list;
+  let opts = q
+    ? list.map((o) => ({ o, score: optionMatchScore(o, q) }))
+      .filter((x) => Number.isFinite(x.score))
+      .sort((a, b) => (a.score - b.score) || compareLabels(a.o.label, b.o.label))
+      .map((x) => x.o)
+    : list;
   const truncated = opts.length > MAX_OPTIONS;
   if (truncated) opts = opts.slice(0, MAX_OPTIONS);
   let html = opts.map((o) => `<div class="opt" role="option" data-v="${o.id}">${o.label}</div>`).join("");
@@ -384,6 +417,7 @@ function renderSourceOptions() {
   $("sourceA").value = hasPrev ? prev : firstOptValue($("sourceA"));
   if ($("sourceHint")) $("sourceHint").textContent = truncated
     ? `Showing first ${MAX_OPTIONS} — type to narrow.` : "";
+  syncGeneratedText();
 }
 function renderSourceOptionsB() {
   if (!$("sourceB")) return;
@@ -391,6 +425,7 @@ function renderSourceOptionsB() {
   const { html, hasPrev } = optionsHtml(allSourceOpts, prev, $("searchB") ? $("searchB").value : "");
   $("sourceB").innerHTML = html;
   $("sourceB").value = hasPrev ? prev : firstOptValue($("sourceB"));
+  syncGeneratedText();
 }
 
 // "Regions to show" is two click-to-toggle checkbox lists (region groups +
@@ -670,12 +705,10 @@ const comparisonLegendTitle = () =>
   `← More Friendly With ${cmpLabelA()} | More Friendly With ${cmpLabelB()} →`;
 
 function autoTitle() {
-  // No manual line breaks — render.js wraps the title to the frame width, so it
-  // stays on one line when it fits and wraps only when it must.
   if (compareMode()) {
     return `Where do people have more friends: ${labelOf($("sourceA"))} or ${labelOf($("sourceB"))}?`;
   }
-  return `Where do people in ${sourceLabelText()} have the most friends?`;
+  return `Where do people in ${sourceLabelText()}\nhave the most friends?`;
 }
 
 // Human-readable name for an ISO2 code (lazy lookup over countries.json).
@@ -735,6 +768,23 @@ function autoSubtitle() {
   return names ? `Across ${joinNames(names)}` : "Across the world";
 }
 
+function syncAutoInput(inputId, text, enabled) {
+  const inp = $(inputId);
+  if (!inp) return;
+  const prev = inp.dataset.autoText || "";
+  const shouldFill = !inp.value || inp.value === prev;
+  inp.dataset.autoText = text;
+  if (shouldFill) {
+    inp.value = enabled ? text : "";
+  }
+}
+
+function syncGeneratedText() {
+  if (!manifest || !$("sourceA")) return;
+  syncAutoInput("title", autoTitle(), !$("titleOn") || $("titleOn").checked);
+  syncAutoInput("subtitle", autoSubtitle(), !!($("subtitleOn") && $("subtitleOn").checked));
+}
+
 // A solid endpoint colour for a comparison side, derived from a single-map palette
 // name: the second-darkest ramp swatch — saturated and clearly readable, but not so
 // dark that the strongest-difference regions go near-black. Falls back gracefully.
@@ -750,8 +800,8 @@ function wireShowToggle(inputId, checkId) {
   const inp = $(inputId), chk = $(checkId);
   if (!inp || !chk) return;
   const sync = () => inp.classList.toggle("show-off", !chk.checked);
-  const enable = () => { if (!chk.checked) { chk.checked = true; sync(); } };
-  chk.addEventListener("change", sync);
+  const enable = () => { if (!chk.checked) { chk.checked = true; sync(); syncGeneratedText(); } };
+  chk.addEventListener("change", () => { sync(); syncGeneratedText(); });
   inp.addEventListener("focus", enable);
   inp.addEventListener("input", enable);
   sync();
@@ -856,14 +906,18 @@ function floatCheckedToTop(rows, container) {
   container.appendChild(frag);
 }
 // Continent groups float to top when checked; the scope options + divider stay put.
-function reorderGroups() {
+function reorderGroups(scrollToTop = false) {
+  const box = $("group");
   const rows = [...$("group").querySelectorAll("label.chk")]
     .filter((r) => !SCOPE_OPTS.includes(r.querySelector("input").value));
-  floatCheckedToTop(rows, $("group"));
+  floatCheckedToTop(rows, box);
+  if (scrollToTop) box.scrollTop = 0;
 }
-function reorderCountries() {
-  floatCheckedToTop([...$("customCountries").querySelectorAll("label.chk")], $("customCountries"));
+function reorderCountries(scrollToTop = false) {
+  const box = $("customCountries");
+  floatCheckedToTop([...box.querySelectorAll("label.chk")], box);
   filterCountryList(); // re-apply the search filter to the moved rows
+  if (scrollToTop) box.scrollTop = 0;
 }
 // Stamp each checklist row with its original (build-time) order for later sorting.
 function stampChecklistOrder(id) {
@@ -963,6 +1017,8 @@ async function generate() {
       title: $("titleOn").checked ? ($("title").value || autoTitle()) : "",
       subtitle: $("subtitleOn").checked ? ($("subtitle").value || autoSubtitle()) : "",
       caption: CAPTION, legend, width: w, height: h,
+      titleScale: 1.2,
+      captionScale: 1.5,
     };
     // Trim the empty top/bottom letterbox on wide (e.g. world) maps by shrinking
     // the canvas to the map's natural aspect. Clamped so it only ever reduces the
@@ -1144,13 +1200,14 @@ function reset() {
   $("highlight").checked = false;
   if ($("titleOn")) { $("titleOn").checked = true; $("title").classList.remove("show-off"); }
   if ($("subtitleOn")) { $("subtitleOn").checked = false; $("subtitle").classList.add("show-off"); }
+  syncGeneratedText();
   $("status").textContent = "";
   lastCanvas = null; lastRender = null;
   $("mapContainer").style.display = "none";
   $("mapContainer").innerHTML = "";
   $("downloadRow").style.display = "none";
   $("placeholder").style.display = "";
-  refreshSources().then(refreshBreaksPreview).catch(showError);
+  refreshSources().then(() => { syncGeneratedText(); refreshBreaksPreview(); }).catch(showError);
 }
 
 // ---- metro (CBSA) ZIP filter ----------------------------------------------
@@ -1202,6 +1259,7 @@ function syncCbsaUI() {
 function onCbsaChange() {
   if ($("destCbsa").value) clearBoundsFields();
   else autoFillBounds();
+  syncGeneratedText();
 }
 
 function onDestChange() {
@@ -1210,7 +1268,7 @@ function onDestChange() {
   // worldwide load, surfaced via the loadFriendGeo hint when the user generates.)
   selectGroup(null);
   syncCbsaUI();
-  refreshSources().then(() => { autoFillBounds(); refreshBreaksPreview(); }).catch(showError);
+  refreshSources().then(() => { autoFillBounds(); syncGeneratedText(); refreshBreaksPreview(); }).catch(showError);
 }
 
 // ---- init -----------------------------------------------------------------
@@ -1269,6 +1327,7 @@ async function init() {
   syncRefModeUI();
   syncCbsaUI();
   await refreshSources();
+  syncGeneratedText();
   refreshBreaksPreview();
 
   $("originType").addEventListener("change", () => { fillDestOptions(); onDestChange(); });
@@ -1293,15 +1352,17 @@ async function init() {
         uncheckScopeOpts();
       }
     }
-    reorderGroups();
+    reorderGroups(e.target.checked);
     autoFillBounds();
+    syncGeneratedText();
     refreshBreaksPreview();
   });
   $("customCountries").addEventListener("change", (e) => {
     // Adding an explicit individual country also clears the auto scope options.
     if (e.target.checked) uncheckScopeOpts();
-    reorderCountries();
+    reorderCountries(e.target.checked);
     autoFillBounds();
+    syncGeneratedText();
     refreshBreaksPreview();
   });
   $("countrySearch").addEventListener("input", filterCountryList);
@@ -1311,11 +1372,13 @@ async function init() {
   $("sourceA").addEventListener("change", () => {
     const g = selectedGroups();
     if (g.includes(OPT_SAME_COUNTRY) || g.includes(OPT_SAME_SUBCONT)) autoFillBounds();
+    syncGeneratedText();
     refreshBreaksPreview();
   });
   if ($("searchB")) $("searchB").addEventListener("input", renderSourceOptionsB);
+  if ($("sourceB")) $("sourceB").addEventListener("change", syncGeneratedText);
   document.querySelectorAll('input[name="mapMode"]').forEach(
-    (r) => r.addEventListener("change", () => { syncCompareUI(); refreshBreaksPreview(); }));
+    (r) => r.addEventListener("change", () => { syncCompareUI(); syncGeneratedText(); refreshBreaksPreview(); }));
   document.querySelectorAll('input[name="refMode"]').forEach(
     (r) => r.addEventListener("change", () => { syncRefModeUI(); refreshBreaksPreview(); }));
   // Break-scheme controls: pick a scheme to auto-fill the box; editing the box
@@ -1407,8 +1470,10 @@ function setRadio(name, value) {
 function selectSourceByName(id, name) {
   const q = fold(String(name || "").trim());
   if (!q) return null;
-  const f = (o) => (o._fold || (o._fold = fold(o.label)));
-  const match = allSourceOpts.find((o) => f(o) === q) || allSourceOpts.find((o) => f(o).includes(q));
+  const match = allSourceOpts
+    .map((o) => ({ o, score: optionMatchScore(o, q) }))
+    .filter((x) => Number.isFinite(x.score))
+    .sort((a, b) => (a.score - b.score) || compareLabels(a.o.label, b.o.label))[0]?.o;
   if (match) $(id).value = match.id;
   return match ? match.id : null;
 }
@@ -1495,6 +1560,7 @@ async function applyConfig(cfg = {}) {
     else if (cfg.subtitle != null) $("subtitleOn").checked = true;
     $("subtitle").classList.toggle("show-off", !$("subtitleOn").checked);
   }
+  syncGeneratedText();
   if (cfg.labelA != null && $("labelA")) $("labelA").value = cfg.labelA;
   if (cfg.labelB != null && $("labelB")) $("labelB").value = cfg.labelB;
   if (cfg.width != null) $("width").value = cfg.width;
@@ -1590,8 +1656,12 @@ async function sciFindRegions(query, opts = {}) {
   await sciReady.catch(() => {});
   if (opts.origin || opts.dest) await applyConfig({ origin: opts.origin, dest: opts.dest });
   const q = fold(String(query || "").trim());
-  const f = (o) => (o._fold || (o._fold = fold(o.label)));
-  const list = q ? allSourceOpts.filter((o) => f(o).includes(q)) : allSourceOpts;
+  const list = q
+    ? allSourceOpts.map((o) => ({ o, score: optionMatchScore(o, q) }))
+      .filter((x) => Number.isFinite(x.score))
+      .sort((a, b) => (a.score - b.score) || compareLabels(a.o.label, b.o.label))
+      .map((x) => x.o)
+    : allSourceOpts;
   return list.slice(0, opts.limit || 20).map((o) => ({ id: o.id, label: o.label, country: o.country }));
 }
 

@@ -9,11 +9,12 @@ tools share one dataset:
 - /explore   — Interactive Explorer: a Mapbox globe; click a country/region to
   recolor the world by its SCI. (No programmatic API; human/visual use.)
 - /cluster   — Connected Communities: groups a region's sub-national units into
-  clusters by Facebook connectedness (hierarchical agglomerative clustering). Pick
-  a regional grouping or single country (precomputed, instant) or a custom country
-  combination (clustered live in-browser), choose how many clusters K, optionally
-  animate the 1→K split sequence; PNG/SVG/MP4 downloads. (No programmatic API;
-  human/visual use.)
+  clusters by Facebook connectedness (-log(SCI) distance, population-weighted
+  average-linkage hierarchical clustering, exact K cuts with only tiny
+  non-contiguous visual fragments tidied). Pick a regional grouping or single
+  country (precomputed, instant) or a custom country combination (clustered live
+  in-browser), choose how many clusters K, optionally animate the 1→K split
+  sequence; PNG/SVG/MP4 downloads. (No programmatic API; human/visual use.)
 
 Everything runs client-side; there is no server-side API. The Map Maker can,
 however, be driven programmatically in two ways — both work in a headless browser
@@ -103,6 +104,10 @@ Notes / caveats:
   headless pipelines.
 - Region ids are opaque (FIPS like 06037, GADM ids like IND.34.75_1). Use
   `source` when you know the id; otherwise `sourceName` / SCI.findRegions().
+  Name lookup is accent-insensitive and also matches curated aliases from
+  /data/geo/aliases.json, so common alternate names like "Brussels", "Mumbai",
+  "Bengaluru", or "Bozen" can resolve to the canonical displayed region names.
 - The raw exported data is also fetchable as static JSON under /data/
   (manifest.json, groups.json, palettes.json, countries.json, bounds.json,
-  geo/<level>_names.json, sci/<type>/<id>.json) if you'd rather compute directly.
+  geo/<level>_names.json, geo/aliases.json, sci/<type>/<id>.json) if you'd rather
+  compute directly.

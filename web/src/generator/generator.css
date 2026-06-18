@@ -80,22 +80,25 @@ body { display: flex; height: 100vh; overflow: hidden; }
   background: #fff; color: #2a3942; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 #panel label.check { display: flex; align-items: center; gap: 7px; margin: 10px 0; }
-#panel select, #panel input[type="text"], #panel input[type="number"] {
+#panel select, #panel input[type="text"], #panel input[type="number"], #panel textarea {
   width: 100%; padding: 7px 9px; border: 1px solid #cfd9df; border-radius: 6px;
   font-family: inherit; font-size: 13px; background: #fff; color: #2a3942;
 }
-#panel select:focus, #panel input[type="text"]:focus, #panel input[type="number"]:focus {
+#panel textarea {
+  resize: vertical; min-height: 58px; line-height: 1.35;
+}
+#panel select:focus, #panel input[type="text"]:focus, #panel input[type="number"]:focus, #panel textarea:focus {
   outline: none; border-color: #1879d5; box-shadow: 0 0 0 2px rgba(24, 121, 213, 0.15);
 }
 #panel select[multiple], #panel select[size] { height: auto; padding: 2px; }
 /* A text input with a small on/off toggle sitting beside it (e.g. the subtitle). */
 .input-with-toggle { display: flex; align-items: center; gap: 10px; }
-.input-with-toggle input[type="text"] { flex: 1; min-width: 0; }
+.input-with-toggle input[type="text"], .input-with-toggle textarea { flex: 1; min-width: 0; }
 #panel .input-with-toggle label.inline-check { margin: 0; white-space: nowrap; font-size: 13px; }
 .input-with-toggle input[type="text"]:disabled { background: #f1f4f6; color: #9aa6b0; cursor: not-allowed; }
 /* "Show" turned off: muted like a disabled field, but still focusable — clicking in
    or typing auto-ticks the Show checkbox (see wireShowToggle in generator.js). */
-.input-with-toggle input[type="text"].show-off { background: #f1f4f6; color: #9aa6b0; }
+.input-with-toggle input[type="text"].show-off, .input-with-toggle textarea.show-off { background: #f1f4f6; color: #9aa6b0; }
 
 /* Comparison maps: two side-by-side colour pickers (Region A / Region B). The row
    hugs the "Comparison colors" heading, and the per-side captions are tight/muted so

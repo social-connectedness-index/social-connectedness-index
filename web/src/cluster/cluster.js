@@ -16,7 +16,7 @@
 // single-country selections are precomputed (just a tree load + O(n) cut).
 
 import { createTour } from "../shared/tour.js";
-import { buildDistanceMatrix, buildDendrogram, cutDendrogram, buildCentroids, buildWeights, SPATIAL_ALPHA, MIN_CLUSTER_FRAC } from "./agglomerative.js";
+import { buildDistanceMatrix, buildDendrogram, cutDendrogram, buildCentroids, buildWeights, SPATIAL_ALPHA } from "./agglomerative.js";
 import { renderMap, renderSvg, computeBbox, naturalHeight } from "../shared/render.js";
 import { downloadReel, downloadReelAnimation, mp4Supported } from "../shared/reel.js";
 // Hand-authored regional-grouping presets (see cluster_presets.json). Bundled at
@@ -929,8 +929,9 @@ async function generate() {
         // we have; otherwise fall through to the live path.
         if (regionIds.length >= 2 && regionIds.length === precomp.ids.length) {
           const displayFeatures = Object.values(fmap); // every region, incl. no-data
-          // Populations are still needed for population-based fragment absorption
-          // at cut time, even though the tree itself is precomputed.
+          // Populations are still needed at cut time — the scattered-fragment tidy-up
+          // (relabelTinyFragments) weights components by population — even though the
+          // precomputed tree already baked them into the (population-weighted) linkage.
           const weights = await weightsFor(ids, regionIds);
           prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: regionIds.length, merges: precomp.merges, weights };
           prepared = true;
@@ -999,9 +1000,8 @@ async function generate() {
     }
 
     const nRegions = prepCache.regionIds.length;
-    // Cap the request at the most clusters this selection can actually SHOW (deeper
-    // cuts just spawn fragments that get absorbed), so the number always means the
-    // number visible on the map.
+    // Cap the request at the most clusters this selection can actually show after
+    // the tiny non-contiguous-fragment cleanup, so the number always matches the map.
     const maxVisible = Math.min(ensureVisibleScan().maxVisible, nRegions - 1);
     $("num-clusters").max = maxVisible;
     if (k > maxVisible) k = maxVisible;
@@ -1223,16 +1223,16 @@ function relabelTinyFragments(labels, n) {
 }
 
 // --- Visible-count mapping --------------------------------------------------
-// The two absorption passes (population fragments in cutDendrogram + scattered
-// fragments in relabelTinyFragments) can fold a fresh split back into a neighbour,
-// so a raw cut of k often shows FEWER than k clusters. To make "N clusters" mean N
-// clusters ON THE MAP, we deepen the raw cut until exactly N survive absorption.
+// The scattered-fragment tidy-up (relabelTinyFragments) can fold a small
+// NON-contiguous fragment into a neighbour, so a raw cut of k can occasionally show
+// FEWER than k clusters. To make "N clusters" mean N clusters ON THE MAP, we deepen
+// the raw cut until exactly N survive.
 
-// Absorbed + fragment-folded labels for a RAW dendrogram cut of `rawK`, compacted to
-// 0..v-1, plus the resulting VISIBLE cluster count v.
-function absorbedLabelsAtRaw(rawK) {
-  const { n, merges, weights } = prepCache;
-  const labels = cutDendrogram(merges, n, rawK, { minClusterFrac: MIN_CLUSTER_FRAC, weights });
+// Fragment-tidied labels for a RAW dendrogram cut of `rawK`, compacted to 0..v-1,
+// plus the resulting VISIBLE cluster count v.
+function visibleLabelsAtRaw(rawK) {
+  const { n, merges } = prepCache;
+  const labels = cutDendrogram(merges, n, rawK);
   relabelTinyFragments(labels, n); // mutates a fresh array, so caching the result is safe
   const remap = new Map();
   for (let i = 0; i < n; i++) {
@@ -1248,7 +1248,7 @@ const VISIBLE_SCAN_PLATEAU = 15; // stop deepening once this many extra cuts add
 // Map each achievable VISIBLE cluster count to the shallowest raw cut that yields it
 // (remembering its labels). Cached per selection on prepCache. Bounded O(scan · n):
 // we deepen only until the visible count plateaus (the data's true cluster ceiling)
-// or a sane cap, since beyond that deeper cuts just spawn more absorbable fragments.
+// or a sane cap, since beyond that deeper cuts stop adding displayable clusters.
 function ensureVisibleScan() {
   if (prepCache.visibleScan) return prepCache.visibleScan;
   const { n } = prepCache;
@@ -1257,7 +1257,7 @@ function ensureVisibleScan() {
   let maxVisible = 1, lastGain = 1;
   const cap = Math.min(n - 1, 240);
   for (let rawK = 1; rawK <= cap; rawK++) {
-    const { labels, visible } = absorbedLabelsAtRaw(rawK);
+    const { labels, visible } = visibleLabelsAtRaw(rawK);
     if (labelsByVisible[visible] === undefined) { rawForVisible[visible] = rawK; labelsByVisible[visible] = labels; }
     if (visible > maxVisible) { maxVisible = visible; lastGain = rawK; }
     if (rawK - lastGain >= VISIBLE_SCAN_PLATEAU) break; // hit the data's cluster ceiling
@@ -1266,10 +1266,9 @@ function ensureVisibleScan() {
 }
 
 // Labels with exactly N visible clusters when achievable; otherwise the closest
-// achievable count. Fragment/min-size absorption can skip a count entirely (e.g.
-// raw cuts jump 2 → 4 visible, so 3 is never producible). We snap to the NEAREST
-// achievable count, preferring MORE clusters on a tie — so asking for one more than
-// the previous step never collapses back to fewer (which made e.g. 3 look like 2).
+// achievable count. The scattered-fragment cleanup can skip a count entirely (e.g.
+// raw cuts jump 2 → 4 visible), so we snap to the NEAREST achievable count,
+// preferring MORE clusters on a tie.
 // Returns { labels, visible }.
 function cutToVisibleCount(N) {
   const scan = ensureVisibleScan();
@@ -1289,8 +1288,9 @@ function cutToVisibleCount(N) {
 function computeClusterColors(k) {
   const { clusterFeatures } = prepCache;
 
-  // Deepen the cut until exactly k clusters SURVIVE absorption, so the number shown
-  // matches the number requested. `labels` is already compacted to 0..usedK-1.
+  // Deepen the cut until exactly k clusters survive the scattered-fragment cleanup,
+  // so the number shown matches the number requested. `labels` is already compacted
+  // to 0..usedK-1.
   const { labels, visible: usedK } = cutToVisibleCount(k);
 
   const palette = clusterPalette(usedK);
@@ -1352,8 +1352,8 @@ function applyClusterCount(k) {
 // one merge undone at a time. Two modes: AUTOMATIC plays the sweep on its own (and
 // loops); MANUAL freezes and lets you step Back / Next through the splits (each step
 // can also be run in reverse as a merge). buildAnimationSequence precomputes the
-// whole sweep from RAW dendrogram cuts (so every step is exactly one clean split)
-// with stable, contrast-aware colours. Each step plays a three-phase choreography to
+// whole sweep from the same visible-count cuts used by the static map, with stable,
+// contrast-aware colours. Each step plays a three-phase choreography to
 // make it easy to follow: focus (fade everything but the splitting community), split
 // (reveal the two halves), restore (all back in colour at K+1). Clusters are shown by
 // fill colour + the fade only — there is NO cluster-boundary overlay (removed); the
@@ -1506,16 +1506,17 @@ const ANIM_CHOREO_FROM_K = 9;
 // splitting cluster still stands out against the receded rest.
 const ANIM_FADE = 0.88;
 
-// Precompute a stable, easy-to-follow animation sequence. We use RAW dendrogram
-// cuts (no fragment absorption) so each K→K+1 step is EXACTLY one cluster splitting
-// in two — the thing the choreography highlights. Colours are stable across steps:
-// when a cluster splits, its larger half keeps its colour and the smaller half gets
-// a fresh one, so only the split changes between frames (no distracting reshuffle).
+// Precompute a stable, easy-to-follow animation sequence. We use the same visible
+// cluster counts as the static map; when a raw split is tidied away, the animation
+// skips it and moves to the next split that changes the displayed map. Colours are
+// stable across steps: when a cluster splits, its larger half keeps its colour and
+// the smaller half gets a fresh one, so only the split changes between frames (no
+// distracting reshuffle).
 // Returns { maxK, colorsAt[k], labelsAt[k], splits[k] } where colorsAt/labelsAt are
 // per-region arrays (clusterFeatures order) and splits[k] lists the region indices
 // of the cluster that splits going from k to k+1. Frame k is the map with exactly k
-// VISIBLE clusters (post-absorption), so each step adds one cluster you can see — the
-// raw splits that just get absorbed are skipped, matching the static tool's count.
+// VISIBLE clusters after fragment cleanup, so each step adds one cluster you can
+// see, matching the static tool's count.
 function buildAnimationSequence(maxK) {
   const { clusterFeatures } = prepCache;
   const nFeat = clusterFeatures.length;

@@ -1,0 +1,346 @@
+level,id,alias,language,notes
+country,US,USA,en,abbreviation
+country,US,U.S.,en,abbreviation
+country,US,United States of America,en,formal name
+country,US,America,en,common shorthand
+country,GB,UK,en,abbreviation
+country,GB,U.K.,en,abbreviation
+country,GB,Britain,en,common shorthand
+country,GB,Great Britain,en,common shorthand
+country,CZ,Czech Republic,en,former common English name
+country,RU,Russian Federation,en,formal name
+country,KR,Republic of Korea,en,formal name
+country,KR,Korea South,en,alternate ordering
+country,KP,DPRK,en,abbreviation
+country,KP,Democratic People's Republic of Korea,en,formal name
+country,KP,Korea North,en,alternate ordering
+country,IR,Islamic Republic of Iran,en,formal name
+country,VN,Viet Nam,en,alternate spelling
+country,MM,Burma,en,former common English name
+country,CI,Ivory Coast,en,English name
+country,CI,Cote d'Ivoire,en,ASCII spelling
+country,CD,Democratic Republic of the Congo,en,formal name
+country,CD,DR Congo,en,common shorthand
+country,CD,DRC,en,abbreviation
+country,CG,Republic of the Congo,en,formal name
+country,CG,Congo Republic,en,common shorthand
+country,TZ,United Republic of Tanzania,en,formal name
+country,BO,Plurinational State of Bolivia,en,formal name
+country,BN,Brunei Darussalam,en,formal name
+country,LA,Lao PDR,en,common shorthand
+country,LA,Lao People's Democratic Republic,en,formal name
+country,SY,Syrian Arab Republic,en,formal name
+country,MD,Republic of Moldova,en,formal name
+country,PS,Palestine,en,common shorthand
+country,PS,State of Palestine,en,formal name
+country,CV,Cabo Verde,en,official English name
+country,SZ,Swaziland,en,former common English name
+country,TR,Turkiye,en,ASCII spelling
+country,TR,Türkiye,tr,official name
+country,CN,People's Republic of China,en,formal name
+country,CN,PRC,en,abbreviation
+gadm1,AUT.9_1,Vienna,en,English name
+gadm1,BEL.1_1,Brussels,en,English name
+gadm1,BEL.1_1,Brussel,nl,Dutch name
+gadm1,ROU.10_1,Bucuresti,ro,ASCII spelling
+gadm1,ROU.10_1,București,ro,Romanian name
+gadm1,SRB.3_1,Belgrade,en,English name
+gadm1,SRB.3_1,Beograd,sr,Serbian name
+gadm1,CHE.26_1,Zurich,en,English spelling
+gadm1,CHE.8_1,Geneva,en,English name
+gadm1,CHE.8_1,Genf,de,German name
+gadm1,CHE.8_1,Ginevra,it,Italian name
+gadm1,PRT.12_1,Lisbon,en,English name
+gadm1,TUR.40_1,İstanbul,tr,Turkish spelling
+gadm1,TUR.40_1,Constantinople,en,historical name
+gadm1,RUS.43_1,Moskva,ru,Russian transliteration
+gadm1,RUS.44_1,Moscow Oblast,en,English name
+gadm1,RUS.44_1,Moscow Region,en,English name
+gadm1,EGY.11_1,Cairo,en,English name
+gadm1,EGY.11_1,Caire,fr,French name
+gadm1,EGY.11_1,Kairo,de,German name
+gadm1,EGY.6_1,Alexandria,en,English name
+gadm1,CHN.2_1,Peking,en,historical English name
+gadm1,CHN.6_1,Canton,en,historical English name
+gadm1,CHN.HKG,Hong Kong SAR,en,formal shorthand
+gadm1,CHN.HKG,Xianggang,zh,pinyin
+gadm1,CHN.MAC,Macao,en,alternate English spelling
+gadm1,CHN.MAC,Macau SAR,en,formal shorthand
+gadm1,KOR.1_1,Pusan,en,former romanization
+gadm1,MMR.15_1,Rangoon,en,former English name
+gadm1,BGD.3_1,Dacca,en,former English spelling
+gadm1,IND.20_1,Bombay State,en,historical state name
+gadm1,IND.16_1,Mysore State,en,historical state name
+gadm2,BEL.1.1_1,Brussels,en,English name
+gadm2,BEL.1.1_1,Brussel,nl,Dutch name
+gadm2,BEL.2.1_1,Antwerp,en,English name
+gadm2,BEL.2.1_1,Anvers,fr,French name
+gadm2,BEL.3.3_1,Liege,en,ASCII spelling
+gadm2,BEL.3.3_1,Luik,nl,Dutch name
+gadm2,BEL.3.3_1,Lüttich,de,German name
+gadm2,DEU.10.24_1,Cologne,en,English name
+gadm2,DEU.2.54_1,Munich,en,English name
+gadm2,DEU.2.60_1,Munich District,en,English name
+gadm2,DEU.2.60_1,Munich Landkreis,de,German-English hybrid
+gadm2,DEU.2.67_1,Nuremberg,en,English name
+gadm2,ITA.16.2_1,Firenze,it,Italian name
+gadm2,ITA.20.5_1,Venice,en,English name
+gadm2,ITA.5.4_1,Naples,en,English name
+gadm2,ITA.13.6_1,Turin,en,English name
+gadm2,ITA.10.8_1,Milan,en,English name
+gadm2,ITA.9.1_1,Genoa,en,English name
+gadm2,ITA.17.1_1,Bozen,de,German name
+gadm2,ITA.17.1_1,Sudtirol,de,German name without diacritic
+gadm2,ITA.17.1_1,Südtirol,de,German name
+gadm2,ITA.17.1_1,South Tyrol,en,English name
+gadm2,ITA.17.1_1,Alto Adige,it,Italian regional name
+gadm2,POL.6.6_1,Cracow,en,English historical name
+gadm2,POL.6.6_1,Krakow,en,ASCII spelling
+gadm2,POL.6.7_1,Cracow County,en,English historical name
+gadm2,POL.6.7_1,Krakow County,en,ASCII spelling
+gadm2,POL.7.36_1,Warsaw,en,English name
+gadm2,POL.1.25_1,Wroclaw,en,ASCII spelling
+gadm2,POL.1.25_1,Breslau,de,historical German name
+gadm2,POL.1.26_1,Wroclaw County,en,ASCII spelling
+gadm2,POL.1.26_1,Breslau County,de,historical German name
+gadm2,POL.11.4_1,Gdansk,en,ASCII spelling
+gadm2,POL.11.4_1,Danzig,de,historical German name
+gadm2,POL.11.5_1,Gdansk County,en,ASCII spelling
+gadm2,POL.11.5_1,Danzig County,de,historical German name
+gadm2,POL.15.24_1,Poznan,en,ASCII spelling
+gadm2,POL.15.25_1,Poznan County,en,ASCII spelling
+gadm2,POL.3.7_1,Lodz,en,ASCII spelling
+gadm2,CZE.2.3_1,Brünn,de,German name
+gadm2,CZE.2.3_1,Brunn,de,ASCII spelling
+gadm2,CZE.2.4_1,Brno Country District,en,English name
+gadm2,CZE.2.4_1,Brünn-Land,de,German name
+gadm2,CHE.26_1,Zurich,en,English spelling
+gadm2,CHE.8_1,Geneva,en,English name
+gadm2,CHE.8_1,Genf,de,German name
+gadm2,CHE.8_1,Ginevra,it,Italian name
+gadm2,CHE.12_1,Luzern,de,German name
+gadm2,DNK.1.25_1,Copenhagen,en,English name
+gadm2,SWE.21.11_1,Gothenburg,en,English name
+gadm2,SWE.13.19_1,Malmo,en,ASCII spelling
+gadm2,PRT.12.7_1,Lisbon,en,English name
+gadm2,GRC.3.1.12_1,Athina,el,Greek transliteration
+gadm2,GRC.3.1.12_1,Athína,el,Greek transliteration
+gadm2,GRC.6.1.35_1,Salonika,en,historical English name
+gadm2,GRC.6.1.35_1,Salonica,en,historical English name
+gadm2,RUS.43_1,Moskva,ru,Russian transliteration
+gadm2,RUS.44_1,Moscow Oblast,en,English name
+gadm2,RUS.44_1,Moscow Region,en,English name
+gadm2,IND.20.17.1_1,Mumbai,en,current official name
+gadm2,IND.16.3.2_1,Bengaluru,en,current official name
+gadm2,IND.34.75.1_1,Benares,en,historical English name
+gadm2,IND.34.75.1_1,Banaras,en,alternate spelling
+gadm2,IND.34.75.1_1,Kashi,hi,traditional name
+gadm2,IND.11.32.6_1,Baroda,en,former English name
+gadm2,IND.17.2.2_1,Kochi,en,current official name
+gadm2,IND.17.12.4_1,Thiruvananthapuram,en,current official name
+gadm2,CHN.2.1_1,Peking,en,historical English name
+gadm2,CHN.6.4_1,Canton,en,historical English name
+gadm2,CHN.15.4_1,Nanking,en,historical English name
+gadm2,CHN.3.1_1,Chungking,en,historical English name
+gadm2,MAC.2_1,Macao,en,alternate English spelling
+gadm2,MAC.2_1,Macau SAR,en,formal shorthand
+gadm2,KOR.1.2_2,Pusan-jin,en,former romanization
+gadm2,KOR.1.2_2,Busan-jin,en,alternate romanization
+gadm2,MMR.15.1_1,Rangoon East,en,former English name
+gadm2,MMR.15.2_1,Rangoon North,en,former English name
+gadm2,MMR.15.3_1,Rangoon South,en,former English name
+gadm2,MMR.15.4_1,Rangoon West,en,former English name
+gadm2,BGD.3.1_1,Dacca,en,former English spelling
+gadm2,NPL.1.1.3_1,Katmandu,en,alternate English spelling
+gadm2,EGY.11_1,Cairo,en,English name
+gadm2,EGY.11_1,Caire,fr,French name
+gadm2,EGY.11_1,Kairo,de,German name
+gadm2,EGY.6_1,Alexandria,en,English name
+gadm1,AUT.2_1,Carinthia,en,English name
+gadm1,AUT.3_1,Lower Austria,en,English name
+gadm1,AUT.4_1,Upper Austria,en,English name
+gadm1,AUT.6_1,Styria,en,English name
+gadm1,AUT.7_1,Tyrol,en,English name
+gadm1,BEL.2_1,Flanders,en,English name
+gadm1,BEL.3_1,Wallonia,en,English name
+gadm1,CHE.10_1,Grisons,en,English name
+gadm1,CHE.10_1,Graubunden,en,ASCII German name
+gadm1,CHE.16_1,Saint Gallen,en,English name
+gadm1,CHE.16_1,St. Gallen,en,alternate English name
+gadm1,CHE.21_1,Tessin,de,German name
+gadm1,CHE.23_1,Wallis,de,German name
+gadm1,CHE.24_1,Waadt,de,German name
+gadm1,CHE.7_1,Freiburg,de,German name
+gadm1,CHE.6_1,Berne,en,English name
+gadm1,CZE.10_1,Pilsen Region,en,English name
+gadm1,CZE.12_1,Central Bohemian Region,en,English name
+gadm1,CZE.13_1,Usti Region,en,English name
+gadm1,CZE.14_1,Zlin Region,en,English name
+gadm1,CZE.1_1,South Bohemian Region,en,English name
+gadm1,CZE.2_1,South Moravian Region,en,English name
+gadm1,CZE.3_1,Karlovy Vary Region,en,English name
+gadm1,CZE.4_1,Vysocina Region,en,English name
+gadm1,CZE.4_1,Highlands Region,en,English name
+gadm1,CZE.5_1,Hradec Kralove Region,en,English name
+gadm1,CZE.6_1,Liberec Region,en,English name
+gadm1,CZE.7_1,Moravian-Silesian Region,en,English name
+gadm1,CZE.8_1,Olomouc Region,en,English name
+gadm1,CZE.9_1,Pardubice Region,en,English name
+gadm1,DEU.10_1,North Rhine-Westphalia,en,English name
+gadm1,DEU.11_1,Rhineland-Palatinate,en,English name
+gadm1,DEU.13_1,Saxony-Anhalt,en,English name
+gadm1,DEU.14_1,Saxony,en,English name
+gadm1,DEU.16_1,Thuringia,en,English name
+gadm1,DEU.1_1,Baden-Wurttemberg,en,ASCII English name
+gadm1,DEU.2_1,Bavaria,en,English name
+gadm1,DEU.7_1,Hesse,en,English name
+gadm1,DEU.8_1,Mecklenburg-Western Pomerania,en,English name
+gadm1,DEU.9_1,Lower Saxony,en,English name
+gadm1,DNK.1_1,Capital Region of Denmark,en,English name
+gadm1,DNK.1_1,Copenhagen Region,en,common English name
+gadm1,DNK.2_1,Central Denmark Region,en,English name
+gadm1,DNK.3_1,North Denmark Region,en,English name
+gadm1,DNK.4_1,Zealand Region,en,English name
+gadm1,DNK.5_1,Region of Southern Denmark,en,English name
+gadm1,DNK.5_1,Southern Denmark Region,en,English name
+gadm1,ESP.10_1,Valencian Community,en,English name
+gadm1,ESP.13_1,Balearic Islands,en,English name
+gadm1,ESP.14_1,Canary Islands,en,English name
+gadm1,ESP.16_1,Basque Country,en,English name
+gadm1,ESP.17_1,Asturias,en,English name
+gadm1,ESP.18_1,Murcia Region,en,English name
+gadm1,ESP.1_1,Andalusia,en,English name
+gadm1,ESP.2_1,Aragon,en,English name
+gadm1,ESP.5_1,Castile and Leon,en,English name
+gadm1,ESP.6_1,Catalonia,en,English name
+gadm1,ESP.8_1,Community of Madrid,en,English name
+gadm1,ESP.9_1,Navarre,en,English name
+gadm1,FRA.3_1,Brittany,en,English name
+gadm1,FRA.5_1,Corsica,en,English name
+gadm1,FRA.9_1,Normandy,en,English name
+gadm1,FRA.2_1,Burgundy-Franche-Comte,en,ASCII English name
+gadm1,FRA.2_1,Burgundy-Franche-Comté,en,English name
+gadm1,ITA.10_1,Lombardy,en,English name
+gadm1,ITA.13_1,Piedmont,en,English name
+gadm1,ITA.14_1,Sardinia,en,English name
+gadm1,ITA.15_1,Sicilia,it,Italian name
+gadm1,ITA.16_1,Tuscany,en,English name
+gadm1,ITA.17_1,Trentino-South Tyrol,en,English name
+gadm1,ITA.19_1,Aosta Valley,en,English name
+gadm1,ITA.2_1,Puglia,it,Italian/common English name
+gadm1,ITA.8_1,Latium,en,historical English name
+gadm1,NLD.3_1,Friesland,en,English name
+gadm1,NLD.14_1,South Holland,en,English name
+gadm1,NLD.8_1,North Brabant,en,English name
+gadm1,NLD.9_1,North Holland,en,English name
+gadm1,NOR.15_1,South Trondelag,en,ASCII English name
+gadm1,NOR.9_1,North Trondelag,en,ASCII English name
+gadm1,NOR.18_1,West Agder,en,English name
+gadm1,NOR.3_1,East Agder,en,English name
+gadm1,NOR.8_1,More og Romsdal,en,ASCII English name
+gadm1,NOR.2_1,Ostfold,en,ASCII English name
+gadm1,NOR.2_1,Østfold,no,Norwegian name
+gadm1,POL.1_1,Lower Silesian Voivodeship,en,English name
+gadm1,POL.1_1,Lower Silesia,en,English name
+gadm1,POL.2_1,Kuyavian-Pomeranian Voivodeship,en,English name
+gadm1,POL.3_1,Lodz Voivodeship,en,English name
+gadm1,POL.4_1,Lublin Voivodeship,en,English name
+gadm1,POL.5_1,Lubusz Voivodeship,en,English name
+gadm1,POL.6_1,Lesser Poland Voivodeship,en,English name
+gadm1,POL.6_1,Lesser Poland,en,English name
+gadm1,POL.7_1,Masovian Voivodeship,en,English name
+gadm1,POL.7_1,Mazovia,en,English name
+gadm1,POL.8_1,Opole Voivodeship,en,English name
+gadm1,POL.9_1,Subcarpathian Voivodeship,en,English name
+gadm1,POL.10_1,Podlaskie Voivodeship,en,English name
+gadm1,POL.11_1,Pomeranian Voivodeship,en,English name
+gadm1,POL.11_1,Pomerania,en,English name
+gadm1,POL.12_1,Silesian Voivodeship,en,English name
+gadm1,POL.12_1,Silesia,en,English name
+gadm1,POL.13_1,Swietokrzyskie Voivodeship,en,ASCII English name
+gadm1,POL.13_1,Holy Cross Voivodeship,en,English name
+gadm1,POL.14_1,Warmian-Masurian Voivodeship,en,English name
+gadm1,POL.15_1,Greater Poland Voivodeship,en,English name
+gadm1,POL.15_1,Greater Poland,en,English name
+gadm1,POL.16_1,West Pomeranian Voivodeship,en,English name
+gadm1,POL.16_1,Western Pomerania,en,English name
+gadm1,PRT.2_1,Açores,pt,Portuguese name
+gadm1,PRT.8_1,Evora,en,ASCII English name
+gadm1,PRT.16_1,Santarem,en,ASCII English name
+gadm1,PRT.17_1,Setubal,en,ASCII English name
+gadm1,SWE.13_1,Scania,en,English name
+gadm1,SWE.21_1,West Sweden,en,English name
+gadm1,SWE.21_1,Vastra Gotaland,en,ASCII Swedish name
+gadm1,SWE.12_1,Ostergotland,en,ASCII Swedish name
+gadm1,SWE.14_1,Sodermanland,en,ASCII Swedish name
+gadm1,SWE.17_1,Varmland,en,ASCII Swedish name
+gadm1,SWE.18_1,Vasterbotten,en,ASCII Swedish name
+gadm1,SWE.19_1,Vasternorrland,en,ASCII Swedish name
+gadm1,SWE.20_1,Vastmanland,en,ASCII Swedish name
+gadm1,SWE.3_1,Gavleborg,en,ASCII Swedish name
+gadm1,SWE.6_1,Jamtland,en,ASCII Swedish name
+gadm1,SWE.7_1,Jonkoping,en,ASCII Swedish name
+gadm1,SVK.1_1,Banska Bystrica Region,en,ASCII English name
+gadm1,SVK.2_1,Bratislava Region,en,English name
+gadm1,SVK.3_1,Kosice Region,en,ASCII English name
+gadm1,SVK.4_1,Nitra Region,en,English name
+gadm1,SVK.5_1,Presov Region,en,ASCII English name
+gadm1,SVK.6_1,Trencin Region,en,ASCII English name
+gadm1,SVK.7_1,Trnava Region,en,English name
+gadm1,SVK.8_1,Zilina Region,en,ASCII English name
+gadm1,UKR.12_1,Kyiv Oblast,en,English name
+gadm1,UKR.12_1,Kyiv Region,en,English name
+gadm1,UKR.11_1,Kyiv City,en,English name
+gadm1,UKR.14_1,Lviv,en,English transliteration
+gadm1,UKR.15_1,Luhansk,en,English transliteration
+gadm1,UKR.16_1,Mykolaiv,en,English transliteration
+gadm1,UKR.17_1,Odesa,en,English transliteration
+gadm1,UKR.10_1,Khmelnytskyi,en,English transliteration
+gadm1,UKR.6_1,Donetsk,en,English transliteration
+gadm1,UKR.5_1,Dnipropetrovsk,en,English transliteration
+gadm1,UKR.23_1,Transcarpathia,en,English name
+gadm1,RUS.14_1,Saint Petersburg,en,English name
+gadm1,RUS.14_1,St Petersburg,en,alternate English name
+gadm1,RUS.60_1,Yakutia,en,English name
+gadm1,RUS.47_1,Nizhny Novgorod Oblast,en,English name
+gadm1,RUS.48_1,North Ossetia-Alania,en,English name
+gadm1,RUS.56_1,Primorsky Krai,en,English name
+gadm1,RUS.80_1,Yamalo-Nenets,en,English name
+gadm1,RUS.82_1,Jewish Autonomous Oblast,en,English name
+gadm2,BEL.2.3_1,East Flanders,en,English name
+gadm2,BEL.2.5_1,West Flanders,en,English name
+gadm2,BEL.2.4_1,Flemish Brabant,en,English name
+gadm2,BEL.3.1_1,Walloon Brabant,en,English name
+gadm2,AUT.9.1_2,Vienna,en,English name
+gadm2,AUT.5.3_2,Salzburg City,en,English name
+gadm2,AUT.6.4_2,Graz City,en,English name
+gadm2,AUT.4.8_2,Linz City,en,English name
+gadm2,ESP.2.3.2_1,Saragossa,en,historical English name
+gadm2,ESP.10.1.1_1,Alicante,en,English name
+gadm2,ESP.16.3.1_1,Bilbao,en,English name
+gadm2,ESP.12.1.3_1,A Coruna,en,ASCII English name
+gadm2,ESP.12.1.3_1,Corunna,en,historical English name
+gadm2,CZE.11.10_1,Prague 18,en,English name
+gadm2,CZE.11.11_1,Prague 19,en,English name
+gadm2,CZE.11.12_1,Prague 2,en,English name
+gadm2,CZE.11.13_1,Prague 20,en,English name
+gadm2,CZE.11.14_1,Prague 21,en,English name
+gadm2,CZE.11.15_1,Prague 22,en,English name
+gadm2,CZE.11.16_1,Prague 3,en,English name
+gadm2,CZE.11.17_1,Prague 4,en,English name
+gadm2,CZE.11.18_1,Prague 5,en,English name
+gadm2,CZE.11.19_1,Prague 6,en,English name
+gadm2,CZE.11.1_1,Prague 1,en,English name
+gadm2,CZE.11.20_1,Prague 7,en,English name
+gadm2,CZE.11.21_1,Prague 8,en,English name
+gadm2,CZE.11.22_1,Prague 9,en,English name
+gadm2,CZE.11.2_1,Prague 10,en,English name
+gadm2,CZE.11.3_1,Prague 11,en,English name
+gadm2,CZE.11.4_1,Prague 12,en,English name
+gadm2,CZE.11.5_1,Prague 13,en,English name
+gadm2,CZE.11.6_1,Prague 14,en,English name
+gadm2,CZE.11.7_1,Prague 15,en,English name
+gadm2,CZE.11.8_1,Prague 16,en,English name
+gadm2,CZE.11.9_1,Prague 17,en,English name
+gadm2,CZE.12.10_1,Prague - west,en,English name
+gadm2,CZE.12.9_1,Prague - east,en,English name
