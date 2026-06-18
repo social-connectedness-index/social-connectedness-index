@@ -108,6 +108,8 @@ input[type="number"] { width: 110px; }
 }
 .region-btn:hover:not(.active) { background: #e7eef2; border-color: #b9d0da; }
 .region-btn.active { background: #10617b; border-color: #10617b; color: #fff; }
+/* Desktop shows the full label; the abbreviated one is mobile-only (see media query). */
+.region-btn .rb-short { display: none; }
 
 /* "More regional groupings" dropdown. */
 .region-select {
@@ -354,22 +356,23 @@ input[type="number"] { width: 110px; }
   .panel-lede { display: none; }
   .field { margin-bottom: 8px; }
   .checklist { max-height: 116px; }
-  /* Keep the regional-grouping buttons on ONE line (South Asia was wrapping).
-     Tighten them so all five fit on common phones; on very narrow screens the row
-     scrolls horizontally rather than wrapping, so it's always a single line. */
-  .region-buttons {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .region-buttons::-webkit-scrollbar { display: none; }
+  /* Compact regional-grouping CHIPS that all stay visible without scrolling: the
+     five continents share the row as equal-width chips (with abbreviated labels —
+     see shortRegionLabel), wrapping to a tidy second row only on very narrow phones
+     instead of scrolling off-screen. */
+  .region-buttons { gap: 4px; }
   .region-btn {
-    flex: 0 0 auto;
-    padding: 4px 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: center;
+    padding: 5px 4px;
     font-size: 10.5px;
+    border-radius: 6px;
     white-space: nowrap;
   }
+  /* Mobile uses the abbreviated Americas labels (South Asia is unchanged). */
+  .region-btn .rb-full { display: none; }
+  .region-btn .rb-short { display: inline; }
   /* Custom (arbitrary multi-country) mode is desktop-only — it can kick off slow,
      un-precomputed in-browser clustering that weak phones may not finish. */
   .custom-advanced { display: none; }

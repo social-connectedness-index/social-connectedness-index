@@ -676,6 +676,15 @@ function resolvePreset(item, known) {
   return { label: item.name, members: (item.members || []).filter((cc) => known.has(cc)), groupName: null };
 }
 
+// Short DISPLAY label for the continent buttons so all five fit a phone row without
+// scrolling. Only the long Americas are abbreviated ("North America" -> "N. America",
+// "South America" -> "S. America"); everything else (incl. South Asia) is unchanged.
+// Used only for the mobile button text — the full label is rendered alongside and
+// CSS picks which to show by viewport (see .rb-full/.rb-short).
+function shortRegionLabel(label) {
+  return label.replace(/^North America$/i, "N. America").replace(/^South America$/i, "S. America");
+}
+
 // Build the regional-grouping buttons (broad continents) + the "more regions"
 // dropdown (sub-regional presets, grouped by continent). Both feed the same
 // `regionalPresets` list keyed by a stable id.
@@ -691,7 +700,8 @@ function renderRegional() {
       if (!p.members.length) continue;
       const id = "r" + regionalPresets.length;
       regionalPresets.push({ id, ...p });
-      html.push(`<button type="button" class="region-btn" data-id="${id}">${escapeHtml(p.label)}</button>`);
+      const full = escapeHtml(p.label), short = escapeHtml(shortRegionLabel(p.label));
+      html.push(`<button type="button" class="region-btn" data-id="${id}"><span class="rb-full">${full}</span><span class="rb-short">${short}</span></button>`);
     }
     btnWrap.innerHTML = html.join("");
     btnWrap.querySelectorAll(".region-btn").forEach((b) =>
@@ -1256,14 +1266,20 @@ function ensureVisibleScan() {
 }
 
 // Labels with exactly N visible clusters when achievable; otherwise the closest
-// achievable count (snapping down within range). Returns { labels, visible }.
+// achievable count. Fragment/min-size absorption can skip a count entirely (e.g.
+// raw cuts jump 2 → 4 visible, so 3 is never producible). We snap to the NEAREST
+// achievable count, preferring MORE clusters on a tie — so asking for one more than
+// the previous step never collapses back to fewer (which made e.g. 3 look like 2).
+// Returns { labels, visible }.
 function cutToVisibleCount(N) {
   const scan = ensureVisibleScan();
   N = Math.max(1, Math.min(N, scan.maxVisible));
-  let D = N;
-  while (D >= 1 && scan.labelsByVisible[D] === undefined) D--;          // nearest achievable ≤ N
-  if (D < 1) { D = N; while (D <= scan.maxVisible && scan.labelsByVisible[D] === undefined) D++; }
-  return { labels: scan.labelsByVisible[D], visible: D };
+  if (scan.labelsByVisible[N] !== undefined) return { labels: scan.labelsByVisible[N], visible: N };
+  for (let up = N + 1, down = N - 1; up <= scan.maxVisible || down >= 1; up++, down--) {
+    if (up <= scan.maxVisible && scan.labelsByVisible[up] !== undefined) return { labels: scan.labelsByVisible[up], visible: up };
+    if (down >= 1 && scan.labelsByVisible[down] !== undefined) return { labels: scan.labelsByVisible[down], visible: down };
+  }
+  return { labels: scan.labelsByVisible[1], visible: 1 }; // 1 is always achievable
 }
 
 // Cut the cached dendrogram to k VISIBLE clusters and compute the max-contrast
