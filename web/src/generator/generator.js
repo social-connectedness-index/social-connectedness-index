@@ -13,7 +13,7 @@ import {
   breaksForScheme, quantile,
 } from "./sci.js";
 import { computeBbox, renderMap, renderSvg, naturalHeight } from "../shared/render.js";
-import { buildReelCanvas, deliverVideo, mp4Supported } from "../shared/reel.js";
+import { buildReelCanvas, downloadReel, mp4Supported } from "../shared/reel.js";
 import { encodeMp4 } from "../shared/video.js";
 import { downloadSvg } from "./export_vector.js";
 import { createTour } from "../shared/tour.js";
@@ -1034,10 +1034,11 @@ async function download(fmt) {
       downloadSvg(lastRender, `${slug()}.svg`);
     } else if (fmt === "mp4") {
       if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/JPG.");
+      // downloadReel shows the shared "Generating your video…" popup, blocks
+      // repeat clicks, encodes the 9:16 reel, and delivers it (download / share /
+      // iOS save overlay). Errors are reported inside the popup, not thrown.
       const setStatus = (m) => { $("status").textContent = m; };
-      setStatus("Encoding MP4… this can take a few seconds.");
-      const blob = await encodeMp4(buildReelCanvas(lastRender), { seconds: 20, fps: 30 });
-      await deliverVideo(blob, `${slug()}.mp4`, { setStatus });
+      await downloadReel(lastRender, `${slug()}.mp4`, { setStatus, seconds: 20, fps: 30 });
     }
   } catch (e) {
     showError(e);

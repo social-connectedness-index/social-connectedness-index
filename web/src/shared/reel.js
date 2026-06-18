@@ -13,6 +13,58 @@ export { mp4Supported };
 
 const REEL_W = 1080, REEL_H = 1920;
 
+// Guards against a second export starting while one is already running — so a user
+// who taps "MP4" again (thinking nothing happened) can't kick off a duplicate
+// multi-second encode. The progress popup also visually blocks the page, but this
+// is the hard backstop shared by every export entry point.
+let exporting = false;
+
+// A small modal popup shown the instant a video export begins. Video encoding is a
+// multi-second, mostly-synchronous job, so without immediate feedback users click
+// the button repeatedly thinking it's broken. This appears before any heavy work,
+// reports progress, and is closed by the caller when the file is delivered (or
+// flipped to an error state if the encode fails). Returns a small controller.
+function startVideoProgress(message) {
+  const overlay = document.createElement("div");
+  overlay.className = "video-progress";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-live", "polite");
+  // Swallow clicks so they can't reach (and re-trigger) the buttons underneath.
+  overlay.addEventListener("click", (e) => e.stopPropagation());
+
+  const card = document.createElement("div");
+  card.className = "video-progress-card";
+  const spinner = document.createElement("div");
+  spinner.className = "video-progress-spinner";
+  const text = document.createElement("p");
+  text.className = "video-progress-text";
+  text.textContent = message;
+  card.append(spinner, text);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  let closed = false;
+  const close = () => { if (!closed) { closed = true; overlay.remove(); } };
+
+  return {
+    // Resolve only after the overlay has actually painted, so the heavy synchronous
+    // canvas render that follows doesn't block the popup's first frame.
+    shown: () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+    update: (msg) => { if (msg) text.textContent = msg; },
+    done: close,
+    fail: (msg) => {
+      spinner.remove();
+      card.classList.add("is-error");
+      text.textContent = msg || "Sorry — the video couldn't be created. Try PNG or SVG instead.";
+      const btn = document.createElement("button");
+      btn.className = "video-progress-btn";
+      btn.textContent = "Close";
+      btn.addEventListener("click", close);
+      card.appendChild(btn);
+    },
+  };
+}
+
 // iPadOS reports itself as "MacIntel" but has a touch screen — catch it too.
 export const isIOS = () =>
   /iP(hone|od|ad)/.test(navigator.userAgent) ||
@@ -49,10 +101,24 @@ export function buildReelCanvas(renderOpts) {
 // clear message where MP4 isn't supported.
 export async function downloadReel(renderOpts, filename, { setStatus = () => {}, seconds = 20, fps = 30 } = {}) {
   if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG or SVG.");
-  setStatus("Encoding MP4… this can take a few seconds.");
-  const blob = await encodeMp4(buildReelCanvas(renderOpts), { seconds, fps });
-  await deliverVideo(blob, filename, { setStatus });
-  return blob;
+  if (exporting) return; // an export is already running — ignore the repeat tap
+  exporting = true;
+  const prog = startVideoProgress("Generating your video…\nThis can take a few seconds — please wait.");
+  try {
+    await prog.shown();
+    setStatus("Encoding MP4… this can take a few seconds.");
+    const blob = await encodeMp4(buildReelCanvas(renderOpts), { seconds, fps });
+    prog.update("Saving your video…");
+    await deliverVideo(blob, filename, { setStatus });
+    prog.done();
+    return blob;
+  } catch (e) {
+    console.error("[SCI] reel export failed:", e);
+    prog.fail(e && e.message ? e.message : "Sorry — the video couldn't be created. Try PNG or SVG instead.");
+    setStatus("");
+  } finally {
+    exporting = false;
+  }
 }
 
 // Encode an ANIMATED 9:16 reel from a list of frames. `frames` is an array of
@@ -62,22 +128,40 @@ export async function downloadReel(renderOpts, filename, { setStatus = () => {},
 export async function downloadReelAnimation(frames, filename, { setStatus = () => {}, fps = 30 } = {}) {
   if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG or SVG.");
   if (!frames.length) throw new Error("Nothing to animate.");
+  if (exporting) return; // an export is already running — ignore the repeat tap
+  exporting = true;
   const n = frames.length;
-  setStatus(`Rendering animation… 0/${n}`);
-  const blob = await encodeMp4Provider(
-    n,
-    (i) => buildReelCanvas(frames[i].renderOpts),
-    (i) => frames[i].seconds,
-    { fps, onSegment: (i) => setStatus(`Rendering animation… ${i + 1}/${n}`) },
-  );
-  await deliverVideo(blob, filename, { setStatus });
-  return blob;
+  const prog = startVideoProgress("Generating your animation…\nThis can take a little while — please wait.");
+  try {
+    await prog.shown();
+    setStatus(`Rendering animation… 0/${n}`);
+    const blob = await encodeMp4Provider(
+      n,
+      (i) => buildReelCanvas(frames[i].renderOpts),
+      (i) => frames[i].seconds,
+      { fps, onSegment: (i) => { setStatus(`Rendering animation… ${i + 1}/${n}`); prog.update(`Rendering animation… ${i + 1} of ${n}`); } },
+    );
+    prog.update("Saving your video…");
+    await deliverVideo(blob, filename, { setStatus });
+    prog.done();
+    return blob;
+  } catch (e) {
+    console.error("[SCI] animation export failed:", e);
+    prog.fail(e && e.message ? e.message : "Sorry — the animation couldn't be created. Try PNG or SVG instead.");
+    setStatus("");
+  } finally {
+    exporting = false;
+  }
 }
 
-// Hand the encoded video to the user. iOS Safari ignores <a download> for blob
-// URLs and the multi-second encode expires the tap activation navigator.share
-// needs, so on iOS we show the video INLINE (press-and-hold → Save to Photos, or
-// a fresh-gesture Share button). Desktop/Android use the share sheet or download.
+// Hand the encoded video to the user, picking the right delivery per platform:
+//   • Desktop (macOS / Windows / Linux): download STRAIGHT to the Downloads folder
+//     via <a download> — no share sheet, which is what desktop users expect.
+//   • Android: open the OS share sheet (the natural save/send surface on a phone;
+//     a blob <a download> is unreliable there), falling back to a direct download.
+//   • iOS: Safari ignores <a download> for blob URLs and the multi-second encode
+//     expires the gesture navigator.share needs, so show the video INLINE
+//     (press-and-hold → "Save to Photos", or a fresh-gesture Share button).
 export async function deliverVideo(blob, filename, { setStatus = () => {} } = {}) {
   const file = new File([blob], filename, { type: "video/mp4" });
   if (isIOS()) {
@@ -85,7 +169,8 @@ export async function deliverVideo(blob, filename, { setStatus = () => {} } = {}
     setStatus("");
     return;
   }
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  if (isAndroid && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
       setStatus("");

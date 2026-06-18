@@ -56,6 +56,21 @@ function canvasBackend(W, H) {
       if (fill) { ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); }
       if (sc) { ctx.strokeStyle = sc; ctx.lineWidth = sw || 1; ctx.strokeRect(x, y, w, h); }
     },
+    roundRect(x, y, w, h, r, fill, sc, sw) {
+      const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(x, y, w, h, rr);
+      else {
+        ctx.moveTo(x + rr, y);
+        ctx.arcTo(x + w, y, x + w, y + h, rr);
+        ctx.arcTo(x + w, y + h, x, y + h, rr);
+        ctx.arcTo(x, y + h, x, y, rr);
+        ctx.arcTo(x, y, x + w, y, rr);
+        ctx.closePath();
+      }
+      if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+      if (sc) { ctx.strokeStyle = sc; ctx.lineWidth = sw || 1; ctx.stroke(); }
+    },
     text(s, x, y, size, color, bold, align) {
       ctx.fillStyle = color;
       ctx.font = `${bold ? "bold " : ""}${size}px Helvetica, Arial, sans-serif`;
@@ -88,6 +103,10 @@ function svgBackend(W, H) {
     popClip() { out.push(`</g>`); },
     rect(x, y, w, h, fill, sc, sw) {
       out.push(`<rect x="${rnd(x)}" y="${rnd(y)}" width="${rnd(w)}" height="${rnd(h)}" fill="${fill || "none"}"${sc ? ` stroke="${sc}" stroke-width="${sw || 1}"` : ""}/>`);
+    },
+    roundRect(x, y, w, h, r, fill, sc, sw) {
+      const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+      out.push(`<rect x="${rnd(x)}" y="${rnd(y)}" width="${rnd(w)}" height="${rnd(h)}" rx="${rnd(rr)}" ry="${rnd(rr)}" fill="${fill || "none"}"${sc ? ` stroke="${sc}" stroke-width="${rnd(sw || 1)}"` : ""}/>`);
     },
     text(s, x, y, size, color, bold, align) {
       out.push(`<text x="${rnd(x)}" y="${rnd(y)}" font-family="Helvetica, Arial, sans-serif" font-size="${size}" fill="${color}"${bold ? ' font-weight="bold"' : ""} text-anchor="${anchor(align)}">${esc(s)}</text>`);
@@ -309,6 +328,31 @@ function drawScene(g, opts) {
     const cy = H - captionSpace + capFs;
     capArr.forEach((ln, i) => g.text(ln, W / 2, cy + i * capFs * 1.4, capFs, "#555", false, "center"));
   }
+
+  // Optional prominent "phase" caption pill. The cluster animation reel uses it to
+  // bake the on-screen step text — e.g. "Europe in 5 clusters", "Next cluster to
+  // split", "Split into two subclusters" — INTO each video frame. It floats over
+  // the lower part of the map, mirroring the app's on-map caption pill. Only drawn
+  // when a caller passes opts.phaseCaption, so static PNG/SVG exports are unaffected.
+  if (opts.phaseCaption) drawPhaseCaption(g, String(opts.phaseCaption), { W, margin, mapBottom });
+}
+
+// Draw the floating "phase" caption pill (see drawScene). Shrinks the font to keep
+// the text on one line within the frame, then centres a rounded white pill with the
+// app's teal label colour just inside the bottom of the map area.
+function drawPhaseCaption(g, text, { W, margin, mapBottom }) {
+  const maxW = W - margin * 2;
+  const padFor = (s) => Math.round(s * 0.85);
+  let fs = Math.round(W / 26);
+  while (fs > 12 && measureWidth(text, fs, true) + padFor(fs) * 2 > maxW) fs--;
+  const padX = padFor(fs), padY = Math.round(fs * 0.5);
+  const tw = measureWidth(text, fs, true);
+  const pw = Math.min(maxW, tw + padX * 2);
+  const ph = fs + padY * 2;
+  const px = (W - pw) / 2;
+  const py = mapBottom - Math.round(margin * 0.5) - ph;
+  g.roundRect(px, py, pw, ph, ph / 2, "rgba(255,255,255,0.94)", "#d4dde2", Math.max(1, W / 1300));
+  g.text(text, W / 2, Math.round(py + ph / 2 + fs * 0.34), fs, "#10617b", true, "center");
 }
 
 function drawLegend(g, legend, W, yTop, baseFs) {

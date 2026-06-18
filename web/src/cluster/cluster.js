@@ -2006,13 +2006,20 @@ async function downloadAnimationReel() {
     const baseOpts = buildRenderOpts(1080);
     const seq = buildAnimationSequence(maxK);
     const frames = [];
-    const push = (colorById, k, seconds) => frames.push({
-      renderOpts: { ...baseOpts, colorById, title: autoTitle(k) },
+    // Bake the same on-map caption text the live animation shows into every video
+    // frame (via render.js's phaseCaption pill), so the downloaded reel reads e.g.
+    // "Europe in 2 clusters" → "Next cluster to split" → "Split into two
+    // subclusters" exactly as on screen. See updateAnimStatus / playStep for the
+    // canonical wording these mirror.
+    const selName = (lastResult && lastResult.name) || "These regions";
+    const clustersCaption = (k) => `${selName} in ${k} ${k === 1 ? "cluster" : "clusters"}`;
+    const push = (colorById, k, seconds, phaseCaption) => frames.push({
+      renderOpts: { ...baseOpts, colorById, title: autoTitle(k), phaseCaption },
       seconds,
     });
 
     // Start: all clusters in colour at K=1.
-    push(phaseColorById(seq.colorsAt[1], null), 1, ANIM_REST_MS / 1000);
+    push(phaseColorById(seq.colorsAt[1], null), 1, ANIM_REST_MS / 1000, clustersCaption(1));
     for (let k = 1; k < maxK; k++) {
       const splitIdx = seq.splits[k];
       if (!splitIdx) continue;
@@ -2021,12 +2028,13 @@ async function downloadAnimationReel() {
       if (k < ANIM_CHOREO_FROM_K) {
         // Early split: no focus/split beats — just hold the clean K+1 frame, mirroring
         // the on-screen jump-then-rest for the first several splits.
-        push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, restSecs);
+        push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, restSecs, clustersCaption(k + 1));
       } else {
-        // focus (still K), split (K+1, isolated), restore (K+1, all coloured)
-        push(phaseColorById(seq.colorsAt[k], splitIdx), k, ANIM_FOCUS_MS / 1000);
-        push(phaseColorById(seq.colorsAt[k + 1], splitIdx), k + 1, ANIM_SPLIT_MS / 1000);
-        push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, restSecs);
+        // focus (still K), split (K+1, isolated), restore (K+1, all coloured) — with
+        // the same per-phase captions as the on-screen choreography (playStep).
+        push(phaseColorById(seq.colorsAt[k], splitIdx), k, ANIM_FOCUS_MS / 1000, "Next cluster to split");
+        push(phaseColorById(seq.colorsAt[k + 1], splitIdx), k + 1, ANIM_SPLIT_MS / 1000, "Split into two subclusters");
+        push(phaseColorById(seq.colorsAt[k + 1], null), k + 1, restSecs, clustersCaption(k + 1));
       }
       if (k % 4 === 0) await sleep(0); // yield so the "Preparing…" status can paint
     }

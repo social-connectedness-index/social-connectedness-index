@@ -24,3 +24,39 @@
   transition: background 0.12s, border-color 0.12s;
 }
 .video-result-btn:hover { background: #f1f6f8; border-color: #b9d0da; }
+
+/* "Generating your video…" progress popup — shown the moment an export starts so
+   the user gets immediate feedback and can't re-trigger the (multi-second) encode
+   by clicking again. Sits just under the iOS video-result overlay. */
+.video-progress {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(15, 30, 40, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
+.video-progress-card {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  max-width: 340px; padding: 28px 30px;
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(10, 30, 45, 0.3);
+  text-align: center;
+}
+.video-progress-spinner {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 5px solid #e3ebf0; border-top-color: #1879d5;
+  animation: video-progress-spin 0.9s linear infinite;
+}
+@keyframes video-progress-spin { to { transform: rotate(360deg); } }
+.video-progress-text {
+  margin: 0; white-space: pre-line;
+  font-size: 16px; font-weight: 600; line-height: 1.45; color: #10617b;
+}
+.video-progress-card.is-error .video-progress-text { color: #b3261e; }
+.video-progress-btn {
+  font-family: inherit; font-weight: 600; cursor: pointer;
+  padding: 9px 24px; font-size: 15px; border-radius: 8px;
+  border: 1px solid #cfd9df; background: #fff; color: #2a3942;
+  transition: background 0.12s, border-color 0.12s;
+}
+.video-progress-btn:hover { background: #f1f6f8; border-color: #b9d0da; }
