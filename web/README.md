@@ -154,6 +154,23 @@ npm install
 npm run dev        # http://localhost:5173
 ```
 
+## Validate changes
+
+There is currently no automated test suite or linter. Before deploying code-only
+changes, run the available non-mutating checks:
+
+```bash
+cd web
+npm run check:js
+npm run build
+```
+
+For R-only changes, a lightweight syntax check from the repo root is:
+
+```bash
+find src export -name '*.R' -print -exec Rscript -e 'invisible(parse(file=commandArgs(TRUE)[1]))' {} \;
+```
+
 ## Deploy (free, CDN, viral-scalable)
 
 Cloudflare Pages via direct upload (keeps the exported data out of git). One command
@@ -167,6 +184,23 @@ npm run deploy     # = vite build && wrangler pages deploy dist --project-name s
 > **Pushing to GitHub does NOT update the live site** — the data lives in
 > `web/public/data/` (gitignored) and ships from `dist`. You must re-run
 > `npm run deploy` to publish changes.
+
+When rebuilding exported web data, run the full post-export sequence before
+deploying so the generated labels, antimeridian fixes, and matching border
+overlays are preserved:
+
+```bash
+Rscript export/export_all.R
+Rscript export/fix_na_region_names.R
+Rscript export/apply_gadm_names.R
+Rscript export/apply_us_state_abbr.R
+python3 export/fix_antimeridian.py
+node export/make_region_borders.mjs
+cd web
+node scripts/build_population.mjs
+npm run precompute
+npm run deploy
+```
 
 The first run opens a browser to log in to Cloudflare and creates the
 `social-connectedness` Pages project. `web/dist` is fully self-contained static

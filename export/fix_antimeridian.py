@@ -28,7 +28,6 @@ re-export, alongside fix_na_region_names.R / apply_gadm_names.R.
 Requires: shapely.
 """
 
-import glob
 import json
 import os
 
