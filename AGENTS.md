@@ -53,7 +53,7 @@ There is no database and no server runtime for the website.
   - `web/src/cluster/`: clustering UI, worker, pure clustering core.
   - `web/src/cgfr/`: CGFR visualizer.
   - `web/src/shared/`: rendering, video/reel export, guided tour.
-  - `web/scripts/`: population shard and precomputed cluster builders.
+  - `web/scripts/`: population shard, CGFR data, and precomputed cluster builders.
   - `web/public/llms.txt`: public Map Maker automation/API docs.
   - `web/public/data/`: generated, huge, gitignored.
   - `web/dist/`: generated build output, huge, gitignored.

@@ -85,11 +85,11 @@ comparison controls stay interactive without re-fetching. Large levels are shard
 per-file size within Cloudflare Pages limits. See `export/export_sci.R` and
 `export/export_geometry.R` for the details.
 
-Search in the Map Maker and Interactive Explorer also uses the generated
-`geo/aliases.json` lookup, built from the tracked `export/region_aliases.csv`. This
-keeps canonical labels unchanged while letting users find places by common
-English, historical, or alternate-language names (for example, Brussels →
-Bruxelles, Mumbai → Bombay, Bozen/South Tyrol → Bolzano).
+Search in the Map Maker, Interactive Explorer, and CGFR visualizer also uses the
+generated `geo/aliases.json` lookup, built from the tracked
+`export/region_aliases.csv`. This keeps canonical labels unchanged while letting
+users find places by common English, historical, or alternate-language names (for
+example, Brussels → Bruxelles, Mumbai → Bombay, Bozen/South Tyrol → Bolzano).
 
 ## Programmatic / shareable / agent access
 

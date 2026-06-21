@@ -1,8 +1,8 @@
 # Social Connectedness Index map maker — social-connectedness.org
 
-A free, browser-based tool for mapping the Social Connectedness Index (SCI), a
-measure of the relative probability of Facebook friendship between places. Three
-tools share one dataset:
+A free, browser-based site for mapping and exploring the Social Connectedness
+Index (SCI), a measure of the relative probability of Facebook friendship
+between places. Four client-side tools share static generated data:
 
 - /generator — Map Maker: makes a static map image (PNG/JPG/SVG, plus an MP4
   reel) for one "home" region's friendship pattern, or a two-region comparison.
@@ -15,6 +15,9 @@ tools share one dataset:
   country (precomputed, instant) or a custom country combination (clustered live
   in-browser), choose how many clusters K, optionally animate the 1→K split
   sequence; PNG/SVG/MP4 downloads. (No programmatic API; human/visual use.)
+- /cgfr      — Cross-Gender Friending Ratio visualizer: a Mapbox globe for
+  country and GADM-best regional CGFR values, sharing the site's place geometry
+  and search aliases. (No programmatic API; human/visual use.)
 
 Everything runs client-side; there is no server-side API. The Map Maker can,
 however, be driven programmatically in two ways — both work in a headless browser
@@ -111,4 +114,4 @@ Notes / caveats:
 - The raw exported data is also fetchable as static JSON under /data/
   (manifest.json, groups.json, palettes.json, countries.json, bounds.json,
   geo/<level>_names.json, geo/aliases.json, sci/<type>/<id>.json) if you'd rather
-  compute directly.
+  compute directly. CGFR runtime data is under /data/cgfr/.
