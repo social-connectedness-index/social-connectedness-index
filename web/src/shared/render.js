@@ -158,6 +158,62 @@ function fitText(text, maxWidth, startSize, bold, maxLines, minSize) {
   return { lines, size };
 }
 
+function sizeToFitLine(text, maxWidth, startSize, bold, minSize) {
+  let size = startSize;
+  while (size > minSize && measureWidth(text, size, bold) > maxWidth) size -= 1;
+  return size;
+}
+
+function ellipsizeText(text, maxWidth, size, bold) {
+  const value = String(text || "");
+  if (!value || measureWidth(value, size, bold) <= maxWidth) return value;
+  const mark = "...";
+  if (measureWidth(mark, size, bold) > maxWidth) return "";
+  let lo = 0, hi = value.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    const candidate = value.slice(0, mid).trimEnd() + mark;
+    if (measureWidth(candidate, size, bold) <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return value.slice(0, lo).trimEnd() + mark;
+}
+
+function comparisonTitleSide(prefix, label, suffix, maxWidth, size, bold) {
+  const full = `${prefix}${label}${suffix}`;
+  if (measureWidth(full, size, bold) <= maxWidth) return full;
+  const fixed = `${prefix}${suffix}`;
+  const fixedW = measureWidth(fixed, size, bold);
+  if (fixedW >= maxWidth) return ellipsizeText(full, maxWidth, size, bold);
+  return `${prefix}${ellipsizeText(label, maxWidth - fixedW, size, bold)}${suffix}`;
+}
+
+function drawComparisonLegendTitle(g, title, W, yTop, baseFs) {
+  const startSize = Math.round(baseFs * 1.15);
+  const minSize = Math.max(10, Math.round(startSize * 0.72));
+  const gap = Math.max(8, Math.round(baseFs * 0.85));
+  const margin = Math.round(W * 0.025);
+  const maxSideW = Math.max(0, W / 2 - margin - gap);
+  const separator = title.separator || "|";
+  const leftPrefix = title.leftPrefix || "";
+  const leftLabel = title.leftLabel || title.left || "";
+  const leftSuffix = title.leftSuffix || "";
+  const rightPrefix = title.rightPrefix || "";
+  const rightLabel = title.rightLabel || title.right || "";
+  const rightSuffix = title.rightSuffix || "";
+  const leftFull = `${leftPrefix}${leftLabel}${leftSuffix}`;
+  const rightFull = `${rightPrefix}${rightLabel}${rightSuffix}`;
+  const size = Math.min(
+    sizeToFitLine(leftFull, maxSideW, startSize, true, minSize),
+    sizeToFitLine(rightFull, maxSideW, startSize, true, minSize),
+  );
+  const left = comparisonTitleSide(leftPrefix, leftLabel, leftSuffix, maxSideW, size, true);
+  const right = comparisonTitleSide(rightPrefix, rightLabel, rightSuffix, maxSideW, size, true);
+  g.text(left, W / 2 - gap, yTop, size, "#111", true, "right");
+  g.text(separator, W / 2, yTop, size, "#111", true, "center");
+  g.text(right, W / 2 + gap, yTop, size, "#111", true, "left");
+}
+
 // Lay out the H-independent "chrome": margin, font sizes, wrapped title/subtitle/
 // caption, and the vertical space each reserves (top text block, legend, caption)
 // plus the y where the map can start. Shared by drawScene and naturalHeight so
@@ -376,7 +432,8 @@ function drawLegend(g, legend, W, yTop, baseFs) {
   const fs = baseFs;
   const swH = Math.round(fs * 1.5);
 
-  if (legend.title) g.text(legend.title, W / 2, yTop, Math.round(fs * 1.15), "#111", true, "center");
+  if (legend.comparisonTitle) drawComparisonLegendTitle(g, legend.comparisonTitle, W, yTop, fs);
+  else if (legend.title) g.text(legend.title, W / 2, yTop, Math.round(fs * 1.15), "#111", true, "center");
   const barY = yTop + fs * 0.6;
   legend.colors.forEach((c, i) => g.rect(x0 + i * swW, barY, swW, swH, c));
   g.rect(x0, barY, barW, swH, null, "#999", 1);

@@ -716,9 +716,16 @@ const sourceLabelText = () => labelOf($("sourceA"));
 // else the region's own name (mirrors make_comparison_map's label_a/label_b fallback).
 const cmpLabelA = () => ($("labelA")?.value.trim()) || labelOf($("sourceA"));
 const cmpLabelB = () => ($("labelB")?.value.trim()) || labelOf($("sourceB"));
-// The comparison legend title, matching make_comparison_map() in the R tool.
-const comparisonLegendTitle = () =>
-  `← More Friendly With ${cmpLabelA()} | More Friendly With ${cmpLabelB()} →`;
+// The comparison legend title is rendered as structured pieces so the separator
+// can stay exactly centered even when the two region names have different widths.
+const comparisonLegendTitle = () => ({
+  leftPrefix: "← More Friendly With ",
+  leftLabel: cmpLabelA(),
+  separator: "|",
+  rightPrefix: "More Friendly With ",
+  rightLabel: cmpLabelB(),
+  rightSuffix: " →",
+});
 
 function autoTitle() {
   if (compareMode()) {
@@ -1009,7 +1016,7 @@ async function generate() {
       // as single maps; each side's diverging endpoint is a strong shade of its ramp.
       const palette = divergingPalette(compareSolid($("cpaletteA").value), "white", compareSolid($("cpaletteB").value), breaks.length + 1);
       colorById = colorsForComparison(logr, active, breaks, palette);
-      legend = { title: comparisonLegendTitle(), colors: palette,
+      legend = { comparisonTitle: comparisonLegendTitle(), colors: palette,
         labels: breaks.map(labelComparison) };
     } else {
       const sciData = await getSci(type, $("sourceA").value);

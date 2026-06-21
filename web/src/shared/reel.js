@@ -12,6 +12,10 @@ import "./reel.css";
 export { mp4Supported };
 
 const REEL_W = 1080, REEL_H = 1920;
+// Instagram can crop/obscure the outermost pixels depending on how a reel is
+// previewed or reposted. Keep the MP4 at true 9:16, but inset the rendered map a
+// little horizontally so labels and borders don't sit on the unsafe edge.
+const REEL_SIDE_SAFE = 40;
 
 // Guards against a second export starting while one is already running — so a user
 // who taps "MP4" again (thinking nothing happened) can't kick off a duplicate
@@ -90,7 +94,8 @@ export function buildReelCanvas(renderOpts) {
   ctx.fillRect(0, 0, REEL_W, REEL_H);
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  const s = Math.min(REEL_W / src.width, REEL_H / src.height);
+  const safeW = REEL_W - REEL_SIDE_SAFE * 2;
+  const s = Math.min(safeW / src.width, REEL_H / src.height);
   const dw = src.width * s, dh = src.height * s;
   ctx.drawImage(src, (REEL_W - dw) / 2, (REEL_H - dh) / 2, dw, dh);
   return frame;
