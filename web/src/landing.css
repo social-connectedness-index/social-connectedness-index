@@ -1,5 +1,5 @@
 /* Landing / tool-chooser page for social-connectedness.org.
-   Two cards: Interactive Explorer and Map Maker. Palette matches the
+   Tool cards plus a compact related-data link. Palette matches the
    SCI blue map gradient (#d1dfe5 -> #10617b). */
 
 * { box-sizing: border-box; }
@@ -115,6 +115,25 @@ html, body {
   color: #1879d5;
 }
 .tool-card:hover .tool-cta { color: #10617b; }
+
+.related-tool {
+  margin: 16px auto 0;
+  max-width: none;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #5a6870;
+  white-space: nowrap;
+}
+.related-tool a {
+  margin-left: 6px;
+  color: #1879d5;
+  font-weight: 700;
+  text-decoration: none;
+}
+.related-tool a:hover { color: #10617b; text-decoration: underline; }
+
+.related-tool + .citations { margin-top: 16px; }
 
 /* ---- citations card ---- */
 .citations {
@@ -239,4 +258,8 @@ html, body {
   .landing { padding: 40px 18px 32px; }
   .landing-head h1 { font-size: 30px; }
   .tool-grid { grid-template-columns: 1fr; }
+  .related-tool {
+    font-size: 12.5px;
+    white-space: normal;
+  }
 }

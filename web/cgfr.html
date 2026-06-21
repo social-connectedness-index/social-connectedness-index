@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="description" content="Interactive map of the Cross-Gender Friending Ratio." />
+  <title>Cross-Gender Friending Ratio</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+
+  <link rel="stylesheet" href="./src/shared/tour.css" />
+  <link rel="stylesheet" href="./src/cgfr/cgfr.css" />
+</head>
+
+<body>
+  <div id="map"></div>
+  <div id="notFound" style="display: none; opacity: 0;">Data not available</div>
+  <div id="loading-icon"></div>
+
+  <div id="top-controls">
+    <div class="explore-nav">
+      <a href="./index.html" class="nav-home">← All tools</a>
+    </div>
+
+    <div id="image-text-container">
+      <p id="soc">Cross-Gender Friending Ratio</p>
+      <button type="button" id="data-explanation-btn" aria-expanded="false" aria-controls="data-explanation"
+              aria-label="About this map" title="About this map">
+        <span class="info-icon" aria-hidden="true">i</span>
+      </button>
+      <button id="tourBtn" class="tour-launch" type="button" title="Replay the tutorial"
+              aria-label="Replay the tutorial">
+        <span class="tour-launch-icon" aria-hidden="true">?</span>
+      </button>
+    </div>
+
+    <div class="search-row">
+      <div class="button-container">
+        <button type="button" id="level0">Countries</button>
+        <button type="button" id="level2" class="active">Regions</button>
+      </div>
+      <input type="text" id="region-search" class="region-search" placeholder="Search"
+             autocomplete="off" spellcheck="false" aria-label="Search for a country or region" />
+      <div id="region-search-results" class="search-results" role="listbox" hidden></div>
+    </div>
+  </div>
+
+  <div id="data-explanation" hidden>
+    <button type="button" class="close-btn" aria-label="Close">×</button>
+    <h3>About the Cross-Gender Friending Ratio</h3>
+    <p>The map shows the Cross-Gender Friending Ratio (CGFR): the share of female friends among male Facebook users divided by the share of female friends among female Facebook users in the same location.</p>
+    <p>A value of 1 means men and women form equal shares of their friendship ties with women. Lower values indicate more gender-segregated friendship networks. The slider switches the measure across top-friend cutoffs.</p>
+    <p>More details, including the full data download, are available at the <a href="https://data.humdata.org/dataset/cross-gender-ties" target="_blank" rel="noopener">Humanitarian Data Exchange</a>.</p>
+    <p class="map-attribution">Basemap © <a href="https://www.mapbox.com/about/maps/" target="_blank" rel="noopener">Mapbox</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · <a href="https://www.mapbox.com/map-feedback/" target="_blank" rel="noopener">Improve this map</a></p>
+    <a class="lab-mark" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener" title="Social Capital Lab">
+      <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" />
+      <span>Social Capital Lab</span>
+    </a>
+  </div>
+
+  <div id="console">
+    <button type="button" id="console-close" aria-label="Close">×</button>
+    <h1 id="title">Select a place</h1>
+
+    <div class="panel-actions">
+      <div class="control-row cutoff-row">
+        <label class="control-label" for="cutoff-slider">Top-friend cutoff<span class="info-wrap">
+          <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
+            <span class="info-icon" aria-hidden="true">i</span>
+          </button>
+          <span class="info-tip" role="tooltip">Changes which friendships count in the CGFR measure. Lower values use only each person's strongest ties; higher values include a wider friendship circle.</span>
+        </span></label>
+      </div>
+      <input type="range" id="cutoff-slider" min="0" max="9" step="1" value="5"
+             aria-label="Top-friend cutoff" />
+      <div class="cutoff-ticks" aria-hidden="true">
+        <span>5</span>
+        <span>50</span>
+        <span>100</span>
+        <span>150</span>
+        <span>200</span>
+      </div>
+
+      <label class="toggle-row" id="focus-country-row" for="focus-country" style="display: none;">
+        <span class="toggle-label">Focus on this country</span>
+        <span class="switch">
+          <input type="checkbox" id="focus-country" />
+          <span class="slider" aria-hidden="true"></span>
+        </span>
+      </label>
+
+      <label class="toggle-row" id="dynamic-scale-row" for="dynamic-scale">
+        <span class="toggle-label">Scale colors to the area in view<span class="info-wrap">
+          <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
+            <span class="info-icon" aria-hidden="true">i</span>
+          </button>
+          <span class="info-tip" role="tooltip">By default this is on, so the color scale adapts to the countries or regions currently visible on the map. Turn it off to scale colors across all countries or regions in the active view.</span>
+        </span></span>
+        <span class="switch">
+          <input type="checkbox" id="dynamic-scale" checked />
+          <span class="slider" aria-hidden="true"></span>
+        </span>
+      </label>
+
+    </div>
+
+    <div id="legend" class="console-legend">
+      <div class="legend-title">Cross-Gender Friending Ratio</div>
+      <div class="legend-scale" id="legend-scale"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/cgfr/config.js"></script>
+  <script type="module" src="./src/cgfr/cgfr.js"></script>
+</body>
+</html>

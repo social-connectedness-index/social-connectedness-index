@@ -5,12 +5,13 @@
   "type": "module",
   "description": "Static, browser-rendered Social Connectedness Index map maker",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run prepare:cgfr && vite",
     "check:js": "find src scripts ../export \\( -name '*.js' -o -name '*.mjs' \\) -print -exec node --check {} \\;",
+    "prepare:cgfr": "node scripts/build_cgfr_data.mjs",
     "precompute": "node scripts/precompute_clusters.mjs",
-    "build": "vite build",
+    "build": "npm run prepare:cgfr && vite build",
     "preview": "vite preview",
-    "deploy": "vite build && npx wrangler@latest pages deploy dist --project-name social-connectedness"
+    "deploy": "npm run build && npx wrangler@latest pages deploy dist --project-name social-connectedness"
   },
   "dependencies": {
     "mp4-muxer": "^5.1.3"

@@ -5,8 +5,8 @@ A **static, browser-rendered** site for the Social Connectedness Index, live at
 in the visitor's browser, so the site is just static files on a CDN and scales to
 viral traffic at zero marginal cost.
 
-The site is a small **multi-page** app with three tools that share one R-exported
-dataset (`public/data/`):
+The site is a small **multi-page** app with four tools that share generated
+static assets under `public/data/`:
 
 | Page | What it is |
 |------|-----------|
@@ -14,21 +14,22 @@ dataset (`public/data/`):
 | `generator.html` | **Map Maker** — the canvas-rendered static map maker (described below). 18 map types, with PNG/JPG/SVG/MP4 downloads. |
 | `explore.html` | **Interactive Explorer** — a Mapbox-GL slippy map (`src/explore/`). Click any country or region ("GADM best" — the finest available GADM level per country) and the world recolours to its SCI. Two levels only; no downloads — its job is fast, live exploration. |
 | `cluster.html` | **Connected Communities** — a Mapbox-GL map (`src/cluster/`) that groups a region's sub-national units into _clusters_ by Facebook connectedness (`-log(SCI)` distance, population-weighted average linkage, exact K cuts with only tiny non-contiguous visual fragments tidied). Pick a precomputed **regional grouping** or **single country** (instant), or an advanced **custom** combination (clustered live in-browser); choose how many clusters K; optionally animate the 1→K split sequence. PNG/SVG/MP4 downloads. |
+| `cgfr.html` | **Cross-Gender Friending Ratio** — a Mapbox-GL visualizer (`src/cgfr/`) for country and GADM-best regional CGFR values. Shares the main site's geometry, uses `cgfr/*.csv` as its source data, and writes runtime JSON to `public/data/cgfr/`. |
 
-Cloudflare Pages serves these at `/`, `/generator`, `/explore`, and `/cluster`.
+Cloudflare Pages serves these at `/`, `/generator`, `/explore`, `/cluster`, and `/cgfr`.
 
-> **Interactive Explorer needs a Mapbox token.** `src/explore/config.js` reads it
+> **The Mapbox tools need a Mapbox token.** `src/explore/config.js`,
+> `src/cluster/config.js`, and `src/cgfr/config.js` read it
 > from `import.meta.env.VITE_MAPBOX_TOKEN`, which Vite inlines at build time from a
 > gitignored `web/.env.local` (`VITE_MAPBOX_TOKEN=pk.your_token_here`) — so the
 > token never lands in git. Give it scopes `styles:read`, `styles:tiles`,
-> `fonts:read` and allowlist every origin the Explorer is served from:
+> `fonts:read` and allowlist every origin the site is served from:
 > `https://social-connectedness.org`, the `*.pages.dev` preview, and your local
-> dev origin (e.g. `http://localhost:5173`). Without a valid token the Explorer
-> auto-falls back to a no-basemap mode (polygons on a plain background — still
-> fully usable). The
-> Explorer reuses the **same `public/data/` assets** as the Map Maker (country /
-> gadm2 geo + per-source SCI; the gadm2 id is backed by GADM-best data), so there
-> is no separate data pipeline.
+> dev origin (e.g. `http://localhost:5173`). Without a valid token these tools
+> auto-fall back to no-basemap mode (polygons on a plain background — still
+> fully usable). The SCI Explorer reuses the **same `public/data/` assets** as
+> the Map Maker (country / gadm2 geo + per-source SCI; the gadm2 id is backed by
+> GADM-best data), while CGFR adds only `public/data/cgfr/*.json`.
 
 ## Map Maker — what it produces (static images, not an interactive map)
 
@@ -147,6 +148,20 @@ re-exporting the data **or after editing `cluster_presets.json`** (then rebuild)
 selection that doesn't match a precomputed tree (an advanced "custom" combination)
 falls back to the live in-browser path.
 
+### CGFR — browser JSON
+
+The CGFR visualizer reads the tracked source CSVs in `../cgfr/` and generates
+small runtime JSON files in `public/data/cgfr/`:
+
+```bash
+cd web
+npm run prepare:cgfr
+```
+
+`npm run dev`, `npm run build`, and `npm run deploy` run this automatically before
+Vite starts or builds. The generated JSON is ignored with the rest of
+`public/data/`; the source CSVs in `../cgfr/` are the canonical CGFR inputs.
+
 ## Run locally
 
 ```bash
@@ -179,7 +194,7 @@ builds and uploads:
 
 ```bash
 cd web
-npm run deploy     # = vite build && wrangler pages deploy dist --project-name social-connectedness
+npm run deploy     # = npm run build && wrangler pages deploy dist --project-name social-connectedness
 ```
 
 > **Pushing to GitHub does NOT update the live site** — the data lives in
@@ -200,6 +215,7 @@ node export/make_region_borders.mjs
 cd web
 node scripts/build_population.mjs
 npm run precompute
+npm run prepare:cgfr
 npm run deploy
 ```
 
@@ -218,15 +234,16 @@ cost nothing.
 
 ## Files
 
-The three tools live in parallel folders under `src/` — `src/generator/`,
-`src/explore/`, `src/cluster/` — with code used by two or more of them in
-`src/shared/`. (`sci.js` and `export_vector.js` are generator-only, so they live in
-`src/generator/` rather than `src/shared/`.)
+The four tools live in parallel folders under `src/` — `src/generator/`,
+`src/explore/`, `src/cluster/`, `src/cgfr/` — with code used by two or more of
+them in `src/shared/`. (`sci.js` and `export_vector.js` are generator-only, so
+they live in `src/generator/` rather than `src/shared/`.)
 
 - `index.html` / `src/landing.css` — landing page (tool chooser)
 - `generator.html` — the Map Maker page (loads `src/generator/generator.js`)
 - `explore.html` — the Interactive Explorer page (loads `src/explore/*`)
 - `cluster.html` — the Connected Communities page (loads `src/cluster/*`)
+- `cgfr.html` — the Cross-Gender Friending Ratio page (loads `src/cgfr/*`)
 - `src/shared/render.js` — canvas choropleth + legend (`drawScene`/`renderMap`) and SVG backend
 - `src/shared/video.js` — MP4 encoder core (WebCodecs + `mp4-muxer`)
 - `src/shared/reel.js` / `src/shared/reel.css` — 9:16 reel builder + delivery (shared by the Map Maker and Cluster apps)
@@ -244,7 +261,8 @@ The three tools live in parallel folders under `src/` — `src/generator/`,
 - `src/cluster/cluster_presets.json` — hand-authored regional-grouping presets (bundled; the canonical, version-controlled copy)
 - `src/cluster/cluster.css` / `src/cluster/config.js` — cluster styling / config
 - `scripts/build_population.mjs` — population CSVs → `public/data/pop/<CC>.json` shards
+- `scripts/build_cgfr_data.mjs` — `../cgfr/*.csv` → `public/data/cgfr/*.json`
 - `scripts/precompute_clusters.mjs` — offline cluster dendrograms → `public/data/cluster/`
 - `../export/region_aliases.csv` / `../export/export_aliases.R` — curated alternate place names → `public/data/geo/aliases.json` for search
-- `public/data/` — generated by `export/export_all.R` (+ the two scripts above), shared by all tools (gitignored)
-- `vite.config.js` — multi-page build (`index` / `generator` / `explore` / `cluster`)
+- `public/data/` — generated by `export/export_all.R` (+ the scripts above), shared by all tools (gitignored)
+- `vite.config.js` — multi-page build (`index` / `generator` / `explore` / `cluster` / `cgfr`)

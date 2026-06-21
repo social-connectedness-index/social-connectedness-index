@@ -13,10 +13,11 @@ This repository supports the Social Connectedness Index (SCI):
 
 - An R batch/scripting tool that cleans geospatial data and generates static SCI
   maps.
-- A static Vite web app (`web/`) with three browser-only tools:
+- A static Vite web app (`web/`) with four browser-only tools:
   - `generator.html`: Map Maker, canvas/SVG/MP4 static map generation.
   - `explore.html`: Mapbox interactive explorer.
   - `cluster.html`: Connected Communities clustering tool.
+  - `cgfr.html`: Cross-Gender Friending Ratio visualizer at `/cgfr`.
 - Offline export scripts that convert local R/geospatial/SCI data into static
   assets under `web/public/data/`, then deploy those assets through Cloudflare
   Pages.
@@ -50,6 +51,7 @@ There is no database and no server runtime for the website.
   - `web/src/generator/`: Map Maker UI and SCI coloring math.
   - `web/src/explore/`: Mapbox explorer.
   - `web/src/cluster/`: clustering UI, worker, pure clustering core.
+  - `web/src/cgfr/`: CGFR visualizer.
   - `web/src/shared/`: rendering, video/reel export, guided tour.
   - `web/scripts/`: population shard and precomputed cluster builders.
   - `web/public/llms.txt`: public Map Maker automation/API docs.
@@ -78,6 +80,7 @@ Run web commands from `web/`:
 npm install
 npm run dev
 npm run check:js
+npm run prepare:cgfr
 npm run build
 npm run preview
 ```
@@ -119,10 +122,11 @@ node export/make_region_borders.mjs
 cd web
 node scripts/build_population.mjs
 npm run precompute
+npm run prepare:cgfr
 npm run deploy
 ```
 
-`npm run deploy` runs `vite build && npx wrangler@latest pages deploy dist
+`npm run deploy` runs `npm run build && npx wrangler@latest pages deploy dist
 --project-name social-connectedness`. Pushing to GitHub does not deploy the site.
 
 Be careful: full export/precompute/deploy can be slow, networked, and large. Do
@@ -132,8 +136,9 @@ not run it for ordinary code cleanup unless explicitly requested.
 
 - The website is static/client-side. Avoid introducing server assumptions.
 - `generator.html` renders static maps, not a slippy map.
-- `explore.html` and `cluster.html` use Mapbox GL when `VITE_MAPBOX_TOKEN` is
-  available, and fall back to no-basemap mode when unavailable or rejected.
+- `explore.html`, `cluster.html`, and `cgfr.html` use Mapbox GL when
+  `VITE_MAPBOX_TOKEN` is available, and fall back to no-basemap mode when
+  unavailable or rejected.
 - The web "gadm2" level represents GADM-best data/geometry, not always literal
   GADM2. The standalone R `gadm2` type remains true GADM2.
 - The browser receives raw `scaled_sci` and computes normalization, breaks, and
@@ -146,6 +151,9 @@ not run it for ordinary code cleanup unless explicitly requested.
   DOM-free/Node-testable.
 - `web/src/cluster/cluster_presets.json` is the canonical preset source. After
   changing it, rerun precompute before deployment.
+- `cgfr/*.csv` are the canonical CGFR source inputs. `npm run prepare:cgfr` writes
+  ignored runtime JSON to `web/public/data/cgfr/`; `npm run build` and
+  `npm run deploy` run this automatically.
 
 ## Common Safe Workflows
 
