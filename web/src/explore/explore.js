@@ -67,8 +67,8 @@ const TOUR_STEPS = [
   },
 ];
 const TOUR_SEEN_KEY = "sci_explore_tour_v1";
-// After the tour ends (finished OR skipped), the explorer runs its startup-location
-// flow (asks for geolocation). The flow lives inside the map "load" handler, so it's
+// After the tour ends (finished OR skipped), the explorer runs its best-effort
+// startup country guess. The flow lives inside the map "load" handler, so it's
 // bridged out through this hook.
 let onTourEnd = null;
 const tour = createTour(TOUR_STEPS, TOUR_SEEN_KEY, () => { if (onTourEnd) onTourEnd(); });
@@ -76,6 +76,13 @@ const tour = createTour(TOUR_STEPS, TOUR_SEEN_KEY, () => { if (onTourEnd) onTour
 // Default world view, US visible, nothing pre-highlighted.
 const DEFAULT_CENTER = [-30, 28];
 const DEFAULT_ZOOM = 1.6;
+
+const IS_IOS =
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const IS_COARSE_POINTER = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+const LOW_DEVICE_MEMORY = typeof navigator.deviceMemory === "number" && navigator.deviceMemory <= 4;
+const MOBILE_LAZY_REGIONS = IS_IOS || IS_COARSE_POINTER || LOW_DEVICE_MEMORY;
 
 // Empty Mapbox style — no tiles, used when the basemap is disabled (manual
 // config flag or automatic fallback after a Mapbox 401/403/429).
@@ -89,9 +96,11 @@ const EMPTY_STYLE = {
 // Skip the basemap if either the config flag is set or this tab already hit a
 // Mapbox auth/quota failure earlier in the session.
 const NO_BASEMAP_SESSION_KEY = "sciMapBasemapFailedThisSession";
+const sessionFlag = (key) => { try { return sessionStorage.getItem(key) === "1"; } catch (_) { return false; } };
 const forceNoBasemap =
+  !window.SCI_CONFIG.MAPBOX_TOKEN ||
   !!window.SCI_CONFIG.DISABLE_BASEMAP ||
-  sessionStorage.getItem(NO_BASEMAP_SESSION_KEY) === "1";
+  sessionFlag(NO_BASEMAP_SESSION_KEY);
 
 const map = new mapboxgl.Map({
   attributionControl: false,
@@ -112,7 +121,8 @@ if (!forceNoBasemap) {
     if (status == 401 || status == 403 || status == 429) {
       console.warn("[SCI] Mapbox basemap failure (HTTP " + status + ") — falling back to no-basemap mode.", err);
       try { sessionStorage.setItem(NO_BASEMAP_SESSION_KEY, "1"); } catch (_) {}
-      window.location.reload();
+      try { map.setStyle(EMPTY_STYLE); }
+      catch (_) { /* If Mapbox rejects the style swap, leave the current style alone. */ }
     }
   });
 }
@@ -272,6 +282,7 @@ const LEVELS = {
     sciType: "gadm2", // GADM-best data under the gadm2 id
     sharded: true, // geometry sharded by ISO2 country
     ranged: true, // SCI delivered via range-index
+    mobileLazy: MOBILE_LAZY_REGIONS,
     appendCountry: true,
     unit: "region",
     canFocus: true,
@@ -279,6 +290,7 @@ const LEVELS = {
 };
 
 let gSel = "level2";
+const isLazyRegionConfig = (cfg) => !!(cfg && cfg.mobileLazy && cfg.sciType === "gadm2");
 
 // "Focus country" mode: when on, the choropleth is restricted to
 // regions within the selected source's own country, recoloured on the within-
@@ -307,6 +319,18 @@ async function getAliases() {
   try { aliasesCache = await getJSON("geo/aliases.json"); }
   catch (_) { aliasesCache = {}; }
   return aliasesCache;
+}
+
+const namesCache = {};
+async function getNames(level) {
+  if (!namesCache[level]) namesCache[level] = await getJSON("geo/" + level + "_names.json");
+  return namesCache[level];
+}
+
+let boundsMeta = null;
+async function getBoundsMeta() {
+  if (!boundsMeta) boundsMeta = await getJSON("bounds.json");
+  return boundsMeta;
 }
 
 // ISO2 → full country name (e.g. "DE" → "Germany"), loaded once for the
@@ -395,6 +419,7 @@ async function loadSources(cfg) {
 // Load geometry: a single file, or all country shards merged into one FC.
 async function loadGeometry(cfg) {
   if (!cfg.sharded) return getJSON(cfg.geo);
+  if (isLazyRegionConfig(cfg)) return { type: "FeatureCollection", features: [] };
   const parts = await getJSON("geo/gadm2/_parts.json");
   const shards = await Promise.all(
     parts.map((cc) =>
@@ -474,43 +499,6 @@ function featureBounds(geom) {
   const sg = (g) => { if (!g) return; if (g.type === "GeometryCollection") (g.geometries || []).forEach(sg); else if (g.coordinates) sc(g.coordinates); };
   sg(geom);
   return any ? [minx, miny, maxx, maxy] : null;
-}
-
-// Ray-casting point-in-polygon for a single linear ring.
-function pointInRing(x, y, ring) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
-    if (((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi)) inside = !inside;
-  }
-  return inside;
-}
-
-// True if [x,y] falls inside a Polygon / MultiPolygon / GeometryCollection (outer
-// ring contains the point and no hole excludes it).
-function pointInGeometry(x, y, geom) {
-  if (!geom) return false;
-  const inPoly = (poly) => {
-    if (!poly.length || !pointInRing(x, y, poly[0])) return false;
-    for (let h = 1; h < poly.length; h++) if (pointInRing(x, y, poly[h])) return false; // in a hole
-    return true;
-  };
-  if (geom.type === "Polygon") return inPoly(geom.coordinates);
-  if (geom.type === "MultiPolygon") return geom.coordinates.some(inPoly);
-  if (geom.type === "GeometryCollection") return (geom.geometries || []).some((g) => pointInGeometry(x, y, g));
-  return false;
-}
-
-// The loaded feature whose polygon contains [lng,lat] (bbox prefilter, bounds cached
-// on the feature), or null. Used to resolve the startup coordinate to a
-// region.
-function featureAtPoint(features, lng, lat) {
-  for (const f of features) {
-    const b = f._bbox || (f._bbox = featureBounds(f.geometry));
-    if (!b || lng < b[0] || lng > b[2] || lat < b[1] || lat > b[3]) continue;
-    if (pointInGeometry(lng, lat, f.geometry)) return f;
-  }
-  return null;
 }
 
 // Accent-insensitive search fold (mirrors the Map Maker): "Dusseldorf"
@@ -618,6 +606,17 @@ map.on("load", async function () {
   // --- generic level setup (lazy: built on first activation) ---
   const setupDone = {};
 
+  function prepareFeatures(cfg, features, sources) {
+    if (!cfg._nextFeatureStateId) cfg._nextFeatureStateId = 1;
+    return (features || []).map(function (d) {
+      d.id = cfg._nextFeatureStateId++; // numeric id for feature-state (hover)
+      const key = d.properties.id;
+      d.properties.has_data = sources ? sources.has(key) : true;
+      d.properties.sci = null;
+      return d;
+    });
+  }
+
   async function ensureLevel(levelKey) {
     if (setupDone[levelKey]) return;
     setupDone[levelKey] = true;
@@ -634,13 +633,8 @@ map.on("load", async function () {
       return;
     }
 
-    geojson.features = geojson.features.map(function (d, i) {
-      d.id = i + 1; // numeric id for feature-state (hover)
-      const key = d.properties.id;
-      d.properties.has_data = sources ? sources.has(key) : true;
-      d.properties.sci = null;
-      return d;
-    });
+    cfg.sources = sources;
+    geojson.features = prepareFeatures(cfg, geojson.features, sources);
     cfg.geojson = geojson;
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
@@ -690,11 +684,51 @@ map.on("load", async function () {
     hideSpinner();
   }
 
+  async function ensureRegionCountry(country) {
+    const cfg = LEVELS.level2;
+    if (!isLazyRegionConfig(cfg) || !country) return;
+    await ensureLevel("level2");
+    if (!cfg._loadedCountries) cfg._loadedCountries = new Set();
+    if (!cfg._loadingCountries) cfg._loadingCountries = new Map();
+    if (cfg._loadedCountries.has(country)) return;
+    if (cfg._loadingCountries.has(country)) return cfg._loadingCountries.get(country);
+
+    const load = (async () => {
+      let shard;
+      try {
+        shard = await getJSON("geo/gadm2/" + country + ".geojson");
+      } catch (e) {
+        console.warn("[SCI] gadm2 shard failed:", country, e);
+        cfg._loadedCountries.add(country);
+        return;
+      }
+      const features = prepareFeatures(cfg, shard.features, cfg.sources);
+      if (lastSelection && lastSelection.cfg === cfg && lastSelection.sci) {
+        for (const f of features) {
+          const v = lastSelection.sci[f.properties.id];
+          f.properties.sci = v === undefined ? null : v;
+        }
+      }
+      cfg.geojson.features.push(...features);
+      cfg._loadedCountries.add(country);
+      const source = map.getSource("level2");
+      if (source) source.setData(cfg.geojson);
+      if (lastSelection && lastSelection.cfg === cfg) applyCurrentScale("level2");
+    })();
+    cfg._loadingCountries.set(country, load);
+    try { await load; }
+    finally { cfg._loadingCountries.delete(country); }
+  }
+
   // Select a region (from a map click OR the search box): fetch its SCI, recolour
   // the world, and — when `fly` — bring the region into view (search results are
   // usually off-screen). Shared so search and click behave identically.
   async function selectRegion(levelKey, cfg, clickedId, clickedName, clickedCountry, fly) {
     showSpinner();
+    if (isLazyRegionConfig(cfg)) {
+      try { await getNames(cfg.sciType); } catch (_) {}
+      if (clickedCountry) await ensureRegionCountry(clickedCountry);
+    }
     const sci = await fetchSci(cfg, clickedId);
     hideSpinner();
     if (!sci) return;
@@ -725,6 +759,17 @@ map.on("load", async function () {
   function wireLevelEvents(levelKey, cfg) {
     map.on("click", levelKey, async function (e) {
       const feat = e.features[0];
+      if (levelKey === "level0" && gSel === "level2" && isLazyRegionConfig(LEVELS.level2)) {
+        const regionHits = map.getLayer("level2")
+          ? map.queryRenderedFeatures(e.point, { layers: ["level2"] })
+          : [];
+        if (regionHits.length) return;
+        showSpinner();
+        await ensureRegionCountry(feat.properties.id);
+        hideSpinner();
+        flyToFeature(LEVELS.level0, feat.properties.id);
+        return;
+      }
       // Out-of-sample: no SCI row to anchor the choropleth — do nothing
       // (keeps any previous highlight on screen).
       if (feat.properties.has_data === false) return;
@@ -793,6 +838,29 @@ map.on("load", async function () {
       seenIds.add(id);
       sciList.push(v);
     });
+
+    if (isLazyRegionConfig(cfg)) {
+      const names = namesCache[cfg.sciType] || null;
+      if (names) {
+        for (const id of Object.keys(sci)) {
+          if (id === clickedId || seenIds.has(id)) continue;
+          const meta = names[id];
+          if (focus && (!meta || meta[1] !== clickedCountry)) continue;
+          const v = sci[id];
+          if (v == null || isNaN(v)) continue;
+          seenIds.add(id);
+          sciList.push(v);
+        }
+      } else {
+        for (const id of Object.keys(sci)) {
+          if (id === clickedId || seenIds.has(id)) continue;
+          const v = sci[id];
+          if (v == null || isNaN(v)) continue;
+          seenIds.add(id);
+          sciList.push(v);
+        }
+      }
+    }
 
     // Reference value over the (optionally country-restricted) friend
     // distribution, excluding the source's own self-link. Guaranteed positive.
@@ -1016,9 +1084,10 @@ map.on("load", async function () {
   // ----- level switcher -----
   async function setActiveLayer(activeId) {
     await ensureLevel(activeId);
+    const lazyRegionActive = activeId === "level2" && isLazyRegionConfig(LEVELS.level2);
     ["level0", "level2"].forEach(function (id) {
       if (!map.getLayer(id)) return;
-      const vis = id === activeId ? "visible" : "none";
+      const vis = (id === activeId || (lazyRegionActive && id === "level0")) ? "visible" : "none";
       map.setLayoutProperty(id, "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
     });
@@ -1027,7 +1096,7 @@ map.on("load", async function () {
     // labels). Stacking, bottom→top: region fills, region borders, GADM1 outlines,
     // country outlines — so country borders sit on top (most prominent) and GADM1
     // borders sit between regions and countries.
-    const showOutline = activeId === "level2";
+    const showOutline = activeId === "level2" && !lazyRegionActive;
     if (showOutline) await ensureRegionBorders();
     if (map.getLayer("country-outline")) {
       map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");
@@ -1044,8 +1113,9 @@ map.on("load", async function () {
 
     // Reset the active layer's fill to the has_data-aware default (clears any
     // choropleth painted while it was last active).
-    if (map.getLayer(activeId)) {
-      map.setPaintProperty(activeId, "fill-color", [
+    const resetLayers = lazyRegionActive ? [activeId, "level0"] : [activeId];
+    for (const id of resetLayers) if (map.getLayer(id)) {
+      map.setPaintProperty(id, "fill-color", [
         "case",
         ["==", ["get", "has_data"], false], NO_DATA_FILL,
         DEFAULT_FILL,
@@ -1060,59 +1130,106 @@ map.on("load", async function () {
   // country-outline layer exist (Region mode draws national borders on top), then
   // make the Region layer active.
   await ensureLevel("level0");
-  setActiveLayer("level2");
+  await setActiveLayer("level2");
 
-  // --- Startup location: ask for the user's location. If they share it, open on the
-  // region containing it; if they deny/dismiss it (or it's unavailable), do NOTHING —
-  // the user picks a place manually (no auto-selection, no fallback). Runs after the
-  // tutorial finishes/skips on first visit, immediately on return visits (see setupTour).
-  // Prompt at most once per browser profile (best-effort: private mode can't persist
-  // the flag, so it may re-ask there; the Permissions API still avoids re-prompting
-  // anyone who actually granted/denied).
-  const GEO_ASKED_KEY = "sci_explore_geo_asked";
-  const geoAsked = () => { try { return !!localStorage.getItem(GEO_ASKED_KEY); } catch (e) { return false; } };
-  const markGeoAsked = () => { try { localStorage.setItem(GEO_ASKED_KEY, "1"); } catch (e) {} };
+  // --- Startup country guess: never ask for precise browser geolocation. On the
+  // deployed Cloudflare site, /cdn-cgi/trace provides a coarse IP country code
+  // ("loc=US"). Local/dev and non-Cloudflare hosts fall back to the browser
+  // locale's region subtag. Either way this only pans the map; it never selects a
+  // source region or fetches that region's SCI row.
+  let userInteractedBeforeStartup = false;
+  const markUserInteracted = () => { userInteractedBeforeStartup = true; };
+  map.getCanvas().addEventListener("pointerdown", markUserInteracted, { passive: true });
+  map.getCanvas().addEventListener("wheel", markUserInteracted, { passive: true });
 
-  function selectAtPoint(lng, lat) {
-    const cfg = LEVELS[gSel];
-    if (!cfg || !cfg.geojson) return false;
-    const f = featureAtPoint(cfg.geojson.features, lng, lat);
-    if (!f || f.properties.has_data === false) return false;
-    selectRegion(gSel, cfg, f.properties.id, f.properties.name, f.properties.country, true);
-    return true;
+  function normalizeCountryCode(code) {
+    code = String(code || "").trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(code) && code !== "XX" ? code : null;
   }
+
+  async function countryFromCloudflareTrace() {
+    try {
+      const r = await fetch("/cdn-cgi/trace", { cache: "no-store", credentials: "omit" });
+      if (!r.ok) return null;
+      const text = await r.text();
+      const m = text.match(/^loc=([A-Z]{2}|XX)$/m);
+      return normalizeCountryCode(m && m[1]);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function countryFromLocale() {
+    const languages = navigator.languages && navigator.languages.length
+      ? navigator.languages
+      : [navigator.language];
+    for (const lang of languages) {
+      try {
+        if (Intl.Locale) {
+          const region = new Intl.Locale(lang).region;
+          const code = normalizeCountryCode(region);
+          if (code) return code;
+        }
+      } catch (_) {}
+      const m = String(lang || "").match(/[-_]([A-Za-z]{2})(?:$|-|_)/);
+      const code = normalizeCountryCode(m && m[1]);
+      if (code) return code;
+    }
+    return null;
+  }
+
+  async function guessStartupCountry() {
+    return (await countryFromCloudflareTrace()) || countryFromLocale();
+  }
+
+  function countryFeature(code) {
+    const cfg = LEVELS.level0;
+    return cfg.geojson && cfg.geojson.features.find((f) => f.properties.id === code);
+  }
+
+  async function fitToCountry(code) {
+    code = normalizeCountryCode(code);
+    if (!code) return false;
+    await ensureLevel("level0");
+    const feature = countryFeature(code);
+    if (!feature) return false;
+
+    let b = null;
+    try {
+      const meta = await getBoundsMeta();
+      const box = meta && meta.countries && meta.countries[code];
+      if (box && box.xlim && box.ylim) b = [box.xlim[0], box.ylim[0], box.xlim[1], box.ylim[1]];
+    } catch (_) {}
+    if (!b) b = featureBounds(feature.geometry);
+    if (!b) return false;
+    if (lastSelection || userInteractedBeforeStartup) return false;
+
+    try {
+      map.fitBounds(
+        [[b[0], b[1]], [b[2], b[3]]],
+        {
+          padding: { top: 120, bottom: 90, left: 42, right: 42 },
+          maxZoom: 4.5,
+          duration: 900,
+          linear: false,
+        }
+      );
+      return true;
+    } catch (e) {
+      console.warn("[SCI] startup country zoom skipped:", e);
+      return false;
+    }
+  }
+
   let startupRan = false;
-  async function runStartupLocation() {
+  async function runStartupCountryGuess() {
     if (startupRan) return; // once per page load (not on manual tour replays)
     startupRan = true;
-    if (!navigator.geolocation) return; // no geolocation API → user picks manually
-    try { await ensureLevel(gSel); } catch (e) { /* geometry needed for the point test */ }
-    const useGeo = () => navigator.geolocation.getCurrentPosition(
-      (pos) => { // don't override a place the user clicked/searched during the wait
-        if (lastSelection) return;
-        selectAtPoint(pos.coords.longitude, pos.coords.latitude);
-      },
-      () => {}, // denied / unavailable / timeout → do nothing; the user picks manually
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
-    );
-
-    // Prompt at most once, EVER. Use the Permissions API (where available) so a
-    // visitor who already granted access still opens on their region silently, while
-    // anyone who denied or dismissed the prompt is never asked again.
-    let state = null;
-    try {
-      if (navigator.permissions && navigator.permissions.query) {
-        state = (await navigator.permissions.query({ name: "geolocation" })).state;
-      }
-    } catch (e) { /* no Permissions API → rely on the asked flag below */ }
-
-    if (state === "denied") return;                 // already denied: don't ask, don't move
-    if (state === "granted") { useGeo(); return; }  // already allowed: no prompt
-    if (geoAsked()) return;                          // prompted before (not granted): don't re-ask
-    markGeoAsked();
-    useGeo();                                        // the one and only prompt
+    const code = await guessStartupCountry();
+    if (!code || lastSelection || userInteractedBeforeStartup) return;
+    await fitToCountry(code);
   }
-  onTourEnd = runStartupLocation;
+  onTourEnd = runStartupCountryGuess;
 
   document.querySelectorAll(".button-container button").forEach(function (button) {
     button.addEventListener("click", async function () {
@@ -1157,6 +1274,29 @@ map.on("load", async function () {
       if (cfg._search) return cfg._search;
       const aliases = (await getAliases())[cfg.sciType] || {};
       const seen = new Set(), out = [];
+      if (isLazyRegionConfig(cfg)) {
+        const names = await getNames(cfg.sciType);
+        const sources = cfg.sources || null;
+        for (const id of Object.keys(names)) {
+          if ((sources && !sources.has(id)) || seen.has(id)) continue;
+          seen.add(id);
+          const meta = names[id] || [];
+          const name = meta[0] || id;
+          const country = meta[1] || "";
+          let label = name;
+          if (country) {
+            const cn = countryNameOf(country);
+            if (cn && cn !== label) label += ", " + cn;
+          }
+          const rawAliases = aliases[id];
+          const al = Array.isArray(rawAliases) ? rawAliases : (rawAliases ? [rawAliases] : []);
+          const folds = [label, ...al].map(foldText).filter(Boolean);
+          out.push({ id, name, country, label, folds, fold: folds.join(" ") });
+        }
+        out.sort((a, b) => a.label.localeCompare(b.label));
+        cfg._search = out;
+        return out;
+      }
       for (const f of (cfg.geojson ? cfg.geojson.features : [])) {
         const p = f.properties;
         if (p.has_data === false || seen.has(p.id)) continue;
@@ -1383,16 +1523,15 @@ map.on("load", async function () {
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") shut(); });
   })();
 
-  // First-run walkthrough, then the startup-location flow. On the first visit we show
-  // the tour and ask for geolocation when it ends (onTourEnd, wired above). On return
-  // visits the tour is skipped, so we kick off the location flow straight away. Either
-  // way, if the user doesn't share their location nothing is auto-selected — they pick.
+  // First-run walkthrough, then the startup country guess. On the first visit we
+  // show the tour and pan after it ends (onTourEnd, wired above). On return visits
+  // the tour is skipped, so we kick off the country guess straight away.
   (function setupTour() {
     const btn = document.getElementById("tourBtn");
     if (btn) btn.addEventListener("click", tour.start);
     let seen = false;
     try { seen = !!localStorage.getItem(TOUR_SEEN_KEY); } catch (e) { /* private mode */ }
-    if (seen) runStartupLocation();
-    else tour.start(); // onTourEnd → runStartupLocation when the tour finishes/skips
+    if (seen) runStartupCountryGuess();
+    else tour.start(); // onTourEnd → runStartupCountryGuess when the tour finishes/skips
   })();
 });
