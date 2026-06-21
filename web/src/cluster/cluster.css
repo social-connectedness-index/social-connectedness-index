@@ -2,6 +2,11 @@
 
 * { box-sizing: border-box; }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body { font-family: 'Poppins', sans-serif; margin: 0; }
 
 #map { position: fixed; inset: 0; width: 100%; height: 100%; }
@@ -174,6 +179,7 @@ input[type="number"] { width: 110px; }
 .panel-actions { position: relative; display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
 .btn-primary, .btn-secondary {
   font: inherit; font-weight: 600; font-size: 14px;
+  line-height: 1.25; min-height: 34px;
   padding: 6px 12px; border-radius: 7px; cursor: pointer; border: 1px solid transparent;
 }
 .btn-primary { background: #10617b; color: #fff; }
@@ -189,6 +195,7 @@ input[type="number"] { width: 110px; }
 .anim-mode { display: flex; gap: 0; border: 1px solid #b9d0da; border-radius: 7px; overflow: hidden; }
 .seg-btn {
   flex: 1; font: inherit; font-weight: 600; font-size: 14px;
+  line-height: 1.25; min-height: 34px;
   padding: 6px 10px; cursor: pointer; border: none; background: #fff; color: #10617b;
 }
 .seg-btn + .seg-btn { border-left: 1px solid #b9d0da; }
@@ -207,6 +214,7 @@ input[type="number"] { width: 110px; }
 .download-menu button {
   display: block; width: 100%; text-align: left;
   font: inherit; font-size: 13px; color: #2a3942;
+  line-height: 1.25; min-height: 34px;
   padding: 9px 12px; background: #fff; border: none; cursor: pointer;
 }
 .download-menu button:hover { background: #f1f6f8; }
@@ -351,6 +359,20 @@ input[type="number"] { width: 110px; }
     top: 8px; left: 8px; right: 8px; bottom: auto; width: auto;
     max-height: 78vh; padding: 12px 14px;
   }
+  @supports (height: 100dvh) {
+    #panel { max-height: min(78dvh, calc(100dvh - 16px)); }
+  }
+  #panel.download-open {
+    max-height: calc(100vh - 16px);
+  }
+  @supports (height: 100dvh) {
+    #panel.download-open { max-height: calc(100dvh - 16px); }
+  }
+  #panel.download-open .download-menu {
+    position: static;
+    margin-top: 0;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  }
   /* Tighten the panel so the Generate button is reachable without much scrolling:
      drop the intro line, shrink the country checklist, and pull the fields in. */
   .panel-lede { display: none; }
@@ -383,13 +405,27 @@ input[type="number"] { width: 110px; }
     overflow: hidden;
   }
   #panel.collapsed > :not(.tool-nav):not(.panel-head) { display: none; }
-  /* While animating, a collapsed panel still exposes the animation controls
-     (Automatic/Manual + Back/Next + Stop) so you can step through the sweep with the
-     map uncovered. Everything else in the actions row (Generate/Download/…) stays
-     hidden. Same specificity as the collapse rule above, but later → it wins. */
-  #panel.collapsed.animating .panel-actions { display: flex; }
+  /* While animating, a collapsed panel docks the animation controls at the bottom
+     so stepping through the sweep does not cover the top of the map with your hand.
+     Expanded panels keep the controls attached in their normal place. */
+  #panel.collapsed.animating .panel-actions {
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    margin: 0;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #e1e8ec;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(16, 97, 123, 0.2);
+    z-index: 8;
+  }
   #panel.collapsed.animating .panel-actions > :not(#anim-controls) { display: none; }
+  #panel.collapsed.animating .anim-controls:not([hidden]) { display: flex; }
   /* Smaller, lower caption on phones; still clearly readable over the map. */
-  .map-caption { font-size: 15px; padding: 8px 16px; bottom: 18px; max-width: calc(100vw - 24px); }
+  .map-caption { font-size: 15px; padding: 8px 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 24px); }
+  body.cluster-controls-docked .map-caption { bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
   #about { left: 8px; right: 8px; width: auto; }
 }

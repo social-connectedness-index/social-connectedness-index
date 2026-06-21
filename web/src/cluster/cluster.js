@@ -115,9 +115,37 @@ function syncMapSize() {
   resizePending = true;
   requestAnimationFrame(() => { resizePending = false; try { map.resize(); } catch (_) {} });
 }
-if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
-window.addEventListener("orientationchange", syncMapSize);
-map.on("load", () => { syncMapSize(); setTimeout(syncMapSize, 300); });
+
+let panelLayoutPending = false;
+function syncMobilePanelLayout() {
+  if (panelLayoutPending) return;
+  panelLayoutPending = true;
+  requestAnimationFrame(() => {
+    panelLayoutPending = false;
+    const panel = document.getElementById("panel");
+    if (!panel || !window.matchMedia || !window.matchMedia("(max-width: 720px)").matches) return;
+    // iOS Safari can leave form/button text inflated after an orientation roundtrip
+    // until a collapse/expand forces a fresh layout. This compositor nudge does
+    // that refresh without changing the panel's visible state.
+    panel.style.transform = "translateZ(0)";
+    panel.getBoundingClientRect();
+    requestAnimationFrame(() => { panel.style.transform = ""; });
+  });
+}
+
+function syncViewportLayout() {
+  syncMapSize();
+  try { applyMapOffset(); } catch (_) {}
+  syncMobilePanelLayout();
+}
+
+if (window.visualViewport) window.visualViewport.addEventListener("resize", syncViewportLayout);
+window.addEventListener("orientationchange", () => {
+  syncViewportLayout();
+  setTimeout(syncViewportLayout, 250);
+  setTimeout(syncViewportLayout, 700);
+});
+map.on("load", () => { syncViewportLayout(); setTimeout(syncViewportLayout, 300); });
 
 const FILL_LAYER = "clusters-fill";
 const LINE_LAYER = "clusters-line";
@@ -1401,6 +1429,10 @@ function setPanelCollapsed(collapsed) {
   const btn = $("panel-toggle"), panel = $("panel");
   if (!panel) return;
   panel.classList.toggle("collapsed", collapsed);
+  document.body.classList.toggle(
+    "cluster-controls-docked",
+    collapsed && panel.classList.contains("animating") && isMobileView()
+  );
   if (!btn) return;
   btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
   const label = collapsed ? "Expand panel" : "Collapse panel";
@@ -1461,6 +1493,7 @@ function teardownAnimation() {
   setCountryBordersVisible(true);
   $("num-clusters").disabled = false;
   $("panel")?.classList.remove("animating");
+  document.body.classList.remove("cluster-controls-docked");
   hideCaption();
   // If WE auto-collapsed the panel for manual stepping, expand it back on exit.
   if (panelAutoCollapsed) { setPanelCollapsed(false); panelAutoCollapsed = false; }
@@ -1868,6 +1901,8 @@ function enterAnimation() {
   if (isMobileView() && !$("panel")?.classList.contains("collapsed")) {
     setPanelCollapsed(true);
     panelAutoCollapsed = true;
+  } else if (isMobileView() && $("panel")?.classList.contains("collapsed")) {
+    document.body.classList.add("cluster-controls-docked");
   }
   // Keep the (subtle grey) country borders visible during the sweep — same as the
   // static view — and draw only the inter-cluster divisions on top (perimeter off).
@@ -2543,11 +2578,18 @@ async function init() {
   // Download split-button menu.
   const dlBtn = $("download");
   const dlMenu = $("download-menu");
-  dlBtn.addEventListener("click", () => { if (!dlBtn.disabled) dlMenu.hidden = !dlMenu.hidden; });
+  const setDownloadMenuOpen = (open) => {
+    dlMenu.hidden = !open;
+    $("panel")?.classList.toggle("download-open", open);
+    if (open && isMobileView()) dlMenu.scrollIntoView({ block: "nearest" });
+  };
+  dlBtn.addEventListener("click", () => {
+    if (!dlBtn.disabled) setDownloadMenuOpen(dlMenu.hidden);
+  });
   dlMenu.querySelectorAll("button").forEach((b) =>
-    b.addEventListener("click", () => { dlMenu.hidden = true; download(b.dataset.fmt); }));
+    b.addEventListener("click", () => { setDownloadMenuOpen(false); download(b.dataset.fmt); }));
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".panel-actions")) dlMenu.hidden = true;
+    if (!e.target.closest(".panel-actions")) setDownloadMenuOpen(false);
   });
 
   // About panel.
