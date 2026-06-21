@@ -82,7 +82,10 @@ const IS_IOS =
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const IS_COARSE_POINTER = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 const LOW_DEVICE_MEMORY = typeof navigator.deviceMemory === "number" && navigator.deviceMemory <= 4;
-const MOBILE_LAZY_REGIONS = IS_IOS || IS_COARSE_POINTER || LOW_DEVICE_MEMORY;
+const CONSTRAINED_MOBILE = IS_IOS || IS_COARSE_POINTER || LOW_DEVICE_MEMORY;
+if (CONSTRAINED_MOBILE && "workerCount" in mapboxgl) {
+  mapboxgl.workerCount = Math.min(mapboxgl.workerCount || 2, 1);
+}
 
 // Empty Mapbox style — no tiles, used when the basemap is disabled (manual
 // config flag or automatic fallback after a Mapbox 401/403/429).
@@ -112,7 +115,8 @@ const map = new mapboxgl.Map({
 });
 
 // Auto-fallback on Mapbox tile/style failures (401 bad token, 403 wrong
-// origin, 429 quota). Mark the session and reload into no-basemap mode.
+// origin, 429 quota). Mark the session and swap into no-basemap mode without
+// reloading; reload loops are especially hostile to mobile Safari.
 if (!forceNoBasemap) {
   map.on("error", function (e) {
     if (!e || !e.error) return;
@@ -282,7 +286,6 @@ const LEVELS = {
     sciType: "gadm2", // GADM-best data under the gadm2 id
     sharded: true, // geometry sharded by ISO2 country
     ranged: true, // SCI delivered via range-index
-    mobileLazy: MOBILE_LAZY_REGIONS,
     appendCountry: true,
     unit: "region",
     canFocus: true,
@@ -290,7 +293,6 @@ const LEVELS = {
 };
 
 let gSel = "level2";
-const isLazyRegionConfig = (cfg) => !!(cfg && cfg.mobileLazy && cfg.sciType === "gadm2");
 
 // "Focus country" mode: when on, the choropleth is restricted to
 // regions within the selected source's own country, recoloured on the within-
@@ -319,12 +321,6 @@ async function getAliases() {
   try { aliasesCache = await getJSON("geo/aliases.json"); }
   catch (_) { aliasesCache = {}; }
   return aliasesCache;
-}
-
-const namesCache = {};
-async function getNames(level) {
-  if (!namesCache[level]) namesCache[level] = await getJSON("geo/" + level + "_names.json");
-  return namesCache[level];
 }
 
 let boundsMeta = null;
@@ -419,18 +415,16 @@ async function loadSources(cfg) {
 // Load geometry: a single file, or all country shards merged into one FC.
 async function loadGeometry(cfg) {
   if (!cfg.sharded) return getJSON(cfg.geo);
-  if (isLazyRegionConfig(cfg)) return { type: "FeatureCollection", features: [] };
   const parts = await getJSON("geo/gadm2/_parts.json");
-  const shards = await Promise.all(
-    parts.map((cc) =>
-      getJSON("geo/gadm2/" + cc + ".geojson").catch((e) => {
-        console.warn("[SCI] gadm2 shard failed:", cc, e);
-        return { features: [] };
-      })
-    )
-  );
   const features = [];
-  for (const s of shards) if (s && s.features) features.push(...s.features);
+  for (const cc of parts) {
+    try {
+      const shard = await getJSON("geo/gadm2/" + cc + ".geojson");
+      if (shard && shard.features) features.push(...shard.features);
+    } catch (e) {
+      console.warn("[SCI] gadm2 shard failed:", cc, e);
+    }
+  }
   return { type: "FeatureCollection", features };
 }
 
@@ -608,13 +602,14 @@ map.on("load", async function () {
 
   function prepareFeatures(cfg, features, sources) {
     if (!cfg._nextFeatureStateId) cfg._nextFeatureStateId = 1;
-    return (features || []).map(function (d) {
+    features = features || [];
+    for (const d of features) {
       d.id = cfg._nextFeatureStateId++; // numeric id for feature-state (hover)
       const key = d.properties.id;
       d.properties.has_data = sources ? sources.has(key) : true;
       d.properties.sci = null;
-      return d;
-    });
+    }
+    return features;
   }
 
   async function ensureLevel(levelKey) {
@@ -684,51 +679,11 @@ map.on("load", async function () {
     hideSpinner();
   }
 
-  async function ensureRegionCountry(country) {
-    const cfg = LEVELS.level2;
-    if (!isLazyRegionConfig(cfg) || !country) return;
-    await ensureLevel("level2");
-    if (!cfg._loadedCountries) cfg._loadedCountries = new Set();
-    if (!cfg._loadingCountries) cfg._loadingCountries = new Map();
-    if (cfg._loadedCountries.has(country)) return;
-    if (cfg._loadingCountries.has(country)) return cfg._loadingCountries.get(country);
-
-    const load = (async () => {
-      let shard;
-      try {
-        shard = await getJSON("geo/gadm2/" + country + ".geojson");
-      } catch (e) {
-        console.warn("[SCI] gadm2 shard failed:", country, e);
-        cfg._loadedCountries.add(country);
-        return;
-      }
-      const features = prepareFeatures(cfg, shard.features, cfg.sources);
-      if (lastSelection && lastSelection.cfg === cfg && lastSelection.sci) {
-        for (const f of features) {
-          const v = lastSelection.sci[f.properties.id];
-          f.properties.sci = v === undefined ? null : v;
-        }
-      }
-      cfg.geojson.features.push(...features);
-      cfg._loadedCountries.add(country);
-      const source = map.getSource("level2");
-      if (source) source.setData(cfg.geojson);
-      if (lastSelection && lastSelection.cfg === cfg) applyCurrentScale("level2");
-    })();
-    cfg._loadingCountries.set(country, load);
-    try { await load; }
-    finally { cfg._loadingCountries.delete(country); }
-  }
-
   // Select a region (from a map click OR the search box): fetch its SCI, recolour
   // the world, and — when `fly` — bring the region into view (search results are
   // usually off-screen). Shared so search and click behave identically.
   async function selectRegion(levelKey, cfg, clickedId, clickedName, clickedCountry, fly) {
     showSpinner();
-    if (isLazyRegionConfig(cfg)) {
-      try { await getNames(cfg.sciType); } catch (_) {}
-      if (clickedCountry) await ensureRegionCountry(clickedCountry);
-    }
     const sci = await fetchSci(cfg, clickedId);
     hideSpinner();
     if (!sci) return;
@@ -759,17 +714,6 @@ map.on("load", async function () {
   function wireLevelEvents(levelKey, cfg) {
     map.on("click", levelKey, async function (e) {
       const feat = e.features[0];
-      if (levelKey === "level0" && gSel === "level2" && isLazyRegionConfig(LEVELS.level2)) {
-        const regionHits = map.getLayer("level2")
-          ? map.queryRenderedFeatures(e.point, { layers: ["level2"] })
-          : [];
-        if (regionHits.length) return;
-        showSpinner();
-        await ensureRegionCountry(feat.properties.id);
-        hideSpinner();
-        flyToFeature(LEVELS.level0, feat.properties.id);
-        return;
-      }
       // Out-of-sample: no SCI row to anchor the choropleth — do nothing
       // (keeps any previous highlight on screen).
       if (feat.properties.has_data === false) return;
@@ -831,6 +775,7 @@ map.on("load", async function () {
       const id = f.properties.id;
       const v = sci[id];
       f.properties.sci = v === undefined ? null : v;
+      try { map.setFeatureState({ source: levelKey, id: f.id }, { sci: v === undefined ? null : v }); } catch (_) {}
       if (v === undefined) return;
       if (id === clickedId) clickedSci = v;
       if (focus && f.properties.country !== clickedCountry) return;
@@ -838,29 +783,6 @@ map.on("load", async function () {
       seenIds.add(id);
       sciList.push(v);
     });
-
-    if (isLazyRegionConfig(cfg)) {
-      const names = namesCache[cfg.sciType] || null;
-      if (names) {
-        for (const id of Object.keys(sci)) {
-          if (id === clickedId || seenIds.has(id)) continue;
-          const meta = names[id];
-          if (focus && (!meta || meta[1] !== clickedCountry)) continue;
-          const v = sci[id];
-          if (v == null || isNaN(v)) continue;
-          seenIds.add(id);
-          sciList.push(v);
-        }
-      } else {
-        for (const id of Object.keys(sci)) {
-          if (id === clickedId || seenIds.has(id)) continue;
-          const v = sci[id];
-          if (v == null || isNaN(v)) continue;
-          seenIds.add(id);
-          sciList.push(v);
-        }
-      }
-    }
 
     // Reference value over the (optionally country-restricted) friend
     // distribution, excluding the source's own self-link. Guaranteed positive.
@@ -872,9 +794,8 @@ map.on("load", async function () {
     }
     sel.globalRefSci = refSci; // fixed-scale reference (whole friend distribution)
 
-    map.getSource(levelKey).setData(geojson);
     applyCurrentScale(levelKey); // paints with the fixed or visible-area reference
-    // In dynamic mode, refine once the freshly-set data has actually rendered.
+    // In dynamic mode, refine once the freshly-set feature state has actually rendered.
     if (dynamicScale) map.once("idle", () => applyCurrentScale(levelKey));
 
     updateLegend();
@@ -900,14 +821,14 @@ map.on("load", async function () {
     const cfg = sel.cfg;
     const focus = focusCountry && cfg.canFocus && !!sel.clickedCountry;
     const thresholds = (focus ? FOCUS_BREAK_MULTIPLIERS : BREAK_MULTIPLIERS).map((m) => m * refSci);
-    const step = ["step", ["coalesce", ["get", "sci"], 0], BIN_COLORS[0]];
+    const step = ["step", ["coalesce", ["feature-state", "sci"], 0], BIN_COLORS[0]];
     for (let i = 0; i < thresholds.length; i++) step.push(thresholds[i], BIN_COLORS[i + 1]);
     const fillColor = ["case",
       // Clicked source region: very dark navy, on top of everything else.
       ["==", ["get", "id"], sel.clickedId], HIGHLIGHT_COLOR,
       ["==", ["get", "has_data"], false], NO_DATA_FILL];
     if (focus) fillColor.push(["!=", ["get", "country"], sel.clickedCountry], DEFAULT_FILL);
-    fillColor.push(["has", "sci"], step, DEFAULT_FILL);
+    fillColor.push(["!=", ["feature-state", "sci"], null], step, DEFAULT_FILL);
     map.setPaintProperty(levelKey, "fill-color", fillColor);
     sel.refSci = refSci;
   }
@@ -1084,10 +1005,9 @@ map.on("load", async function () {
   // ----- level switcher -----
   async function setActiveLayer(activeId) {
     await ensureLevel(activeId);
-    const lazyRegionActive = activeId === "level2" && isLazyRegionConfig(LEVELS.level2);
     ["level0", "level2"].forEach(function (id) {
       if (!map.getLayer(id)) return;
-      const vis = (id === activeId || (lazyRegionActive && id === "level0")) ? "visible" : "none";
+      const vis = id === activeId ? "visible" : "none";
       map.setLayoutProperty(id, "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
     });
@@ -1096,7 +1016,7 @@ map.on("load", async function () {
     // labels). Stacking, bottom→top: region fills, region borders, GADM1 outlines,
     // country outlines — so country borders sit on top (most prominent) and GADM1
     // borders sit between regions and countries.
-    const showOutline = activeId === "level2" && !lazyRegionActive;
+    const showOutline = activeId === "level2" && !CONSTRAINED_MOBILE;
     if (showOutline) await ensureRegionBorders();
     if (map.getLayer("country-outline")) {
       map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");
@@ -1113,9 +1033,8 @@ map.on("load", async function () {
 
     // Reset the active layer's fill to the has_data-aware default (clears any
     // choropleth painted while it was last active).
-    const resetLayers = lazyRegionActive ? [activeId, "level0"] : [activeId];
-    for (const id of resetLayers) if (map.getLayer(id)) {
-      map.setPaintProperty(id, "fill-color", [
+    if (map.getLayer(activeId)) {
+      map.setPaintProperty(activeId, "fill-color", [
         "case",
         ["==", ["get", "has_data"], false], NO_DATA_FILL,
         DEFAULT_FILL,
@@ -1274,29 +1193,6 @@ map.on("load", async function () {
       if (cfg._search) return cfg._search;
       const aliases = (await getAliases())[cfg.sciType] || {};
       const seen = new Set(), out = [];
-      if (isLazyRegionConfig(cfg)) {
-        const names = await getNames(cfg.sciType);
-        const sources = cfg.sources || null;
-        for (const id of Object.keys(names)) {
-          if ((sources && !sources.has(id)) || seen.has(id)) continue;
-          seen.add(id);
-          const meta = names[id] || [];
-          const name = meta[0] || id;
-          const country = meta[1] || "";
-          let label = name;
-          if (country) {
-            const cn = countryNameOf(country);
-            if (cn && cn !== label) label += ", " + cn;
-          }
-          const rawAliases = aliases[id];
-          const al = Array.isArray(rawAliases) ? rawAliases : (rawAliases ? [rawAliases] : []);
-          const folds = [label, ...al].map(foldText).filter(Boolean);
-          out.push({ id, name, country, label, folds, fold: folds.join(" ") });
-        }
-        out.sort((a, b) => a.label.localeCompare(b.label));
-        cfg._search = out;
-        return out;
-      }
       for (const f of (cfg.geojson ? cfg.geojson.features : [])) {
         const p = f.properties;
         if (p.has_data === false || seen.has(p.id)) continue;
