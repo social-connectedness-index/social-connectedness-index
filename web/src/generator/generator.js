@@ -788,17 +788,38 @@ function syncAutoInput(inputId, text, enabled) {
   const inp = $(inputId);
   if (!inp) return;
   const prev = inp.dataset.autoText || "";
-  const shouldFill = !inp.value || inp.value === prev;
+  const sourceChanged = text !== prev;
+  const shouldFill = sourceChanged || !inp.value || inp.value === prev;
   inp.dataset.autoText = text;
   if (shouldFill) {
     inp.value = enabled ? text : "";
   }
 }
 
+function syncAutoLegendLabel(inputId, sourceId) {
+  const inp = $(inputId), src = $(sourceId);
+  if (!inp || !src) return;
+  const prev = inp.dataset.autoText || "";
+  const text = labelOf(src);
+  const sourceChanged = text !== prev;
+  inp.dataset.autoText = text;
+  if (!compareMode()) {
+    if (!inp.value || inp.value === prev) inp.value = "";
+    return;
+  }
+  if (sourceChanged || !inp.value || inp.value === prev) inp.value = text;
+}
+
+function syncAutoLegendLabels() {
+  syncAutoLegendLabel("labelA", "sourceA");
+  syncAutoLegendLabel("labelB", "sourceB");
+}
+
 function syncGeneratedText() {
   if (!manifest || !$("sourceA")) return;
   syncAutoInput("title", autoTitle(), !$("titleOn") || $("titleOn").checked);
   syncAutoInput("subtitle", autoSubtitle(), !!($("subtitleOn") && $("subtitleOn").checked));
+  syncAutoLegendLabels();
 }
 
 // A solid endpoint colour for a comparison side, derived from a single-map palette
@@ -1215,6 +1236,11 @@ function reset() {
   if ($("cpaletteB")) setSelectByValue("cpaletteB", "Blue");
   $("borders").checked = true;
   $("highlight").checked = false;
+  for (const id of ["labelA", "labelB"]) {
+    if ($(id)) {
+      $(id).dataset.autoText = "";
+    }
+  }
   if ($("titleOn")) { $("titleOn").checked = true; $("title").classList.remove("show-off"); }
   if ($("subtitleOn")) { $("subtitleOn").checked = false; $("subtitle").classList.add("show-off"); }
   syncGeneratedText();
@@ -1578,8 +1604,12 @@ async function applyConfig(cfg = {}) {
     $("subtitle").classList.toggle("show-off", !$("subtitleOn").checked);
   }
   syncGeneratedText();
-  if (cfg.labelA != null && $("labelA")) $("labelA").value = cfg.labelA;
-  if (cfg.labelB != null && $("labelB")) $("labelB").value = cfg.labelB;
+  if (cfg.labelA != null && $("labelA")) {
+    $("labelA").value = cfg.labelA;
+  }
+  if (cfg.labelB != null && $("labelB")) {
+    $("labelB").value = cfg.labelB;
+  }
   if (cfg.width != null) $("width").value = cfg.width;
   if (cfg.height != null) $("height").value = cfg.height;
   if (cfg.dpi != null) $("dpi").value = cfg.dpi;
