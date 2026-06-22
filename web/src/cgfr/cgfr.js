@@ -52,7 +52,8 @@ const TOUR_STEPS = [
   },
 ];
 const TOUR_SEEN_KEY = "cgfr_explore_tour_v1";
-const tour = createTour(TOUR_STEPS, TOUR_SEEN_KEY);
+let onTourEnd = null;
+const tour = createTour(TOUR_STEPS, TOUR_SEEN_KEY, () => { if (onTourEnd) onTourEnd(); });
 
 const DEFAULT_CENTER = [-30, 28];
 const DEFAULT_ZOOM = 1.6;
@@ -199,6 +200,12 @@ async function getAliases() {
   try { aliasesCache = await getJSON("geo/aliases.json"); }
   catch (_) { aliasesCache = {}; }
   return aliasesCache;
+}
+
+let boundsMeta = null;
+async function getBoundsMeta() {
+  if (!boundsMeta) boundsMeta = await getJSON("bounds.json");
+  return boundsMeta;
 }
 
 function countryNameOf(iso2) {
@@ -848,6 +855,104 @@ map.on("load", async function () {
   await setActiveLayer("level2");
   updateSelectedPanel();
 
+  // Startup country guess: never request precise browser geolocation. On the
+  // deployed Cloudflare site, /cdn-cgi/trace gives a coarse IP country code
+  // ("loc=US"); local/dev hosts fall back to the browser locale's region tag.
+  // This only moves the camera and does not select a CGFR place.
+  let userInteractedBeforeStartup = false;
+  const markUserInteracted = () => { userInteractedBeforeStartup = true; };
+  map.getCanvas().addEventListener("pointerdown", markUserInteracted, { passive: true });
+  map.getCanvas().addEventListener("wheel", markUserInteracted, { passive: true });
+
+  function normalizeCountryCode(code) {
+    code = String(code || "").trim().toUpperCase();
+    return /^[A-Z]{2}$/.test(code) && code !== "XX" ? code : null;
+  }
+
+  async function countryFromCloudflareTrace() {
+    try {
+      const r = await fetch("/cdn-cgi/trace", { cache: "no-store", credentials: "omit" });
+      if (!r.ok) return null;
+      const text = await r.text();
+      const m = text.match(/^loc=([A-Z]{2}|XX)$/m);
+      return normalizeCountryCode(m && m[1]);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function countryFromLocale() {
+    const languages = navigator.languages && navigator.languages.length
+      ? navigator.languages
+      : [navigator.language];
+    for (const lang of languages) {
+      try {
+        if (Intl.Locale) {
+          const region = new Intl.Locale(lang).region;
+          const code = normalizeCountryCode(region);
+          if (code) return code;
+        }
+      } catch (_) {}
+      const m = String(lang || "").match(/[-_]([A-Za-z]{2})(?:$|-|_)/);
+      const code = normalizeCountryCode(m && m[1]);
+      if (code) return code;
+    }
+    return null;
+  }
+
+  async function guessStartupCountry() {
+    return (await countryFromCloudflareTrace()) || countryFromLocale();
+  }
+
+  function countryFeature(code) {
+    const cfg = LEVELS.level0;
+    return cfg.geojson && cfg.geojson.features.find((f) => f.properties.id === code);
+  }
+
+  async function fitToCountry(code) {
+    code = normalizeCountryCode(code);
+    if (!code) return false;
+    await ensureLevel("level0");
+    const feature = countryFeature(code);
+    if (!feature) return false;
+
+    let b = null;
+    try {
+      const meta = await getBoundsMeta();
+      const box = meta && meta.countries && meta.countries[code];
+      if (box && box.xlim && box.ylim) b = [box.xlim[0], box.ylim[0], box.xlim[1], box.ylim[1]];
+    } catch (_) {}
+    if (!b) b = featureBounds(feature.geometry);
+    if (!b) return false;
+    if (selected || userInteractedBeforeStartup) return false;
+
+    try {
+      map.fitBounds(
+        [[b[0], b[1]], [b[2], b[3]]],
+        {
+          padding: { top: 120, bottom: 90, left: 42, right: 42 },
+          maxZoom: 4.5,
+          duration: 900,
+          linear: false,
+        }
+      );
+      return true;
+    } catch (e) {
+      console.warn("[CGFR] startup country zoom skipped:", e);
+      return false;
+    }
+  }
+
+  let startupRan = false;
+  async function runStartupCountryGuess() {
+    if (startupRan) return;
+    startupRan = true;
+    const code = await guessStartupCountry();
+    if (!code || selected || userInteractedBeforeStartup) return;
+    await fitToCountry(code);
+  }
+  onTourEnd = runStartupCountryGuess;
+
   document.querySelectorAll(".button-container button").forEach(function (button) {
     button.addEventListener("click", async function () {
       document.querySelectorAll(".button-container button").forEach((b) => b.classList.remove("active"));
@@ -1073,6 +1178,9 @@ map.on("load", async function () {
   (function setupTour() {
     const btn = document.getElementById("tourBtn");
     if (btn) btn.addEventListener("click", tour.start);
-    tour.maybeAutoStart();
+    let seen = false;
+    try { seen = !!localStorage.getItem(TOUR_SEEN_KEY); } catch (e) { /* private mode */ }
+    if (seen) runStartupCountryGuess();
+    else tour.start();
   })();
 });
