@@ -4,7 +4,7 @@
 // active top-friend cutoff.
 
 import { createTour } from "../shared/tour.js";
-import { ensureNoDataHatchPattern, NO_DATA_HATCH_OPACITY, NO_DATA_HATCH_PATTERN, styleBasemapLabels } from "../shared/mapbox_style.js";
+import { styleBasemapLabels } from "../shared/mapbox_style.js";
 
 if (!window.CGFR_CONFIG) {
   throw new Error("[CGFR] window.CGFR_CONFIG is missing; check that config.js loads before cgfr.js.");
@@ -525,15 +525,6 @@ function fillExpression() {
   ];
 }
 
-function noDataHatchOpacityExpression() {
-  return [
-    "case",
-    ["==", ["get", "in_focus"], false], 0,
-    ["==", ["get", "has_value"], false], NO_DATA_HATCH_OPACITY,
-    0,
-  ];
-}
-
 function borderColorExpression(baseColor) {
   return [
     "case",
@@ -573,7 +564,6 @@ function repaintLevel(levelKey) {
   updateActiveBreaks(cfg);
   map.getSource(levelKey).setData(cfg.geojson);
   if (map.getLayer(levelKey)) map.setPaintProperty(levelKey, "fill-color", fillExpression());
-  if (map.getLayer(levelKey + "nodata")) map.setPaintProperty(levelKey + "nodata", "fill-opacity", noDataHatchOpacityExpression());
   if (map.getLayer(levelKey + "borders")) {
     map.setPaintProperty(levelKey + "borders", "line-color", borderColorExpression(borderColorForLevel(levelKey)));
     map.setPaintProperty(levelKey + "borders", "line-width", borderWidthExpression());
@@ -711,7 +701,6 @@ map.on("load", async function () {
     stampFeatureValues(cfg);
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
-    ensureNoDataHatchPattern(map);
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     map.addLayer(
       {
@@ -722,19 +711,6 @@ map.on("load", async function () {
         paint: {
           "fill-color": fillExpression(),
           "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.92],
-        },
-      },
-      beforeId
-    );
-    map.addLayer(
-      {
-        id: levelKey + "nodata",
-        type: "fill",
-        source: levelKey,
-        layout: { visibility: "none" },
-        paint: {
-          "fill-pattern": NO_DATA_HATCH_PATTERN,
-          "fill-opacity": noDataHatchOpacityExpression(),
         },
       },
       beforeId
@@ -861,7 +837,6 @@ map.on("load", async function () {
       if (!map.getLayer(id)) return;
       const vis = id === activeId ? "visible" : "none";
       map.setLayoutProperty(id, "visibility", vis);
-      if (map.getLayer(id + "nodata")) map.setLayoutProperty(id + "nodata", "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
       if (map.getLayer(selectedOutlineLayerId(id))) map.setLayoutProperty(selectedOutlineLayerId(id), "visibility", vis);
     });

@@ -22,7 +22,7 @@
 // separate pre-binning ETL entirely.
 
 import { createTour } from "../shared/tour.js";
-import { ensureNoDataHatchPattern, NO_DATA_HATCH_OPACITY, NO_DATA_HATCH_PATTERN, styleBasemapLabels } from "../shared/mapbox_style.js";
+import { styleBasemapLabels } from "../shared/mapbox_style.js";
 
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that explore.html loads config.js before explore.js.");
@@ -278,20 +278,6 @@ function borderOpacityForLevel(levelKey) {
     ? ["interpolate", ["linear"], ["zoom"], 1, 0.58, 4, 0.86]
     : ["interpolate", ["linear"], ["zoom"], 1, 0.28, 4, 0.55];
 }
-function defaultNoDataHatchOpacity() {
-  return ["case", ["==", ["get", "has_data"], false], NO_DATA_HATCH_OPACITY, 0];
-}
-function selectionNoDataHatchOpacity(sel, focus) {
-  const opacity = [
-    "case",
-    ["==", ["get", "id"], sel.clickedId], 0,
-    ["==", ["get", "has_data"], false], NO_DATA_HATCH_OPACITY,
-  ];
-  if (focus) opacity.push(["!=", ["get", "country"], sel.clickedCountry], 0);
-  opacity.push(["==", ["feature-state", "sci"], null], NO_DATA_HATCH_OPACITY, 0);
-  return opacity;
-}
-
 // ---------------------------------------------------------------------------
 // Level configuration. Two levels only: Country and Region (GADM best).
 // The Region level keeps the internal id "level2"/sciType "gadm2" so the
@@ -674,7 +660,6 @@ map.on("load", async function () {
     cfg.geojson = geojson;
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
-    ensureNoDataHatchPattern(map);
 
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     map.addLayer(
@@ -691,19 +676,6 @@ map.on("load", async function () {
           ],
           // Hovered region pops slightly more opaque than its neighbours.
           "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 1, 0.92],
-        },
-      },
-      beforeId
-    );
-    map.addLayer(
-      {
-        id: levelKey + "nodata",
-        type: "fill",
-        source: levelKey,
-        layout: { visibility: "none" },
-        paint: {
-          "fill-pattern": NO_DATA_HATCH_PATTERN,
-          "fill-opacity": defaultNoDataHatchOpacity(),
         },
       },
       beforeId
@@ -885,9 +857,6 @@ map.on("load", async function () {
     if (focus) fillColor.push(["!=", ["get", "country"], sel.clickedCountry], DEFAULT_FILL);
     fillColor.push(["!=", ["feature-state", "sci"], null], step, NO_DATA_FILL);
     map.setPaintProperty(levelKey, "fill-color", fillColor);
-    if (map.getLayer(levelKey + "nodata")) {
-      map.setPaintProperty(levelKey + "nodata", "fill-opacity", selectionNoDataHatchOpacity(sel, focus));
-    }
     sel.refSci = refSci;
   }
 
@@ -1067,7 +1036,6 @@ map.on("load", async function () {
       if (!map.getLayer(id)) return;
       const vis = id === activeId ? "visible" : "none";
       map.setLayoutProperty(id, "visibility", vis);
-      if (map.getLayer(id + "nodata")) map.setLayoutProperty(id + "nodata", "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
     });
     // National + state/province outlines: shown only in Region mode, lifted above
@@ -1098,9 +1066,6 @@ map.on("load", async function () {
         ["==", ["get", "has_data"], false], NO_DATA_FILL,
         DEFAULT_FILL,
       ]);
-    }
-    if (map.getLayer(activeId + "nodata")) {
-      map.setPaintProperty(activeId + "nodata", "fill-opacity", defaultNoDataHatchOpacity());
     }
   }
 
