@@ -11,19 +11,23 @@ body { display: flex; height: 100vh; overflow: hidden; }
 /* ---- sidebar ---- */
 #panel {
   width: 340px; flex: 0 0 340px;
+  height: calc(100vh - 28px);
+  margin: 14px;
   padding: 16px 18px;
   overflow-y: auto;
-  background: #f7fafb;
-  border-right: 1px solid #e1e8ec;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #e1e8ec;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(16, 97, 123, 0.18);
+  z-index: 1;
 }
 /* cross-tool nav at the top of the sidebar (← All tools / Interactive Explorer →) */
 .tool-nav {
   display: flex; justify-content: space-between; align-items: center;
-  margin: 0 0 12px; font-size: 12.5px;
+  margin: 0 0 8px; font-size: 12.5px;
 }
 .tool-nav a { text-decoration: none; color: #1879d5; font-weight: 600; }
 .tool-nav a:hover { text-decoration: underline; }
-.tool-nav .tool-nav-home { color: #6a7480; }
 
 #panel h1 { font-size: 17px; margin: 0 0 6px; color: #10617b; }
 #panel h1 .muted { display: block; margin-top: 2px; color: #6a7480; font-size: 13px; font-weight: normal; }
@@ -166,6 +170,31 @@ details > *:not(summary) { margin-top: 4px; }
 
 #status { font-size: 12px; color: #c0392b; min-height: 16px; margin-top: 8px; }
 #status:empty { margin-top: 0; min-height: 0; }
+
+.data-link-divider { margin: 10px 0 10px; }
+
+.panel-data-link {
+  display: flex;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #10617b;
+  text-decoration: none;
+  background: rgba(244, 247, 249, 0.9);
+  border: 1px solid #d7e0e5;
+  border-radius: 999px;
+}
+.panel-data-link:hover {
+  color: #0d4f64;
+  background: #eef5f8;
+  border-color: #b9d0da;
+}
+
 /* Social Capital Lab credit (inside the About box, matching the Explorer). */
 .lab-mark {
   display: flex; align-items: center; gap: 9px;
@@ -263,9 +292,15 @@ details > *:not(summary) { margin-top: 4px; }
 /* ---- mobile: stack panel on top, map below, let the page scroll ---- */
 @media (max-width: 768px) {
   body { flex-direction: column; height: auto; min-height: 100vh; overflow: auto; }
+  .panel-data-link,
+  .data-link-divider { display: none; }
   #panel {
-    width: 100%; flex: none; height: auto; overflow-y: visible;
-    border-right: none; border-bottom: 1px solid #e1e8ec;
+    width: calc(100% - 16px); flex: none; height: auto; margin: 8px;
+    overflow-y: visible;
+    background: rgba(255, 255, 255, 0.97);
+    border: 1px solid #e1e8ec;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(16, 97, 123, 0.18);
   }
   #mapWrap { flex: none; overflow: visible; padding: 16px; }
   #about { left: 8px; right: 8px; width: auto; }

@@ -47,8 +47,9 @@ body { font-family: 'Poppins', sans-serif; margin: 0; }
 /* ---- left control panel ---- */
 #panel {
   position: fixed;
-  top: 14px; left: 14px; bottom: 14px;
+  top: 14px; left: 14px;
   width: 320px;
+  max-height: calc(100vh - 28px);
   display: flex; flex-direction: column;
   background: rgba(255, 255, 255, 0.97);
   border: 1px solid #e1e8ec;
@@ -219,6 +220,27 @@ input[type="number"] { width: 110px; }
 }
 .download-menu button:hover { background: #f1f6f8; }
 
+.panel-data-link {
+  display: inline-flex;
+  align-self: center;
+  justify-content: center;
+  margin-top: auto;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #10617b;
+  text-decoration: none;
+  background: rgba(244, 247, 249, 0.9);
+  border: 1px solid #d7e0e5;
+  border-radius: 999px;
+}
+.panel-data-link:hover {
+  color: #0d4f64;
+  background: #eef5f8;
+  border-color: #b9d0da;
+}
+
 /* ---- Social Capital Lab credit (inside the About box, matching the Explorer) ---- */
 .lab-mark {
   display: flex; align-items: center; gap: 9px;
@@ -355,6 +377,8 @@ input[type="number"] { width: 110px; }
 
 /* ---- mobile: panel becomes a collapsible top sheet ---- */
 @media (max-width: 720px) {
+  .panel-data-link { display: none; }
+
   #panel {
     top: 8px; left: 8px; right: 8px; bottom: auto; width: auto;
     max-height: 78vh; padding: 12px 14px;

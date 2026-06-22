@@ -1438,6 +1438,7 @@ function setPanelCollapsed(collapsed) {
   const label = collapsed ? "Expand panel" : "Collapse panel";
   btn.setAttribute("aria-label", label);
   btn.setAttribute("title", label);
+  requestAnimationFrame(applyMapOffset);
 }
 
 // The animation controls have three UI states:
@@ -2213,24 +2214,55 @@ function selectionBbox(ids, fc, displayIds) {
 
 // Desktop: the control panel floats over the left edge (left 14 + width 320), so
 // offset the camera left by roughly its width + gap and centre the globe/map in
-// the clear area to its right. Mobile: the panel is a bottom sheet — no offset.
+// the clear area to its right. Mobile: the panel is a top sheet, so reserve its
+// live height and centre the map in the part of the screen below it.
 function mapLeftPad() {
   return window.matchMedia("(min-width: 721px)").matches ? 350 : 0;
+}
+
+function mobilePanelTopPad() {
+  if (!isMobileView()) return 0;
+  const panel = $("panel");
+  if (!panel) return 0;
+  const r = panel.getBoundingClientRect();
+  if (!r.height) return 0;
+  // Leave a small breathing gap below the floating panel, but keep enough map area
+  // for Mapbox camera calculations on short phone screens.
+  return Math.min(Math.ceil(r.bottom + 12), Math.max(0, window.innerHeight - 140));
+}
+
+function mobileDockBottomPad() {
+  if (!isMobileView() || !document.body.classList.contains("cluster-controls-docked")) return 0;
+  const actions = document.querySelector("#panel.collapsed.animating .panel-actions");
+  if (!actions) return 0;
+  const r = actions.getBoundingClientRect();
+  if (!r.height) return 0;
+  return Math.min(Math.ceil(window.innerHeight - r.top + 12), Math.max(0, window.innerHeight - 140));
+}
+
+function currentMapPadding() {
+  return {
+    left: mapLeftPad(),
+    top: mobilePanelTopPad(),
+    right: 0,
+    bottom: mobileDockBottomPad(),
+  };
 }
 
 // Keep the resting camera centred in the visible (panel-free) area. setPadding
 // shifts the projection centre for the initial globe and all manual pans/zooms.
 function applyMapOffset() {
-  try { map.setPadding({ left: mapLeftPad(), top: 0, right: 0, bottom: 0 }); } catch (_) {}
+  try { map.setPadding(currentMapPadding()); } catch (_) {}
 }
 
 function fitToBbox(bbox) {
   if (!bbox) return;
   const [minLon, minLat, maxLon, maxLat] = bbox;
+  const pad = currentMapPadding();
   try {
     map.fitBounds([[minLon, minLat], [maxLon, maxLat]], {
-      // Reserve room for the panel on the left so the map frames in the clear area.
-      padding: { top: 40, right: 40, bottom: 40, left: 40 + mapLeftPad() },
+      // Reserve room for floating panels so the map frames in the clear area.
+      padding: { top: 40 + pad.top, right: 40 + pad.right, bottom: 40 + pad.bottom, left: 40 + pad.left },
       duration: 900,
       maxZoom: 8,
     });
@@ -2582,6 +2614,7 @@ async function init() {
     dlMenu.hidden = !open;
     $("panel")?.classList.toggle("download-open", open);
     if (open && isMobileView()) dlMenu.scrollIntoView({ block: "nearest" });
+    requestAnimationFrame(applyMapOffset);
   };
   dlBtn.addEventListener("click", () => {
     if (!dlBtn.disabled) setDownloadMenuOpen(dlMenu.hidden);
@@ -2624,6 +2657,12 @@ async function init() {
       panelAutoCollapsed = false;
       setPanelCollapsed(!panel.classList.contains("collapsed"));
     });
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(() => {
+        if (isMobileView()) requestAnimationFrame(applyMapOffset);
+      });
+      ro.observe(panel);
+    }
   })();
 
   // Per-option "i" info tooltips (hover/focus; click pins on touch).

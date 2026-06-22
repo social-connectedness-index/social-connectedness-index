@@ -125,6 +125,7 @@ const REGION_BORDER_COLOR = "#59656d";
 const COUNTRY_BORDER_COLOR = "#202326";
 const GADM1_BORDER_COLOR = "#3d464d";
 const HIGHLIGHT_COLOR = "#04244a";
+const SELECTED_OUTLINE_COLOR = "#ffffff";
 function borderColorForLevel(levelKey) {
   return levelKey === "level0" ? COUNTRY_BORDER_COLOR : REGION_BORDER_COLOR;
 }
@@ -550,6 +551,21 @@ function borderWidthExpression() {
   ];
 }
 
+function selectedOutlineLayerId(levelKey) {
+  return levelKey + "selected-outline";
+}
+
+function selectedOutlineWidthExpression() {
+  return ["interpolate", ["linear"], ["zoom"], 1, 1.2, 4, 1.8, 7, 2.6];
+}
+
+function liftSelectedOutline(levelKey) {
+  const id = selectedOutlineLayerId(levelKey);
+  if (!map.getLayer(id)) return;
+  const labelLayer = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+  try { map.moveLayer(id, labelLayer); } catch (_) {}
+}
+
 function repaintLevel(levelKey) {
   const cfg = LEVELS[levelKey];
   if (!cfg || !cfg.geojson || !map.getSource(levelKey)) return;
@@ -562,6 +578,7 @@ function repaintLevel(levelKey) {
     map.setPaintProperty(levelKey + "borders", "line-color", borderColorExpression(borderColorForLevel(levelKey)));
     map.setPaintProperty(levelKey + "borders", "line-width", borderWidthExpression());
   }
+  liftSelectedOutline(levelKey);
   updateLegend();
   updateFocusControl();
   updateSelectedPanel();
@@ -736,6 +753,21 @@ map.on("load", async function () {
       },
       beforeId
     );
+    map.addLayer(
+      {
+        id: selectedOutlineLayerId(levelKey),
+        type: "line",
+        source: levelKey,
+        layout: { visibility: "none", "line-join": "miter", "line-cap": "butt" },
+        paint: {
+          "line-color": SELECTED_OUTLINE_COLOR,
+          "line-width": selectedOutlineWidthExpression(),
+          "line-opacity": ["case", ["==", ["get", "selected"], true], 1, 0],
+        },
+        filter: ["==", ["get", "selected"], true],
+      },
+      beforeId
+    );
 
     wireLevelEvents(levelKey, cfg);
     hideSpinner();
@@ -831,6 +863,7 @@ map.on("load", async function () {
       map.setLayoutProperty(id, "visibility", vis);
       if (map.getLayer(id + "nodata")) map.setLayoutProperty(id + "nodata", "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
+      if (map.getLayer(selectedOutlineLayerId(id))) map.setLayoutProperty(selectedOutlineLayerId(id), "visibility", vis);
     });
     const showOutline = activeId === "level2" && !CONSTRAINED_MOBILE;
     if (showOutline) await ensureRegionBorders();
@@ -845,6 +878,7 @@ map.on("load", async function () {
       map.setLayoutProperty("gadm1-outline", "visibility", showOutline ? "visible" : "none");
       if (showOutline) { try { map.moveLayer("gadm1-outline", "country-outline"); } catch (_) {} }
     }
+    liftSelectedOutline(activeId);
     gSel = activeId;
     selected = null;
     focusCountry = false;
