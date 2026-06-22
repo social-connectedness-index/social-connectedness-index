@@ -4,6 +4,7 @@
 // active top-friend cutoff.
 
 import { createTour } from "../shared/tour.js";
+import { ensureNoDataHatchPattern, NO_DATA_HATCH_OPACITY, NO_DATA_HATCH_PATTERN, styleBasemapLabels } from "../shared/mapbox_style.js";
 
 if (!window.CGFR_CONFIG) {
   throw new Error("[CGFR] window.CGFR_CONFIG is missing; check that config.js loads before cgfr.js.");
@@ -104,6 +105,7 @@ if (!forceNoBasemap) {
 }
 
 map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
+map.on("style.load", () => styleBasemapLabels(map));
 
 let resizePending = false;
 function syncMapSize() {
@@ -114,13 +116,22 @@ function syncMapSize() {
 if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
 window.addEventListener("orientationchange", syncMapSize);
 window.addEventListener("resize", fitPanelTitle);
-map.on("load", () => { syncMapSize(); setTimeout(syncMapSize, 300); });
+map.on("load", () => { styleBasemapLabels(map); syncMapSize(); setTimeout(syncMapSize, 300); });
 
 const DEFAULT_FILL = "#e3e7ea";
 const NO_DATA_FILL = "#cdd3d8";
-const BORDER_COLOR = "#b9c2c9";
-const GADM1_BORDER_COLOR = "#9aa5ae";
+const REGION_BORDER_COLOR = "#59656d";
+const COUNTRY_BORDER_COLOR = "#202326";
+const GADM1_BORDER_COLOR = "#3d464d";
 const HIGHLIGHT_COLOR = "#04244a";
+function borderColorForLevel(levelKey) {
+  return levelKey === "level0" ? COUNTRY_BORDER_COLOR : REGION_BORDER_COLOR;
+}
+function borderOpacityForLevel(levelKey) {
+  return levelKey === "level0"
+    ? ["interpolate", ["linear"], ["zoom"], 1, 0.58, 4, 0.86]
+    : ["interpolate", ["linear"], ["zoom"], 1, 0.28, 4, 0.55];
+}
 
 const CGFR_COLORS = [
   "#890024",
@@ -161,7 +172,7 @@ let gSel = "level2";
 let cutoffs = [5, 10, 25, 50, 75, 100, 125, 150, 175, 200];
 let cutoffIndex = 5;
 let focusCountry = false;
-let dynamicScale = true;
+let dynamicScale = false;
 let activeBreaks = COLOR_BREAKS;
 let hoveredStateId = null;
 let selected = null;
@@ -506,11 +517,20 @@ function fillExpression() {
   ];
 }
 
-function borderColorExpression() {
+function noDataHatchOpacityExpression() {
+  return [
+    "case",
+    ["==", ["get", "in_focus"], false], 0,
+    ["==", ["get", "has_value"], false], NO_DATA_HATCH_OPACITY,
+    0,
+  ];
+}
+
+function borderColorExpression(baseColor) {
   return [
     "case",
     ["==", ["get", "selected"], true], HIGHLIGHT_COLOR,
-    BORDER_COLOR,
+    baseColor,
   ];
 }
 
@@ -530,8 +550,9 @@ function repaintLevel(levelKey) {
   updateActiveBreaks(cfg);
   map.getSource(levelKey).setData(cfg.geojson);
   if (map.getLayer(levelKey)) map.setPaintProperty(levelKey, "fill-color", fillExpression());
+  if (map.getLayer(levelKey + "nodata")) map.setPaintProperty(levelKey + "nodata", "fill-opacity", noDataHatchOpacityExpression());
   if (map.getLayer(levelKey + "borders")) {
-    map.setPaintProperty(levelKey + "borders", "line-color", borderColorExpression());
+    map.setPaintProperty(levelKey + "borders", "line-color", borderColorExpression(borderColorForLevel(levelKey)));
     map.setPaintProperty(levelKey + "borders", "line-width", borderWidthExpression());
   }
   updateLegend();
@@ -666,6 +687,7 @@ map.on("load", async function () {
     stampFeatureValues(cfg);
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
+    ensureNoDataHatchPattern(map);
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     map.addLayer(
       {
@@ -682,14 +704,27 @@ map.on("load", async function () {
     );
     map.addLayer(
       {
+        id: levelKey + "nodata",
+        type: "fill",
+        source: levelKey,
+        layout: { visibility: "none" },
+        paint: {
+          "fill-pattern": NO_DATA_HATCH_PATTERN,
+          "fill-opacity": noDataHatchOpacityExpression(),
+        },
+      },
+      beforeId
+    );
+    map.addLayer(
+      {
         id: levelKey + "borders",
         type: "line",
         source: levelKey,
         layout: { visibility: "none", "line-join": "round" },
         paint: {
-          "line-color": borderColorExpression(),
+          "line-color": borderColorExpression(borderColorForLevel(levelKey)),
           "line-width": borderWidthExpression(),
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.35, 4, 0.6],
+          "line-opacity": borderOpacityForLevel(levelKey),
         },
       },
       beforeId
@@ -771,9 +806,9 @@ map.on("load", async function () {
           source: "border-country",
           layout: { visibility: "none", "line-join": "round" },
           paint: {
-            "line-color": "#7c8893",
+            "line-color": COUNTRY_BORDER_COLOR,
             "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 4, 0.9, 7, 1.6],
-            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.55, 4, 0.85],
+            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.72, 4, 0.96],
           },
         },
         beforeId
@@ -787,6 +822,7 @@ map.on("load", async function () {
       if (!map.getLayer(id)) return;
       const vis = id === activeId ? "visible" : "none";
       map.setLayoutProperty(id, "visibility", vis);
+      if (map.getLayer(id + "nodata")) map.setLayoutProperty(id + "nodata", "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
     });
     const showOutline = activeId === "level2" && !CONSTRAINED_MOBILE;

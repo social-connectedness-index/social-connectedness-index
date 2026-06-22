@@ -22,6 +22,7 @@
 // separate pre-binning ETL entirely.
 
 import { createTour } from "../shared/tour.js";
+import { ensureNoDataHatchPattern, NO_DATA_HATCH_OPACITY, NO_DATA_HATCH_PATTERN, styleBasemapLabels } from "../shared/mapbox_style.js";
 
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that explore.html loads config.js before explore.js.");
@@ -86,6 +87,7 @@ const CONSTRAINED_MOBILE = IS_IOS || IS_COARSE_POINTER || LOW_DEVICE_MEMORY;
 if (CONSTRAINED_MOBILE && "workerCount" in mapboxgl) {
   mapboxgl.workerCount = Math.min(mapboxgl.workerCount || 2, 1);
 }
+const GEOMETRY_SHARD_CONCURRENCY = CONSTRAINED_MOBILE ? 4 : 10;
 
 // Empty Mapbox style — no tiles, used when the basemap is disabled (manual
 // config flag or automatic fallback after a Mapbox 401/403/429).
@@ -133,6 +135,7 @@ if (!forceNoBasemap) {
 
 // Zoom/compass at bottom-right so it doesn't sit under the top-right results card.
 map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
+map.on("style.load", () => styleBasemapLabels(map));
 
 // --- Mobile viewport fix: iOS Safari (and other mobile browsers with a dynamic
 // toolbar) build the WebGL canvas before the URL bar settles. #map is
@@ -152,7 +155,7 @@ function syncMapSize() {
 }
 if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
 window.addEventListener("orientationchange", syncMapSize);
-map.on("load", () => { syncMapSize(); setTimeout(syncMapSize, 300); });
+map.on("load", () => { styleBasemapLabels(map); syncMapSize(); setTimeout(syncMapSize, 300); });
 // No on-map AttributionControl: the required © Mapbox / © OpenStreetMap credit
 // lives in the "About this map" (i) panel instead (see #data-explanation in
 // explore.html) — equivalent to Mapbox's own compact "behind a click" control,
@@ -257,15 +260,37 @@ function activeLegendTickMults() { return isFocusActive() ? FOCUS_LEGEND_TICK_MU
 // out-of-sample (exists in the boundary file but has no SCI data).
 const DEFAULT_FILL = "#e3e7ea";
 const NO_DATA_FILL = "#cdd3d8";
-const BORDER_COLOR = "#b9c2c9";
+const REGION_BORDER_COLOR = "#59656d";
+const COUNTRY_BORDER_COLOR = "#202326";
 // State/province (GADM1) outlines shown in Region mode. Colour is the midpoint
-// between the faint region borders (#b9c2c9) and the bolder national outlines
-// (#7c8893), so GADM1 reads as more prominent than region borders but less than
+// between the region borders and the bolder national outlines, so GADM1 reads as
+// more prominent than region borders but less than
 // country borders.
-const GADM1_BORDER_COLOR = "#9aa5ae";
+const GADM1_BORDER_COLOR = "#3d464d";
 // The clicked source region is filled in a very dark navy — darker than the top
 // colour bin (#084081) — so it stands out from the choropleth around it.
 const HIGHLIGHT_COLOR = "#04244a";
+function borderColorForLevel(levelKey) {
+  return levelKey === "level0" ? COUNTRY_BORDER_COLOR : REGION_BORDER_COLOR;
+}
+function borderOpacityForLevel(levelKey) {
+  return levelKey === "level0"
+    ? ["interpolate", ["linear"], ["zoom"], 1, 0.58, 4, 0.86]
+    : ["interpolate", ["linear"], ["zoom"], 1, 0.28, 4, 0.55];
+}
+function defaultNoDataHatchOpacity() {
+  return ["case", ["==", ["get", "has_data"], false], NO_DATA_HATCH_OPACITY, 0];
+}
+function selectionNoDataHatchOpacity(sel, focus) {
+  const opacity = [
+    "case",
+    ["==", ["get", "id"], sel.clickedId], 0,
+    ["==", ["get", "has_data"], false], NO_DATA_HATCH_OPACITY,
+  ];
+  if (focus) opacity.push(["!=", ["get", "country"], sel.clickedCountry], 0);
+  opacity.push(["==", ["feature-state", "sci"], null], NO_DATA_HATCH_OPACITY, 0);
+  return opacity;
+}
 
 // ---------------------------------------------------------------------------
 // Level configuration. Two levels only: Country and Region (GADM best).
@@ -416,14 +441,30 @@ async function loadSources(cfg) {
 async function loadGeometry(cfg) {
   if (!cfg.sharded) return getJSON(cfg.geo);
   const parts = await getJSON("geo/gadm2/_parts.json");
-  const features = [];
-  for (const cc of parts) {
-    try {
-      const shard = await getJSON("geo/gadm2/" + cc + ".geojson");
-      if (shard && shard.features) features.push(...shard.features);
-    } catch (e) {
-      console.warn("[SCI] gadm2 shard failed:", cc, e);
+  const shardFeatures = new Array(parts.length);
+  let nextIndex = 0;
+
+  async function loadNextShard() {
+    while (nextIndex < parts.length) {
+      const i = nextIndex++;
+      const cc = parts[i];
+      shardFeatures[i] = [];
+      let shard = null;
+      try {
+        shard = await getJSON("geo/gadm2/" + cc + ".geojson");
+      } catch (e) {
+        console.warn("[SCI] gadm2 shard failed:", cc, e);
+      }
+      if (shard && shard.features) shardFeatures[i] = shard.features;
     }
+  }
+
+  const workers = Math.min(GEOMETRY_SHARD_CONCURRENCY, parts.length);
+  await Promise.all(Array.from({ length: workers }, loadNextShard));
+
+  const features = [];
+  for (const shard of shardFeatures) {
+    if (shard && shard.length) features.push(...shard);
   }
   return { type: "FeatureCollection", features };
 }
@@ -633,6 +674,7 @@ map.on("load", async function () {
     cfg.geojson = geojson;
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
+    ensureNoDataHatchPattern(map);
 
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
     map.addLayer(
@@ -655,15 +697,28 @@ map.on("load", async function () {
     );
     map.addLayer(
       {
+        id: levelKey + "nodata",
+        type: "fill",
+        source: levelKey,
+        layout: { visibility: "none" },
+        paint: {
+          "fill-pattern": NO_DATA_HATCH_PATTERN,
+          "fill-opacity": defaultNoDataHatchOpacity(),
+        },
+      },
+      beforeId
+    );
+    map.addLayer(
+      {
         id: levelKey + "borders",
         type: "line",
         source: levelKey,
         layout: { visibility: "none", "line-join": "round" },
         paint: {
-          "line-color": BORDER_COLOR,
+          "line-color": borderColorForLevel(levelKey),
           // Thin and faint when zoomed out, firmer as you zoom in.
           "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.15, 4, 0.4, 7, 0.85],
-          "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.35, 4, 0.6],
+          "line-opacity": borderOpacityForLevel(levelKey),
         },
       },
       beforeId
@@ -828,8 +883,11 @@ map.on("load", async function () {
       ["==", ["get", "id"], sel.clickedId], HIGHLIGHT_COLOR,
       ["==", ["get", "has_data"], false], NO_DATA_FILL];
     if (focus) fillColor.push(["!=", ["get", "country"], sel.clickedCountry], DEFAULT_FILL);
-    fillColor.push(["!=", ["feature-state", "sci"], null], step, DEFAULT_FILL);
+    fillColor.push(["!=", ["feature-state", "sci"], null], step, NO_DATA_FILL);
     map.setPaintProperty(levelKey, "fill-color", fillColor);
+    if (map.getLayer(levelKey + "nodata")) {
+      map.setPaintProperty(levelKey + "nodata", "fill-opacity", selectionNoDataHatchOpacity(sel, focus));
+    }
     sel.refSci = refSci;
   }
 
@@ -992,9 +1050,9 @@ map.on("load", async function () {
           source: "border-country",
           layout: { visibility: "none", "line-join": "round" },
           paint: {
-            "line-color": "#7c8893",
+            "line-color": COUNTRY_BORDER_COLOR,
             "line-width": ["interpolate", ["linear"], ["zoom"], 1, 0.4, 4, 0.9, 7, 1.6],
-            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.55, 4, 0.85],
+            "line-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.72, 4, 0.96],
           },
         },
         beforeId
@@ -1009,6 +1067,7 @@ map.on("load", async function () {
       if (!map.getLayer(id)) return;
       const vis = id === activeId ? "visible" : "none";
       map.setLayoutProperty(id, "visibility", vis);
+      if (map.getLayer(id + "nodata")) map.setLayoutProperty(id + "nodata", "visibility", vis);
       if (map.getLayer(id + "borders")) map.setLayoutProperty(id + "borders", "visibility", vis);
     });
     // National + state/province outlines: shown only in Region mode, lifted above
@@ -1039,6 +1098,9 @@ map.on("load", async function () {
         ["==", ["get", "has_data"], false], NO_DATA_FILL,
         DEFAULT_FILL,
       ]);
+    }
+    if (map.getLayer(activeId + "nodata")) {
+      map.setPaintProperty(activeId + "nodata", "fill-opacity", defaultNoDataHatchOpacity());
     }
   }
 
