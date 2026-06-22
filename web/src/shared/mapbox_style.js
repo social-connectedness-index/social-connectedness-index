@@ -7,7 +7,7 @@ export function ensureNoDataHatchPattern(map) {
 
   const pixelRatio = 2;
   const size = 24;
-  const spacing = 12;
+  const spacing = 8;
   const strokeWidth = 2;
   const data = new Uint8Array(size * size * 4);
   for (let y = 0; y < size; y++) {
