@@ -13,13 +13,10 @@ This repository supports the Social Connectedness Index (SCI):
 
 - An R batch/scripting tool that cleans geospatial data and generates static SCI
   maps.
-- A static Vite web app (`web/`) with guided splash pages and four browser-only
-  tools:
-  - `index.html`: SCI splash page and entry point for the SCI tools.
+- A static Vite web app (`web/`) with four browser-only tools:
   - `generator.html`: Map Maker, canvas/SVG/MP4 static map generation.
   - `explore.html`: Mapbox interactive explorer.
   - `cluster.html`: Connected Communities clustering tool.
-  - `cgfr-intro.html`: CGFR splash page before the CGFR visualizer.
   - `cgfr.html`: Cross-Gender Friending Ratio visualizer at `/cgfr`.
 - Offline export scripts that convert local R/geospatial/SCI data into static
   assets under `web/public/data/`, then deploy those assets through Cloudflare
@@ -51,8 +48,6 @@ There is no database and no server runtime for the website.
     `export/make_region_borders.mjs`: post-export fixes. These matter for the
     deployed web data.
 - `web/`: static website.
-  - `web/index.html`, `web/cgfr-intro.html`, `web/src/landing.*`: guided
-    splash pages and shared splash-page interactions.
   - `web/src/generator/`: Map Maker UI and SCI coloring math.
   - `web/src/explore/`: Mapbox explorer.
   - `web/src/cluster/`: clustering UI, worker, pure clustering core.

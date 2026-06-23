@@ -5,13 +5,12 @@ import { defineConfig } from "vite";
 // keeps asset URLs relative so the site works on Cloudflare Pages, GitHub
 // Pages, or a subpath.
 //
-// HTML entry points:
-//   index.html      - guided SCI splash page / tool chooser
-//   generator.html  - the static Map Maker (canvas-rendered)
-//   explore.html    - the interactive Mapbox explorer
-//   cluster.html    - the Connected Communities clustering tool
-//   cgfr-intro.html - guided CGFR splash page
-//   cgfr.html       - the Cross-Gender Friending Ratio visualizer
+// Four HTML entry points:
+//   index.html      — landing page / tool chooser
+//   generator.html  — the static Map Maker (canvas-rendered)
+//   explore.html    — the interactive Mapbox explorer
+//   cluster.html    — the Connected Communities clustering tool
+//   cgfr.html       — the Cross-Gender Friending Ratio visualizer
 export default defineConfig({
   base: "./",
   build: {
@@ -24,7 +23,6 @@ export default defineConfig({
         generator: "generator.html",
         explore: "explore.html",
         cluster: "cluster.html",
-        cgfrIntro: "cgfr-intro.html",
         cgfr: "cgfr.html",
       },
     },
