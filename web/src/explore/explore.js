@@ -16,7 +16,7 @@
 // Each geo feature has a uniform schema: { id, country, name }.
 //
 // On click we fetch ONE source's friend->SCI map, compute percentile-based
-// thresholds client-side (25th-percentile reference, multiplier bins) and
+// thresholds client-side (median reference, multiplier bins) and
 // repaint. This is the same maths the standalone tool used for its non-GADM2
 // levels — now applied uniformly, which removes the R2 dependency and the
 // separate pre-binning ETL entirely.
@@ -195,10 +195,9 @@ function hoverTooltipHtml(feat, levelKey) {
 // ---------------------------------------------------------------------------
 // Colours + bins (shared by all three levels).
 // ---------------------------------------------------------------------------
-// Reference quantile of a source's friend distribution = "1x" (matches the
-// static Map Maker's default of the 25th percentile). User-adjustable via
-// the "Scale relative to … percentile" control in the panel.
-const DEFAULT_REFERENCE_QUANTILE = 0.25;
+// Reference quantile of a source's friend distribution = "1x". User-adjustable
+// via the "Scale relative to … percentile" control in the panel.
+const DEFAULT_REFERENCE_QUANTILE = 0.5;
 let referenceQuantile = DEFAULT_REFERENCE_QUANTILE;
 
 // Multiplier break points (in units of the reference value): 10 fill bins =
@@ -338,6 +337,26 @@ let boundsMeta = null;
 async function getBoundsMeta() {
   if (!boundsMeta) boundsMeta = await getJSON("bounds.json");
   return boundsMeta;
+}
+
+function normalizeCountryCode(code) {
+  code = String(code || "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) && code !== "XX" ? code : null;
+}
+
+const populationCache = {};
+async function getPopulationShard(countryCode) {
+  const code = normalizeCountryCode(countryCode);
+  if (!code) return null;
+  if (!(code in populationCache)) {
+    try {
+      populationCache[code] = await getJSON("pop/" + code + ".json");
+    } catch (e) {
+      console.warn("[SCI] population shard failed:", code, e);
+      populationCache[code] = null;
+    }
+  }
+  return populationCache[code];
 }
 
 // ISO2 → full country name (e.g. "DE" → "Germany"), loaded once for the
@@ -713,13 +732,14 @@ map.on("load", async function () {
     showSpinner();
     const sci = await fetchSci(cfg, clickedId);
     hideSpinner();
-    if (!sci) return;
+    if (!sci) return false;
     lastSelection = {
       levelKey: levelKey, cfg: cfg, clickedId: clickedId,
       clickedName: clickedName, clickedCountry: clickedCountry, sci: sci,
     };
     renderSelection(focusCountry ? "country" : "none");
     if (fly) flyToFeature(cfg, clickedId);
+    return true;
   }
 
   // Fit the camera to a region's geometry (union of its features' bounds).
@@ -1081,17 +1101,12 @@ map.on("load", async function () {
   // --- Startup country guess: never ask for precise browser geolocation. On the
   // deployed Cloudflare site, /cdn-cgi/trace provides a coarse IP country code
   // ("loc=US"). Local/dev and non-Cloudflare hosts fall back to the browser
-  // locale's region subtag. Either way this only pans the map; it never selects a
-  // source region or fetches that region's SCI row.
+  // locale's region subtag. The guessed country is framed, then its highest-
+  // population clickable region is selected so first paint is not an empty map.
   let userInteractedBeforeStartup = false;
   const markUserInteracted = () => { userInteractedBeforeStartup = true; };
   map.getCanvas().addEventListener("pointerdown", markUserInteracted, { passive: true });
   map.getCanvas().addEventListener("wheel", markUserInteracted, { passive: true });
-
-  function normalizeCountryCode(code) {
-    code = String(code || "").trim().toUpperCase();
-    return /^[A-Z]{2}$/.test(code) && code !== "XX" ? code : null;
-  }
 
   async function countryFromCloudflareTrace() {
     try {
@@ -1167,6 +1182,39 @@ map.on("load", async function () {
     }
   }
 
+  async function startupRegionCandidates(code) {
+    code = normalizeCountryCode(code);
+    if (!code) return [];
+    const cfg = LEVELS.level2;
+    await ensureLevel("level2");
+    const pop = await getPopulationShard(code);
+    if (!cfg.geojson || !pop) return [];
+
+    const seen = new Set();
+    const out = [];
+    for (const f of cfg.geojson.features || []) {
+      const p = f.properties || {};
+      if (p.country !== code || p.has_data === false || seen.has(p.id)) continue;
+      const value = Number(pop[p.id]);
+      if (!Number.isFinite(value)) continue;
+      seen.add(p.id);
+      out.push({ id: p.id, name: p.name, country: p.country, population: value });
+    }
+    out.sort((a, b) => b.population - a.population);
+    return out;
+  }
+
+  async function selectStartupRegionForCountry(code) {
+    const cfg = LEVELS.level2;
+    const candidates = await startupRegionCandidates(code);
+    for (const region of candidates) {
+      if (lastSelection || userInteractedBeforeStartup) return false;
+      const ok = await selectRegion("level2", cfg, region.id, region.name, region.country, false);
+      if (ok) return true;
+    }
+    return false;
+  }
+
   let startupRan = false;
   async function runStartupCountryGuess() {
     if (startupRan) return; // once per page load (not on manual tour replays)
@@ -1174,6 +1222,8 @@ map.on("load", async function () {
     const code = await guessStartupCountry();
     if (!code || lastSelection || userInteractedBeforeStartup) return;
     await fitToCountry(code);
+    if (lastSelection || userInteractedBeforeStartup) return;
+    await selectStartupRegionForCountry(code);
   }
   onTourEnd = runStartupCountryGuess;
 

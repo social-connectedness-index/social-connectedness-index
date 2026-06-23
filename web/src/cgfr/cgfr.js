@@ -67,6 +67,7 @@ const CONSTRAINED_MOBILE = IS_IOS || IS_COARSE_POINTER || LOW_DEVICE_MEMORY;
 if (CONSTRAINED_MOBILE && "workerCount" in mapboxgl) {
   mapboxgl.workerCount = Math.min(mapboxgl.workerCount || 2, 1);
 }
+const GEOMETRY_SHARD_CONCURRENCY = CONSTRAINED_MOBILE ? 4 : 10;
 
 const EMPTY_STYLE = {
   version: 8,
@@ -258,20 +259,16 @@ function metricIdForFeature(cfg, p) {
   return p.id;
 }
 
-function stampFeatureValues(cfg) {
+function prepareFeatureValues(cfg) {
   if (!cfg.geojson || !cfg.cgfr) return;
-  const focus = isFocusActiveFor(cfg);
+  const emptyRow = (cfg.cgfr.cutoffs || cutoffs).map(() => null);
   cfg.geojson.features.forEach((f) => {
     const p = f.properties;
     const metricId = p.metric_id || metricIdForFeature(cfg, p);
     const row = cfg.cgfr.values[metricId];
-    const value = row && row[cutoffIndex];
     p.metric_id = metricId;
     p.has_data = hasAnyValue(row);
-    p.has_value = Number.isFinite(value);
-    p.cgfr = Number.isFinite(value) ? value : null;
-    p.in_focus = !focus || p.country === selected.country;
-    p.selected = selected && selected.levelKey === gSel && selected.metricId === metricId;
+    p.cgfr_values = row ? row.map((v) => (Number.isFinite(v) ? v : null)) : emptyRow;
   });
 }
 
@@ -283,16 +280,27 @@ function hoverTooltipHtml(feat, levelKey) {
 async function loadGeometry(cfg) {
   if (!cfg.sharded) return getJSON(cfg.geo);
   const parts = await getJSON("geo/gadm2/_parts.json");
-  const shards = await Promise.all(
-    parts.map((cc) =>
-      getJSON("geo/gadm2/" + cc + ".geojson").catch((e) => {
+  const shardFeatures = new Array(parts.length);
+  let nextIndex = 0;
+
+  async function loadNextShard() {
+    while (nextIndex < parts.length) {
+      const i = nextIndex++;
+      const cc = parts[i];
+      shardFeatures[i] = [];
+      const shard = await getJSON("geo/gadm2/" + cc + ".geojson").catch((e) => {
         console.warn("[CGFR] GADM-best shard failed:", cc, e);
         return { features: [] };
-      })
-    )
-  );
+      });
+      if (shard && shard.features) shardFeatures[i] = shard.features;
+    }
+  }
+
+  const workers = Math.min(GEOMETRY_SHARD_CONCURRENCY, parts.length);
+  await Promise.all(Array.from({ length: workers }, loadNextShard));
+
   const features = [];
-  for (const s of shards) if (s && s.features) features.push(...s.features);
+  for (const shard of shardFeatures) if (shard && shard.length) features.push(...shard);
   return { type: "FeatureCollection", features };
 }
 
@@ -440,6 +448,22 @@ function quantileBreaks(values) {
   return breaks;
 }
 
+function metricRecords(cfg) {
+  if (cfg._metricRecords) return cfg._metricRecords;
+  const seen = new Set();
+  const records = [];
+  if (cfg.geojson) {
+    for (const f of cfg.geojson.features) {
+      const p = f.properties;
+      if (seen.has(p.metric_id)) continue;
+      seen.add(p.metric_id);
+      records.push({ metricId: p.metric_id, country: p.country });
+    }
+  }
+  cfg._metricRecords = records;
+  return records;
+}
+
 function levelPoints(cfg) {
   if (cfg._points) return cfg._points;
   const pts = [];
@@ -463,10 +487,10 @@ function valuesForScale(cfg) {
   if (!cfg || !cfg.geojson) return [];
   const focus = isFocusActiveFor(cfg);
   const selectedCountry = focus ? selected.country : null;
-  const seen = new Set();
   const values = [];
 
   if (dynamicScale) {
+    const seen = new Set();
     const bounds = map.getBounds();
     if (!bounds) return values;
     for (const p of levelPoints(cfg)) {
@@ -481,19 +505,24 @@ function valuesForScale(cfg) {
     return values;
   }
 
-  for (const f of cfg.geojson.features) {
-    const p = f.properties;
+  for (const p of metricRecords(cfg)) {
     if (focus && p.country !== selectedCountry) continue;
-    if (seen.has(p.metric_id)) continue;
-    const value = valueForMetricId(cfg, p.metric_id);
+    const value = valueForMetricId(cfg, p.metricId);
     if (!Number.isFinite(value)) continue;
-    seen.add(p.metric_id);
     values.push(value);
   }
   return values;
 }
 
 function updateActiveBreaks(cfg) {
+  if (!dynamicScale) {
+    const focus = isFocusActiveFor(cfg);
+    const cacheKey = cutoffIndex + "|" + (focus ? "focus:" + selected.country : "all");
+    cfg._breakCache ||= {};
+    if (!cfg._breakCache[cacheKey]) cfg._breakCache[cacheKey] = quantileBreaks(valuesForScale(cfg));
+    activeBreaks = cfg._breakCache[cacheKey];
+    return;
+  }
   const values = valuesForScale(cfg);
   activeBreaks = values.length ? quantileBreaks(values) : COLOR_BREAKS;
 }
@@ -514,29 +543,32 @@ function updateLegend() {
   legendScale.innerHTML = '<div class="legend-bar">' + bar + "</div>" + '<div class="legend-ticks">' + labels + "</div>";
 }
 
+function cgfrValueExpression() {
+  return ["at", cutoffIndex, ["get", "cgfr_values"]];
+}
+
 function fillExpression() {
-  const step = ["step", ["coalesce", ["get", "cgfr"], -1], CGFR_COLORS[0]];
+  const value = cgfrValueExpression();
+  const step = ["step", ["to-number", value, -1], CGFR_COLORS[0]];
   for (let i = 0; i < activeBreaks.length; i++) step.push(activeBreaks[i], CGFR_COLORS[i + 1]);
-  return [
-    "case",
-    ["==", ["get", "in_focus"], false], DEFAULT_FILL,
-    ["==", ["get", "has_value"], false], NO_DATA_FILL,
-    step,
-  ];
+  const expr = ["case"];
+  if (isFocusActiveFor(LEVELS[gSel])) expr.push(["!=", ["get", "country"], selected.country], DEFAULT_FILL);
+  expr.push(["==", value, null], NO_DATA_FILL, step);
+  return expr;
 }
 
 function borderColorExpression(baseColor) {
-  return [
-    "case",
-    ["==", ["get", "selected"], true], HIGHLIGHT_COLOR,
-    baseColor,
-  ];
+  if (!selected || selected.levelKey !== gSel) return baseColor;
+  return ["case", ["==", ["get", "metric_id"], selected.metricId], HIGHLIGHT_COLOR, baseColor];
 }
 
 function borderWidthExpression() {
+  if (!selected || selected.levelKey !== gSel) {
+    return ["interpolate", ["linear"], ["zoom"], 1, 0.15, 4, 0.4, 7, 0.85];
+  }
   return [
     "case",
-    ["==", ["get", "selected"], true],
+    ["==", ["get", "metric_id"], selected.metricId],
     ["interpolate", ["linear"], ["zoom"], 1, 1.1, 4, 1.8, 7, 2.5],
     ["interpolate", ["linear"], ["zoom"], 1, 0.15, 4, 0.4, 7, 0.85],
   ];
@@ -550,6 +582,11 @@ function selectedOutlineWidthExpression() {
   return ["interpolate", ["linear"], ["zoom"], 1, 1.2, 4, 1.8, 7, 2.6];
 }
 
+function selectedOutlineOpacityExpression(levelKey) {
+  if (!selected || selected.levelKey !== levelKey) return 0;
+  return ["case", ["==", ["get", "metric_id"], selected.metricId], 1, 0];
+}
+
 function liftSelectedOutline(levelKey) {
   const id = selectedOutlineLayerId(levelKey);
   if (!map.getLayer(id)) return;
@@ -560,13 +597,14 @@ function liftSelectedOutline(levelKey) {
 function repaintLevel(levelKey) {
   const cfg = LEVELS[levelKey];
   if (!cfg || !cfg.geojson || !map.getSource(levelKey)) return;
-  stampFeatureValues(cfg);
   updateActiveBreaks(cfg);
-  map.getSource(levelKey).setData(cfg.geojson);
   if (map.getLayer(levelKey)) map.setPaintProperty(levelKey, "fill-color", fillExpression());
   if (map.getLayer(levelKey + "borders")) {
     map.setPaintProperty(levelKey + "borders", "line-color", borderColorExpression(borderColorForLevel(levelKey)));
     map.setPaintProperty(levelKey + "borders", "line-width", borderWidthExpression());
+  }
+  if (map.getLayer(selectedOutlineLayerId(levelKey))) {
+    map.setPaintProperty(selectedOutlineLayerId(levelKey), "line-opacity", selectedOutlineOpacityExpression(levelKey));
   }
   liftSelectedOutline(levelKey);
   updateLegend();
@@ -698,7 +736,7 @@ map.on("load", async function () {
       return d;
     });
     cfg.geojson = geojson;
-    stampFeatureValues(cfg);
+    prepareFeatureValues(cfg);
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
     const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
@@ -738,9 +776,8 @@ map.on("load", async function () {
         paint: {
           "line-color": SELECTED_OUTLINE_COLOR,
           "line-width": selectedOutlineWidthExpression(),
-          "line-opacity": ["case", ["==", ["get", "selected"], true], 1, 0],
+          "line-opacity": selectedOutlineOpacityExpression(levelKey),
         },
-        filter: ["==", ["get", "selected"], true],
       },
       beforeId
     );

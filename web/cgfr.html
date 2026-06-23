@@ -11,6 +11,7 @@
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 
+  <link rel="stylesheet" href="./src/shared/global.css" />
   <link rel="stylesheet" href="./src/shared/tour.css" />
   <link rel="stylesheet" href="./src/cgfr/cgfr.css" />
 </head>
@@ -73,7 +74,7 @@
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
           </button>
-          <span class="info-tip" role="tooltip">Changes which friendships count in the CGFR measure. Lower values use only each person's strongest ties; higher values include a wider friendship circle.</span>
+          <span class="info-tip" role="tooltip">The slider switches the CGFR measure across top-friend cutoffs. Lower values use only each person's strongest ties; higher values include a wider friendship circle.</span>
         </span></label>
       </div>
       <input type="range" id="cutoff-slider" min="0" max="9" step="1" value="5"
@@ -99,7 +100,7 @@
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
           </button>
-          <span class="info-tip" role="tooltip">Turn this on to adapt the color scale to the countries or regions currently visible on the map. By default, colors are scaled across all countries or regions in the active view.</span>
+          <span class="info-tip" role="tooltip">Off by default. Colors are scaled from all countries or regions in the active level, so they stay comparable as you pan and zoom. Turn it on to recompute the scale from countries or regions whose centers are inside the current map view.</span>
         </span></span>
         <span class="switch">
           <input type="checkbox" id="dynamic-scale" />

@@ -729,7 +729,7 @@ const comparisonLegendTitle = () => ({
 
 function autoTitle() {
   if (compareMode()) {
-    return `Where do people have more friends: ${labelOf($("sourceA"))} or ${labelOf($("sourceB"))}?`;
+    return `Where do people have more friends:\n${labelOf($("sourceA"))} or ${labelOf($("sourceB"))}?`;
   }
   return `Where do people in ${sourceLabelText()}\nhave the most friends?`;
 }

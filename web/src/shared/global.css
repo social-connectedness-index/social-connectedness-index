@@ -1,0 +1,6 @@
+/* Shared browser interaction defaults for every static entry point. */
+html,
+body,
+body * {
+  touch-action: manipulation;
+}

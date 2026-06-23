@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@100;400;600;700&display=swap');
 
 * { box-sizing: border-box; }
+:root {
+  --mapmaker-panel-width: clamp(340px, calc(33.333vw - 28px), 760px);
+}
 html, body {
   margin: 0; height: 100%;
   font-family: 'Poppins', sans-serif;
@@ -10,7 +13,7 @@ body { display: flex; height: 100vh; overflow: hidden; }
 
 /* ---- sidebar ---- */
 #panel {
-  width: 340px; flex: 0 0 340px;
+  width: var(--mapmaker-panel-width); flex: 0 0 var(--mapmaker-panel-width);
   height: calc(100vh - 28px);
   margin: 14px;
   padding: 16px 18px;
@@ -209,7 +212,7 @@ details > *:not(summary) { margin-top: 4px; }
 
 /* ---- about box (matches the Cluster + Explorer about panels) ---- */
 #about {
-  position: fixed; left: 14px; top: 14px; width: 340px; max-width: calc(100vw - 28px);
+  position: fixed; left: 14px; top: 14px; width: var(--mapmaker-panel-width); max-width: calc(100vw - 28px);
   max-height: calc(100vh - 28px); overflow-y: auto;
   background: #fff; border: 1px solid #e1e8ec; border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
