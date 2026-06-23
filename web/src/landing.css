@@ -240,6 +240,8 @@ html, body {
   text-decoration: none;
 }
 .landing-foot a:hover { text-decoration: underline; }
+/*
+Disabled lab credit styles for now.
 .lab-credit {
   margin-top: 0;
   display: inline-flex;
@@ -253,6 +255,7 @@ html, body {
 .lab-credit .lab-logo { width: 38px; height: 38px; display: block; }
 .lab-credit strong { color: #10617b; font-weight: 600; }
 .lab-credit:hover strong { text-decoration: underline; }
+*/
 
 /* Tablet: drop the 3-up grid to 2 columns before it gets cramped. */
 @media (max-width: 1000px) and (min-width: 721px) {

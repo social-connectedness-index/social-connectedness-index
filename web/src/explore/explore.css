@@ -323,7 +323,8 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
 #data-explanation a { color: #1879d5; }
 #data-explanation .map-attribution { margin-top: 12px; font-size: 11px; color: #7a8893; }
 
-/* Social Capital Lab credit inside the "About this map" panel. */
+/*
+Disabled lab credit styles for now.
 .lab-mark {
   display: flex;
   align-items: center;
@@ -339,6 +340,7 @@ button:not(.active):hover { background-color: #c3c3c3; color: white; transform: 
 .lab-mark img { width: 28px; height: 28px; display: block; }
 .lab-mark span { font-weight: 600; color: #10617b; }
 .lab-mark:hover span { text-decoration: underline; }
+*/
 
 /* Results card — compact, stuck to the BOTTOM-LEFT, hugging its content
    instead of filling the height. (top/right reset to override the base rule.) */

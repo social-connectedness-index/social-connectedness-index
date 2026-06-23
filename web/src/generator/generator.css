@@ -198,7 +198,8 @@ details > *:not(summary) { margin-top: 4px; }
   border-color: #b9d0da;
 }
 
-/* Social Capital Lab credit (inside the About box, matching the Explorer). */
+/*
+Disabled lab credit styles for now.
 .lab-mark {
   display: flex; align-items: center; gap: 9px;
   margin-top: 14px; padding-top: 14px;
@@ -209,6 +210,7 @@ details > *:not(summary) { margin-top: 4px; }
 .lab-mark img { width: 28px; height: 28px; display: block; }
 .lab-mark span { font-weight: 600; color: #10617b; }
 .lab-mark:hover span { text-decoration: underline; }
+*/
 
 /* ---- about box (matches the Cluster + Explorer about panels) ---- */
 #about {
