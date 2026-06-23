@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Cross-Gender Friending Ratio</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="description" content="A guided introduction to the Cross-Gender Friending Ratio before opening the interactive visualizer." />
+    <script>document.documentElement.classList.add("reveal-ready");</script>
+    <link rel="stylesheet" href="./src/shared/global.css" />
+    <link rel="stylesheet" href="./src/landing.css" />
+  </head>
+  <body class="story-page cgfr-story">
+    <main>
+      <section class="splash-hero cgfr-hero">
+        <div class="hero-content reveal">
+          <h1 class="fit-heading">Cross-Gender Friending Ratio</h1>
+          <p class="hero-lede">
+            The CGFR asks whether men's and women's friendship networks include
+            women at similar rates in the same place.
+          </p>
+          <div class="hero-actions" aria-label="Primary actions">
+            <a class="primary-link" href="#meaning">Learn more</a>
+            <a class="secondary-link" href="./cgfr.html">Open the map</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="meaning" class="intro-band cgfr-intro">
+        <div class="section-copy reveal">
+          <p class="eyebrow">The core idea</p>
+          <h2>It shows how separated friendship networks are by gender.</h2>
+          <p>
+            For each location, the CGFR compares the share of women in men's
+            friendship networks with the share of women in women's friendship
+            networks. The visualizer also includes a slider for checking whether
+            the pattern changes when the friendship circle is defined more narrowly
+            or broadly.
+          </p>
+        </div>
+        <div class="ratio-demo reveal" aria-label="CGFR equation illustration">
+          <div class="ratio-row">
+            <span>Women in men's networks</span>
+            <strong>62%</strong>
+          </div>
+          <div class="ratio-rule"></div>
+          <div class="ratio-row">
+            <span>Women in women's networks</span>
+            <strong><span class="ratio-op ratio-divide" aria-hidden="true">&divide;</span>82%</strong>
+          </div>
+          <div class="ratio-rule"></div>
+          <div class="ratio-row ratio-result">
+            <span>CGFR</span>
+            <strong><span class="ratio-op ratio-equals" aria-hidden="true">=</span>0.76</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="story-band">
+        <div class="section-copy reveal">
+          <p class="eyebrow">How to read it</p>
+          <h2>Values near 1 mean less gender segregation in friendship networks.</h2>
+          <p>
+            A CGFR of 1 means men and women form equal shares of their ties with
+            women. Values below 1 mean men's networks include fewer women relative
+            to women's networks. That gap is the signal the map is showing.
+          </p>
+        </div>
+        <div class="insight-grid cgfr-grid">
+          <article class="insight-card reveal">
+            <h3>Start with the scale</h3>
+            <p>
+              Darker or higher values point to places where cross-gender friendship
+              networks are less separated.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Use the slider if needed</h3>
+            <p>
+              The main pattern is the ratio. The slider is there for checking
+              whether it changes across narrower or broader friendship circles.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Compare within countries</h3>
+            <p>
+              The paper finds a large share of global regional variation happens
+              within countries, not only between them.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Use care with interpretation</h3>
+            <p>
+              The measure reflects Facebook friendships, so it should be read as
+              evidence about social networks, not a complete measure of society.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="expect-band cgfr-evidence">
+        <div class="expect-layout">
+          <div class="section-copy reveal">
+            <p class="eyebrow">Why it matters</p>
+            <h2>The paper links CGFR to broader gender relations.</h2>
+          </div>
+          <ol class="numbered-list">
+            <li class="reveal">
+              <strong>Across countries,</strong>
+              CGFR is strongly related to gender gaps in labor force participation.
+            </li>
+            <li class="reveal">
+              <strong>Within countries,</strong>
+              people in higher-CGFR regions tend to report more equal gender
+              attitudes in survey data.
+            </li>
+            <li class="reveal">
+              <strong>Inside the United States,</strong>
+              county-level differences in CGFR line up with demographic and
+              socioeconomic patterns.
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="open" class="tools-band single-cta">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Open the visualizer</p>
+          <h2>Open the map with the ratio in mind.</h2>
+          <p>
+            Choose countries or regions and look for the places where
+            cross-gender friendship networks are more or less separated.
+          </p>
+        </div>
+        <div class="cta-row reveal">
+          <a class="primary-link" href="./cgfr.html">Open CGFR visualizer</a>
+          <a class="secondary-link on-light" href="./index.html#tools">Back to SCI tools</a>
+        </div>
+      </section>
+
+      <section class="citations" id="citations">
+        <div class="citations-head">
+          <p class="citations-intro">If you use the Cross-Gender Friending Ratio in your work, please cite:</p>
+          <button type="button" id="bibtex-btn" class="bibtex-btn" title="Download citations as BibTeX">
+            <span aria-hidden="true">&darr;</span>
+            BibTeX
+          </button>
+        </div>
+        <ol class="citation-list">
+          <li class="citation">
+            <span class="citation-text">Bailey, M., Johnston, D., Kuchler, T., Kumar, A., &amp; Stroebel, J. (2025). <a href="https://www.aeaweb.org/articles?id=10.1257/pandp.20251032" target="_blank" rel="noopener">Cross-Gender Social Ties around the World</a>. <em>AEA Papers and Proceedings</em>, 115, 132-138.</span>
+          </li>
+        </ol>
+        <p class="data-source">
+          Data: <a href="https://data.humdata.org/dataset/cross-gender-ties" target="_blank" rel="noopener">Cross-Gender Ties</a> (Humanitarian Data Exchange)
+        </p>
+      </section>
+    </main>
+
+    <footer class="landing-foot">
+      <a class="lab-credit" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener">
+        <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" class="lab-logo" />
+        <span><strong>Social Capital Lab</strong></span>
+      </a>
+    </footer>
+
+    <script type="module" src="./src/landing.js"></script>
+  </body>
+</html>
