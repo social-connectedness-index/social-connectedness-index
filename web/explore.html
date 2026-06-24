@@ -100,10 +100,10 @@
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
           </button>
-          <span class="info-tip" role="tooltip">Sets which point of the selected place's connection distribution counts as the baseline "1x" color. By default the 50th percentile is used. Lower it to make more regions read as strongly connected; raise it to make the map more selective.</span>
+          <span class="info-tip" role="tooltip">Sets which point of the selected place's connection distribution counts as the baseline "1x" color. By default the 25th percentile is used. Lower it to make more regions read as strongly connected; raise it to make the map more selective.</span>
         </span></label>
         <span class="ref-quantile-field">
-          <input type="number" id="ref-quantile" min="0" max="100" step="1" value="50" />
+          <input type="number" id="ref-quantile" min="0" max="100" step="1" value="25" />
           <span class="ref-quantile-suffix">th percentile</span>
         </span>
       </div>

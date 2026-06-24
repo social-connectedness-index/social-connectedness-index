@@ -197,7 +197,7 @@ function hoverTooltipHtml(feat, levelKey) {
 // ---------------------------------------------------------------------------
 // Reference quantile of a source's friend distribution = "1x". User-adjustable
 // via the "Scale relative to … percentile" control in the panel.
-const DEFAULT_REFERENCE_QUANTILE = 0.5;
+const DEFAULT_REFERENCE_QUANTILE = 0.25;
 let referenceQuantile = DEFAULT_REFERENCE_QUANTILE;
 
 // Multiplier break points (in units of the reference value): 10 fill bins =
