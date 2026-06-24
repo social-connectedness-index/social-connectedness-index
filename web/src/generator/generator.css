@@ -25,7 +25,7 @@ body { display: flex; height: 100vh; overflow: hidden; }
   container-type: inline-size;
   z-index: 1;
 }
-/* cross-tool nav at the top of the sidebar. */
+/* cross-tool nav at the top of the sidebar (Home / Interactive Explorer). */
 .tool-nav {
   display: flex; justify-content: space-between; align-items: center;
   margin: 0 0 8px; font-size: 12.5px;
