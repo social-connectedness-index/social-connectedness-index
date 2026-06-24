@@ -1483,6 +1483,11 @@ async function prepareMobileGeneratedMapView() {
   }
   syncViewportLayout();
   await nextAnimationFrame();
+  try {
+    map.resize();
+    applyMapOffset();
+  } catch (_) {}
+  await nextAnimationFrame();
 }
 
 // The animation controls have three UI states:
@@ -2344,11 +2349,15 @@ function fitToBbox(bbox) {
   const [minLon, minLat, maxLon, maxLat] = bbox;
   const pad = currentMapPadding();
   try {
+    map.setPadding(pad);
     map.fitBounds([[minLon, minLat], [maxLon, maxLat]], {
       // Reserve room for floating panels so the map frames in the clear area.
+      // Do not retain the extra 40px fit margin as global Mapbox padding; mobile
+      // visualViewport/ResizeObserver callbacks re-apply the persistent padding.
       padding: { top: 40 + pad.top, right: 40 + pad.right, bottom: 40 + pad.bottom, left: 40 + pad.left },
       duration: 900,
       maxZoom: 8,
+      retainPadding: false,
     });
   } catch (e) { console.warn("[SCI] fitBounds failed:", e); }
 }
