@@ -32,13 +32,17 @@
       <div class="section-label">Friendships to</div>
       <label>Region type</label>
       <select id="originType"></select>
-      <label id="regionLabel">Region</label>
-      <input id="searchA" type="text" placeholder="Type to filter…" autocomplete="off" />
-      <div id="sourceA" class="listbox" role="listbox" tabindex="0"></div>
-      <div id="sourceBWrap" style="display:none; margin-top:10px">
-        <label>Region B</label>
-        <input id="searchB" type="text" placeholder="Type to filter…" autocomplete="off" />
-        <div id="sourceB" class="listbox" role="listbox" tabindex="0"></div>
+      <div id="sourcePicker" class="source-picker">
+        <div class="source-column">
+          <label id="regionLabel">Region</label>
+          <input id="searchA" type="text" placeholder="Type to filter…" autocomplete="off" />
+          <div id="sourceA" class="listbox" role="listbox" tabindex="0"></div>
+        </div>
+        <div id="sourceBWrap" class="source-column" style="display:none">
+          <label>Region B</label>
+          <input id="searchB" type="text" placeholder="Type to filter…" autocomplete="off" />
+          <div id="sourceB" class="listbox" role="listbox" tabindex="0"></div>
+        </div>
       </div>
       <div id="sourceHint" class="help-hint"></div>
 
@@ -67,6 +71,33 @@
         <label class="check inline-check"><input id="titleOn" type="checkbox" checked /> Show</label>
       </div>
 
+      <div id="cpaletteWrap" class="comparison-settings" style="display:none">
+        <label>Comparison colors</label>
+        <div class="compare-grid">
+          <div class="compare-field">
+            <label for="cpaletteA">Region A</label>
+            <select id="cpaletteA"></select>
+          </div>
+          <div class="compare-field">
+            <label for="cpaletteB">Region B</label>
+            <select id="cpaletteB"></select>
+          </div>
+        </div>
+
+        <label>Legend labels (optional)</label>
+        <div class="compare-grid">
+          <div class="compare-field">
+            <label for="labelA">Region A</label>
+            <input id="labelA" type="text" />
+          </div>
+          <div class="compare-field">
+            <label for="labelB">Region B</label>
+            <input id="labelB" type="text" />
+          </div>
+        </div>
+        <div class="help-hint">Short names used in the legend. Auto-filled from the selected regions; edit to override.</div>
+      </div>
+
       <hr />
       <details id="advanced">
         <summary>Advanced options</summary>
@@ -80,24 +111,6 @@
         <div id="paletteWrap">
           <label>Color palette</label>
           <select id="palette"></select>
-        </div>
-        <div id="cpaletteWrap" style="display:none">
-          <label>Comparison colors</label>
-          <div class="compare-colors">
-            <div class="compare-color">
-              <label for="cpaletteA">Region A</label>
-              <select id="cpaletteA"></select>
-            </div>
-            <div class="compare-color">
-              <label for="cpaletteB">Region B</label>
-              <select id="cpaletteB"></select>
-            </div>
-          </div>
-          <label>Legend label for Region A (optional)</label>
-          <input id="labelA" type="text" />
-          <label>Legend label for Region B (optional)</label>
-          <input id="labelB" type="text" />
-          <div class="help-hint">Short names used in the legend. Auto-filled from the selected regions; edit to override.</div>
         </div>
 
         <div id="singleBreaksWrap">
@@ -158,7 +171,7 @@
           </div>
         </div>
 
-        <label class="check" id="highlightWrap"><input id="highlight" type="checkbox" /> Color home region</label>
+        <label class="check" id="highlightWrap"><input id="highlight" type="checkbox" checked /> Color home region</label>
         <label class="check"><input id="borders" type="checkbox" checked /> Show state borders</label>
 
         <div class="grid2">

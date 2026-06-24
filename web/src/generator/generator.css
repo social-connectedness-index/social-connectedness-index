@@ -22,9 +22,10 @@ body { display: flex; height: 100vh; overflow: hidden; }
   border: 1px solid #e1e8ec;
   border-radius: 10px;
   box-shadow: 0 8px 28px rgba(16, 97, 123, 0.18);
+  container-type: inline-size;
   z-index: 1;
 }
-/* cross-tool nav at the top of the sidebar (← All tools / Interactive Explorer →) */
+/* cross-tool nav at the top of the sidebar. */
 .tool-nav {
   display: flex; justify-content: space-between; align-items: center;
   margin: 0 0 8px; font-size: 12.5px;
@@ -107,17 +108,39 @@ body { display: flex; height: 100vh; overflow: hidden; }
    or typing auto-ticks the Show checkbox (see wireShowToggle in generator.js). */
 .input-with-toggle input[type="text"].show-off, .input-with-toggle textarea.show-off { background: #f1f4f6; color: #9aa6b0; }
 
-/* Comparison maps: two side-by-side colour pickers (Region A / Region B). The row
-   hugs the "Comparison colors" heading, and the per-side captions are tight/muted so
-   the whole block reads as one group (not a floating heading). */
-.compare-colors { display: flex; gap: 12px; margin-top: 4px; }
-.compare-color { flex: 1; min-width: 0; }
-.compare-color select { width: 100%; }
-.compare-color > label { font-size: 12px; color: #6a7480; margin: 0 0 2px; }
+.comparison-settings {
+  margin-top: 10px;
+}
+.compare-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+.compare-field {
+  min-width: 0;
+}
+.compare-field select,
+.compare-field input {
+  width: 100%;
+}
+.compare-field > label {
+  font-size: 12px;
+  color: #6a7480;
+  margin: 0 0 2px;
+}
 hr { border: none; border-top: 1px solid #eef2f4; margin: 12px 0; }
 
 .help-hint { color: #6a7480; font-size: 12px; margin-top: 3px; line-height: 1.35; }
 #searchA, #searchB { margin-bottom: 5px; }
+
+.source-picker.compare-active {
+  display: grid;
+  gap: 10px;
+}
+
+.source-column {
+  min-width: 0;
+}
 
 /* Source-region picker: a custom always-visible scrollable list, replacing a
    native <select size>. A sized native select collapses to a tap-to-open picker
@@ -135,6 +158,14 @@ hr { border: none; border-top: 1px solid #eef2f4; margin: 12px 0; }
 #panel .listbox .opt.sel { background: #1879d5; color: #fff; }
 #panel .listbox .opt.sel:hover { background: #1568b8; }
 #countrySearch { margin-top: 8px; margin-bottom: 5px; }
+
+@container (min-width: 500px) {
+  .source-picker.compare-active,
+  .compare-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
 
 /* click-to-toggle checkbox lists (region groups + individual countries) */
 .checklist {

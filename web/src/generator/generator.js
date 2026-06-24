@@ -1202,6 +1202,7 @@ async function sharePng(platform) {
 
 function syncCompareUI() {
   const on = compareMode();
+  if ($("sourcePicker")) $("sourcePicker").classList.toggle("compare-active", on);
   if ($("sourceBWrap")) $("sourceBWrap").style.display = on ? "" : "none";
   if ($("cpaletteWrap")) $("cpaletteWrap").style.display = on ? "" : "none";
   if ($("paletteWrap")) $("paletteWrap").style.display = on ? "none" : "";
@@ -1242,7 +1243,7 @@ function reset() {
   if ($("cpaletteA")) setSelectByValue("cpaletteA", "Red");
   if ($("cpaletteB")) setSelectByValue("cpaletteB", "Blue");
   $("borders").checked = true;
-  $("highlight").checked = false;
+  $("highlight").checked = true;
   for (const id of ["labelA", "labelB"]) {
     if ($(id)) {
       $(id).dataset.autoText = "";
