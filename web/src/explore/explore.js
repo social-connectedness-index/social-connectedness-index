@@ -315,6 +315,12 @@ let lastSelection = null; // { levelKey, cfg, clickedId, clickedName, clickedCou
 // Dynamic colour scale: when on, the reference is recomputed from the regions
 // currently on screen (recalculated on moveend), so coloring adapts to the view.
 let dynamicScale = true;
+// For subnational sources, broad views often include thousands of cross-country
+// values at the exported floor of 1. If those dominate the visible median, the
+// clicked source's own country saturates into the top colour bin. When enough
+// same-country regions are visible, use that country as a floor for the dynamic
+// reference while still colouring every visible region.
+const DYNAMIC_COUNTRY_REF_MIN_REGIONS = 100;
 
 // ---------------------------------------------------------------------------
 // Fetch helpers.
@@ -490,6 +496,16 @@ function getPercentile(values, percentile) {
   const sorted = [...values].sort((a, b) => a - b);
   const index = Math.floor(percentile * sorted.length);
   return sorted[Math.min(index, sorted.length - 1)];
+}
+
+function referenceFromValues(values) {
+  const sciValues = values.filter((v) => v !== null && !isNaN(v));
+  let refSci = getPercentile(sciValues, referenceQuantile);
+  if (!refSci || refSci <= 0) {
+    const pos = sciValues.filter((v) => v > 0);
+    refSci = pos.length ? Math.min.apply(null, pos) : null;
+  }
+  return refSci && refSci > 0 ? refSci : null;
 }
 
 // Bounding-box centre of a feature's geometry (one representative point per
@@ -833,12 +849,8 @@ map.on("load", async function () {
 
     // Reference value over the (optionally country-restricted) friend
     // distribution, excluding the source's own self-link. Guaranteed positive.
-    const sciValues = sciList.filter((v) => v !== null && !isNaN(v) && v !== clickedSci);
-    let refSci = getPercentile(sciValues, referenceQuantile);
-    if (!refSci || refSci <= 0) {
-      const pos = sciValues.filter((v) => v > 0);
-      refSci = pos.length ? Math.min.apply(null, pos) : 1;
-    }
+    const sciValues = sciList.filter((v) => v !== clickedSci);
+    const refSci = referenceFromValues(sciValues) || 1;
     sel.globalRefSci = refSci; // fixed-scale reference (whole friend distribution)
 
     applyCurrentScale(levelKey); // paints with the fixed or visible-area reference
@@ -898,8 +910,11 @@ map.on("load", async function () {
     return pts;
   }
 
-  // Reference value from only the regions whose centre is currently in view
-  // (excludes the source's self-link; in focus mode, only its own country).
+  // Reference value from regions whose centre is currently in view (excludes the
+  // source's self-link; in focus mode, only its own country). For broad
+  // subnational views, use the source country's visible reference as a lower
+  // bound when there is enough same-country data; otherwise floor-valued
+  // cross-country rows can collapse the scale and saturate the source country.
   // Returns null if nothing is in view.
   //
   // This is computed from the map's bounds + our own geometry rather than
@@ -917,6 +932,7 @@ map.on("load", async function () {
     const focus = focusCountry && cfg.canFocus && !!sel.clickedCountry;
     const seen = new Set();
     const vals = [];
+    const countryVals = [];
     for (const p of levelPoints(cfg)) {
       if (p.id === sel.clickedId || seen.has(p.id)) continue;
       if (focus && p.country !== sel.clickedCountry) continue;
@@ -925,10 +941,14 @@ map.on("load", async function () {
       if (v == null || isNaN(v) || v <= 0) continue;
       seen.add(p.id);
       vals.push(v);
+      if (!focus && cfg.canFocus && sel.clickedCountry && p.country === sel.clickedCountry) countryVals.push(v);
     }
     if (!vals.length) return null;
-    let r = getPercentile(vals, referenceQuantile);
-    if (!r || r <= 0) r = Math.min.apply(null, vals);
+    let r = referenceFromValues(vals);
+    if (!focus && countryVals.length >= DYNAMIC_COUNTRY_REF_MIN_REGIONS) {
+      const countryRef = referenceFromValues(countryVals);
+      if (countryRef && (!r || countryRef > r)) r = countryRef;
+    }
     return r;
   }
 

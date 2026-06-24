@@ -145,12 +145,19 @@ not run it for ordinary code cleanup unless explicitly requested.
   colors client-side.
 - Heavy SCI types use range-index data (`index.json` plus `part-NNN.bin`) and
   HTTP Range fetches.
+- In the Explorer's dynamic "scale colors to the area in view" mode, broad
+  subnational views use the source country's visible reference as a lower bound
+  when enough same-country regions are visible; this avoids floor-valued
+  cross-country SCI rows saturating the source country.
 - `src/generator/sci.js` is intended to stay behaviorally aligned with the R map
   logic in `src/make_map.R` and `src/mapping_tools.R`.
 - `web/src/cluster/agglomerative.js` is pure clustering logic and should stay
   DOM-free/Node-testable.
 - `web/src/cluster/cluster_presets.json` is the canonical preset source. After
   changing it, rerun precompute before deployment.
+- Cluster regional filters, such as South America's French Guiana-only handling
+  for the France shard, must stay aligned between `web/src/cluster/cluster.js`
+  and `web/scripts/precompute_clusters.mjs`; rerun precompute after changing them.
 - `cgfr/*.csv` are the canonical CGFR source inputs. `npm run prepare:cgfr` writes
   ignored runtime JSON to `web/public/data/cgfr/`; `npm run build` and
   `npm run deploy` run this automatically.
