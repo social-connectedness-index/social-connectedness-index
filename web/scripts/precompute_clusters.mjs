@@ -53,11 +53,31 @@ const groups = readJSON(path.join(DATA, "groups.json"));        // { name: [iso2
 const presetsPath = path.resolve(__dirname, "..", "src", "cluster", "cluster_presets.json");
 const clusterPresets = fs.existsSync(presetsPath) ? readJSON(presetsPath) : { dropdown: [] };
 
+const REGION_FILTERS = {
+  // South America includes FR only to reach the GUF.* French Guiana regions in
+  // the France shard. Keep those leaves and exclude mainland/other French regions.
+  "South America": { key: "south-america-guf", fileSuffix: "guf", countryPrefixes: { FR: ["GUF."] } },
+};
+
+function featureAllowedByRegionFilter(feature, regionFilter) {
+  if (!regionFilter) return true;
+  const props = (feature && feature.properties) || {};
+  const prefixes = regionFilter.countryPrefixes && regionFilter.countryPrefixes[props.country];
+  if (!prefixes) return true;
+  const rid = props.id || "";
+  return prefixes.some((p) => rid.startsWith(p));
+}
+
+function selectionKey(isoList, regionFilter = null) {
+  const key = [...isoList].sort().join(",");
+  return regionFilter ? `${key}|regions=${regionFilter.key}` : key;
+}
+
 // Region ids (leaf order) for a list of ISO2 countries: geometry-shard order,
 // deduped, keeping only ids that have an SCI row — exactly mirrors cluster.js.
 // Also returns a centroid per id (same order) for the spatial-distance blend, so
 // the precomputed tree is identical to what the live path builds.
-function regionIdsFor(isoList) {
+function regionIdsFor(isoList, regionFilter = null) {
   const ids = [];
   const centroids = [];
   const seen = new Set();
@@ -66,6 +86,7 @@ function regionIdsFor(isoList) {
     if (!fs.existsSync(shardPath)) continue;
     const fc = readJSON(shardPath);
     for (const f of fc.features || []) {
+      if (!featureAllowedByRegionFilter(f, regionFilter)) continue;
       const rid = f.properties && f.properties.id;
       if (!rid || seen.has(rid)) continue;
       if (!idx.sources[rid]) continue;
@@ -140,21 +161,27 @@ for (const [name, rawMembers] of Object.entries(groups)) {
   if (!Array.isArray(rawMembers)) continue;
   const members = rawMembers.filter((m) => known.has(m));
   if (members.length < 2) continue; // 0/1-member groups are covered by the country list
-  selections.push({ iso: members, file: "g-" + slug(name) + ".json", label: name });
+  const regionFilter = REGION_FILTERS[name] || null;
+  selections.push({
+    iso: members,
+    file: "g-" + slug(name + (regionFilter ? "-" + (regionFilter.fileSuffix || regionFilter.key) : "")) + ".json",
+    label: name,
+    regionFilter,
+  });
 }
 // Cluster-app sub-regional presets (explicit {name, members} entries only; {group}
 // refs are continents already built above). Same filtered-to-`known` membership and
 // slug scheme as groups, so the selection key matches what cluster.js computes.
-const seenKeys = new Set(selections.map((s) => [...s.iso].sort().join(",")));
+const seenKeys = new Set(selections.map((s) => selectionKey(s.iso, s.regionFilter)));
 for (const section of clusterPresets.dropdown || []) {
   for (const item of section.items || []) {
     if (!item || !Array.isArray(item.members)) continue; // skip {group} refs
     const members = item.members.filter((m) => known.has(m));
     if (members.length < 2) continue;
-    const key = [...members].sort().join(",");
+    const key = selectionKey(members);
     if (seenKeys.has(key)) continue; // a continent/Asia group with identical membership
     seenKeys.add(key);
-    selections.push({ iso: members, file: "g-" + slug(item.name) + ".json", label: item.name });
+    selections.push({ iso: members, file: "g-" + slug(item.name) + ".json", label: item.name, regionFilter: null });
   }
 }
 if (only.length) selections = selections.filter((s) => s.iso.length === 1 && only.includes(s.iso[0]));
@@ -169,12 +196,12 @@ for (const sel of selections) {
   // One sorted-ISO order feeds the key, the leaves, and the weights, so the shipped
   // tree matches the live path (which also sorts) exactly.
   const sortedIso = [...sel.iso].sort();
-  const key = sortedIso.join(",");
+  const key = selectionKey(sortedIso, sel.regionFilter);
   if (!force && index[key] && fs.existsSync(path.join(OUT_DIR, index[key]))) {
     already++;
     continue;
   }
-  const { ids: regionIds, centroids } = regionIdsFor(sortedIso);
+  const { ids: regionIds, centroids } = regionIdsFor(sortedIso, sel.regionFilter);
   const n = regionIds.length;
   if (n < MIN_REGIONS || n > MAX_REGIONS) {
     skipped++;

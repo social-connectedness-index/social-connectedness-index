@@ -285,11 +285,12 @@ async function loadCountryShard(cc) {
 }
 
 // Build an id -> geometry-feature map for a set of countries (shards are cached).
-async function loadFeatureMap(countryCodes) {
+async function loadFeatureMap(countryCodes, regionFilter = activeRegionFilter) {
   const shards = await Promise.all(countryCodes.map(loadCountryShard));
   const map = {};
   for (const fc of shards) {
     for (const f of fc.features || []) {
+      if (!featureAllowedByRegionFilter(f, regionFilter)) continue;
       const rid = f.properties && f.properties.id;
       if (rid && !(rid in map)) map[rid] = f;
     }
@@ -572,12 +573,32 @@ let pickMode = "regional";        // "regional" | "country" | "custom"
 let presetsMeta = null;           // cluster_presets.json: {buttons:[], dropdown:[]}
 let regionalPresets = [];         // [{id, label, members, groupName}] (buttons + dropdown)
 let activeRegionalId = null;      // id of the currently chosen regional preset, if any
-let lastResult = null;       // { features, ids, countryCodes, colorById, usedK, title, bbox, adminFeatures, countryBorderFeatures }
+let lastResult = null;       // { features, ids, countryCodes, colorById, usedK, title, bbox, adminFeatures, countryBorderFeatures, regionFilter }
 // Caches the K-independent prep (geometry + fetched SCI -> distance matrix) for the
 // current country selection, so changing only the number of communities re-clusters
 // without re-fetching connectedness. Keyed by the sorted selected country codes.
 let prepCache = null;        // { key, features, regionIds, dist, n }
-const selectionKey = (ids) => [...ids].sort().join(",");
+const REGION_FILTERS = {
+  // South America's group membership includes FR so the French Guiana regions are
+  // available from the France shard. For clustering, keep only French Guiana and
+  // drop metropolitan/other overseas France from this regional preset.
+  "South America": { key: "south-america-guf", boxGroup: "South America", countryPrefixes: { FR: ["GUF."] } },
+};
+let activeRegionFilter = null; // optional preset-scoped feature filter
+
+const selectionKey = (ids, regionFilter = null) => {
+  const key = [...ids].sort().join(",");
+  return regionFilter ? `${key}|regions=${regionFilter.key}` : key;
+};
+
+function featureAllowedByRegionFilter(f, regionFilter = activeRegionFilter) {
+  if (!regionFilter) return true;
+  const props = (f && f.properties) || {};
+  const rid = props.id || props.state || "";
+  const prefixes = regionFilter.countryPrefixes && regionFilter.countryPrefixes[props.country];
+  if (!prefixes) return true;
+  return prefixes.some((p) => rid.startsWith(p));
+}
 
 // ---------------------------------------------------------------------------
 // Clustering worker — the O(n^3) agglomeration (population-weighted average
@@ -764,6 +785,7 @@ function activateRegional(id) {
   selectedGroups.clear();
   p.members.forEach((cc) => selectedCountries.add(cc));
   if (p.groupName) selectedGroups.add(p.groupName); // curated continent zoom box (if any)
+  activeRegionFilter = p.groupName ? (REGION_FILTERS[p.groupName] || null) : null;
   activeRegionalId = id;
   syncRegionalUI();
   updateSelectedSummary();
@@ -805,6 +827,7 @@ function renderCountryList() {
 function setSingleCountry(cc, { fillSearch = false } = {}) {
   selectedCountries.clear();
   selectedGroups.clear();
+  activeRegionFilter = null;
   selectedCountries.add(cc);
   renderCountryList(); // reflect the new highlight (keeps the current filter)
   if (fillSearch) {
@@ -852,6 +875,7 @@ function setPickMode(mode) {
   pickMode = mode;
   selectedCountries.clear();
   selectedGroups.clear();
+  activeRegionFilter = null;
   activeRegionalId = null;
 
   document.querySelectorAll(".mode-tab").forEach((t) => {
@@ -929,7 +953,8 @@ async function generate() {
   await whenMapReady(); // the panel may be ready before the basemap; don't paint early
 
   try {
-    const key = selectionKey(ids);
+    const regionFilter = activeRegionFilter;
+    const key = selectionKey(ids, regionFilter);
 
     // Get the dendrogram for this selection from the cheapest available source:
     //   (a) in-memory cache (same selection as last time) — instant;
@@ -947,7 +972,7 @@ async function generate() {
 
       if (precomp) {
         setStatus("Loading regions…");
-        const fmap = await loadFeatureMap(ids);
+        const fmap = await loadFeatureMap(ids, regionFilter);
         const clusterFeatures = [], regionIds = [];
         for (const id of precomp.ids) {
           const f = fmap[id];
@@ -961,7 +986,7 @@ async function generate() {
           // (relabelTinyFragments) weights components by population — even though the
           // precomputed tree already baked them into the (population-weighted) linkage.
           const weights = await weightsFor(ids, regionIds);
-          prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: regionIds.length, merges: precomp.merges, weights };
+          prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: regionIds.length, merges: precomp.merges, weights, regionFilter };
           prepared = true;
         }
       }
@@ -978,6 +1003,7 @@ async function generate() {
         const seen = new Set();
         for (const fc of shards) {
           for (const f of fc.features || []) {
+            if (!featureAllowedByRegionFilter(f, regionFilter)) continue;
             const rid = f.properties && f.properties.id;
             if (!rid || seen.has(rid)) continue;
             seen.add(rid);
@@ -1023,7 +1049,7 @@ async function generate() {
           setStatus(`Clustering ${nReg.toLocaleString()} regions… ${pct}%`);
         }, weights);
         showCancel(false);
-        prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: nReg, merges, weights };
+        prepCache = { key, displayFeatures, clusterFeatures, regionIds, n: nReg, merges, weights, regionFilter };
       }
     }
 
@@ -1046,12 +1072,14 @@ async function generate() {
 
     const fc = { type: "FeatureCollection", features: res.displayFeatures };
     const bbox = selectionBbox(ids, fc, res.displayIds);
+    await prepareMobileGeneratedMapView();
     fitToBbox(bbox);
 
     lastResult = {
       features: res.displayFeatures, ids: res.displayIds, countryCodes: ids,
       colorById: res.colorById, usedK: res.usedK,
       title: res.title, bbox, adminFeatures: null,
+      regionFilter,
       name: selectionDisplayName(), // short label for the on-map caption
       requestedK: k, // the clusters the user chose — the animation sweeps 1 → this
     };
@@ -1439,6 +1467,22 @@ function setPanelCollapsed(collapsed) {
   btn.setAttribute("aria-label", label);
   btn.setAttribute("title", label);
   requestAnimationFrame(applyMapOffset);
+}
+
+function nextAnimationFrame() {
+  return new Promise((resolve) => requestAnimationFrame(resolve));
+}
+
+async function prepareMobileGeneratedMapView() {
+  if (!isMobileView()) return;
+  const panel = $("panel");
+  if (panel && !panel.classList.contains("collapsed")) {
+    panelAutoCollapsed = false;
+    setPanelCollapsed(true);
+    await nextAnimationFrame();
+  }
+  syncViewportLayout();
+  await nextAnimationFrame();
 }
 
 // The animation controls have three UI states:
@@ -2174,6 +2218,46 @@ function unionBox(a, b) {
   return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
 }
 
+function boxesIntersect(a, b) {
+  if (!a || !b) return false;
+  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+}
+
+function filterPolygonFeatureToBox(f, box) {
+  if (!f || !f.geometry || !box) return null;
+  const geom = f.geometry;
+  if (geom.type === "Polygon") {
+    return boxesIntersect(featureBounds(geom), box) ? f : null;
+  }
+  if (geom.type !== "MultiPolygon") return boxesIntersect(featureBounds(geom), box) ? f : null;
+  const coordinates = (geom.coordinates || []).filter((poly) =>
+    boxesIntersect(featureBounds({ type: "Polygon", coordinates: poly }), box)
+  );
+  if (!coordinates.length) return null;
+  return { ...f, geometry: { ...geom, coordinates } };
+}
+
+function filterBorderFeaturesForRegionScope(features, regionFilter, { clipCountryGeometry = false } = {}) {
+  if (!regionFilter) return features;
+  const box = clipCountryGeometry && regionFilter.boxGroup
+    ? boundsBox(boundsMeta && boundsMeta.groups && boundsMeta.groups[regionFilter.boxGroup])
+    : null;
+  const out = [];
+  for (const f of features) {
+    const country = f && f.properties && f.properties.country;
+    const prefixes = regionFilter.countryPrefixes && regionFilter.countryPrefixes[country];
+    if (!prefixes) {
+      out.push(f);
+    } else if (featureAllowedByRegionFilter(f, regionFilter)) {
+      out.push(f);
+    } else if (clipCountryGeometry) {
+      const clipped = filterPolygonFeatureToBox(f, box);
+      if (clipped) out.push(clipped);
+    }
+  }
+  return out;
+}
+
 // Curated zoom box for the current selection, mirroring the Map Maker's
 // selectionBbox(): use bounds.json's hand-tuned boxes (continent groups +
 // mainland country boxes) instead of the raw geometry extent, which inflates for
@@ -2310,7 +2394,10 @@ async function applyBorders() {
 
     // --- State/province borders (optional, subtle, underneath) ---------------
     if (showState) {
-      const feats = await loadAdminBorders(codeSet);
+      const feats = filterBorderFeaturesForRegionScope(
+        await loadAdminBorders(codeSet),
+        lastResult.regionFilter
+      );
       lastResult.adminFeatures = feats;
       const fc = { type: "FeatureCollection", features: feats };
       if (!map.getSource(ADMIN_SOURCE)) {
@@ -2340,7 +2427,11 @@ async function applyBorders() {
     }
 
     // --- Country borders (always shown, darker + thicker, on top) ------------
-    const countryFeats = await loadCountryBorders(codeSet);
+    const countryFeats = filterBorderFeaturesForRegionScope(
+      await loadCountryBorders(codeSet),
+      lastResult.regionFilter,
+      { clipCountryGeometry: true }
+    );
     lastResult.countryBorderFeatures = countryFeats;
     const countryFc = { type: "FeatureCollection", features: countryFeats };
     if (!map.getSource(COUNTRY_SOURCE)) {
