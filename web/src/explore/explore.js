@@ -315,12 +315,12 @@ let lastSelection = null; // { levelKey, cfg, clickedId, clickedName, clickedCou
 // Dynamic colour scale: when on, the reference is recomputed from the regions
 // currently on screen (recalculated on moveend), so coloring adapts to the view.
 let dynamicScale = true;
-// For subnational sources, broad views often include thousands of cross-country
-// values at the exported floor of 1. If those dominate the visible median, the
-// clicked source's own country saturates into the top colour bin. When enough
-// same-country regions are visible, use that country as a floor for the dynamic
-// reference while still colouring every visible region.
-const DYNAMIC_COUNTRY_REF_MIN_REGIONS = 100;
+// For US subnational sources, broad views often include thousands of cross-
+// country values at the exported floor of 1. If those dominate the visible
+// median, the clicked source's own country saturates into the top colour bin.
+// When enough US regions are visible, use the US visible reference as a floor
+// for the dynamic reference while still colouring every visible region.
+const DYNAMIC_US_REF_MIN_REGIONS = 100;
 
 // ---------------------------------------------------------------------------
 // Fetch helpers.
@@ -911,10 +911,10 @@ map.on("load", async function () {
   }
 
   // Reference value from regions whose centre is currently in view (excludes the
-  // source's self-link; in focus mode, only its own country). For broad
-  // subnational views, use the source country's visible reference as a lower
-  // bound when there is enough same-country data; otherwise floor-valued
-  // cross-country rows can collapse the scale and saturate the source country.
+  // source's self-link; in focus mode, only its own country). For broad US
+  // subnational views, use the US visible reference as a lower bound when there
+  // is enough same-country data; otherwise floor-valued cross-country rows can
+  // collapse the scale and saturate the source country.
   // Returns null if nothing is in view.
   //
   // This is computed from the map's bounds + our own geometry rather than
@@ -930,6 +930,7 @@ map.on("load", async function () {
     if (!bounds) return null;
     const cfg = sel.cfg;
     const focus = focusCountry && cfg.canFocus && !!sel.clickedCountry;
+    const useUsFloor = !focus && cfg.canFocus && sel.clickedCountry === "US";
     const seen = new Set();
     const vals = [];
     const countryVals = [];
@@ -941,11 +942,11 @@ map.on("load", async function () {
       if (v == null || isNaN(v) || v <= 0) continue;
       seen.add(p.id);
       vals.push(v);
-      if (!focus && cfg.canFocus && sel.clickedCountry && p.country === sel.clickedCountry) countryVals.push(v);
+      if (useUsFloor && p.country === "US") countryVals.push(v);
     }
     if (!vals.length) return null;
     let r = referenceFromValues(vals);
-    if (!focus && countryVals.length >= DYNAMIC_COUNTRY_REF_MIN_REGIONS) {
+    if (useUsFloor && countryVals.length >= DYNAMIC_US_REF_MIN_REGIONS) {
       const countryRef = referenceFromValues(countryVals);
       if (countryRef && (!r || countryRef > r)) r = countryRef;
     }

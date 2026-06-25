@@ -145,10 +145,11 @@ not run it for ordinary code cleanup unless explicitly requested.
   colors client-side.
 - Heavy SCI types use range-index data (`index.json` plus `part-NNN.bin`) and
   HTTP Range fetches.
-- In the Explorer's dynamic "scale colors to the area in view" mode, broad
-  subnational views use the source country's visible reference as a lower bound
-  when enough same-country regions are visible; this avoids floor-valued
-  cross-country SCI rows saturating the source country.
+- In the Explorer's dynamic "scale colors to the area in view" mode, broad US
+  subnational views use the US visible reference as a lower bound when enough US
+  regions are visible; this avoids floor-valued cross-country SCI rows
+  saturating US source regions. Do not apply this lower-bound special case to
+  other countries.
 - `src/generator/sci.js` is intended to stay behaviorally aligned with the R map
   logic in `src/make_map.R` and `src/mapping_tools.R`.
 - `web/src/cluster/agglomerative.js` is pure clustering logic and should stay

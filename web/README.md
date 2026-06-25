@@ -94,12 +94,13 @@ example, Brussels → Bruxelles, Mumbai → Bombay, Bozen/South Tyrol → Bolzan
 ### Interactive Explorer color scaling
 
 The Explorer's default **"Scale colors to the area in view"** mode recomputes the
-reference SCI value from region centroids inside the current map bounds. For
+reference SCI value from region centroids inside the current map bounds. For US
 subnational maps, broad views can contain many cross-country region pairs at the
-exported floor value of `1`; when enough regions from the clicked source's own
-country are visible, `src/explore/explore.js` uses that same-country visible
-reference as a lower bound. This keeps low floor-valued cross-country rows from
-saturating the source country while preserving the wider map context.
+exported floor value of `1`; when enough US regions are visible,
+`src/explore/explore.js` uses that US visible reference as a lower bound. This
+keeps low floor-valued cross-country rows from saturating US source regions while
+preserving the wider map context. Other countries use the raw visible-area
+reference without this lower-bound special case.
 
 ## Programmatic / shareable / agent access
 
