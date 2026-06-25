@@ -29,6 +29,68 @@ body {
 
 a { color: inherit; }
 
+.chapter-bar {
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: min(100% - 32px, 620px);
+  padding: 5px;
+  overflow-x: auto;
+  color: var(--blue);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(183, 205, 213, 0.92);
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(16, 97, 123, 0.1);
+  transform: translateX(-50%);
+  opacity: 1;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+
+.chapter-bar.is-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chapter-bar::-webkit-scrollbar { display: none; }
+
+.chapter-bar a {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 84px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+
+.chapter-bar a:hover,
+.chapter-bar a:focus-visible {
+  color: #fff;
+  background: var(--blue);
+  outline: none;
+}
+
+.chapter-bar a[aria-current="location"] {
+  color: #fff;
+  background: var(--blue-2);
+}
+
 .story-page main > section {
   position: relative;
   min-height: 100svh;
@@ -676,7 +738,9 @@ Disabled lab credit styles for now.
   }
   .primary-link,
   .secondary-link,
-  .tool-card {
+  .tool-card,
+  .chapter-bar,
+  .chapter-bar a {
     transition: none;
   }
   .skip-link,
@@ -700,6 +764,15 @@ Disabled lab credit styles for now.
 }
 
 @media (max-width: 720px) {
+  .chapter-bar {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    justify-content: flex-start;
+    width: min(100% - 20px, 620px);
+  }
+  .chapter-bar a {
+    min-width: auto;
+    padding: 6px 11px;
+  }
   .splash-hero {
     min-height: 100svh;
     padding: 56px 18px;
