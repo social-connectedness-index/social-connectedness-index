@@ -101,6 +101,12 @@ export function buildReelCanvas(renderOpts) {
   return frame;
 }
 
+function buildAnimationCanvas(frame) {
+  if (frame.canvas) return frame.canvas;
+  if (typeof frame.makeCanvas === "function") return frame.makeCanvas();
+  return buildReelCanvas(frame.renderOpts);
+}
+
 // Encode `renderOpts` as a short 9:16 MP4 and deliver it. `setStatus(msg)` is an
 // optional progress reporter (each tool wires its own status line). Throws with a
 // clear message where MP4 isn't supported.
@@ -127,9 +133,10 @@ export async function downloadReel(renderOpts, filename, { setStatus = () => {},
 }
 
 // Encode an ANIMATED 9:16 reel from a list of frames. `frames` is an array of
-// `{ renderOpts, seconds }`; each is rendered to a 1080x1920 portrait frame
-// (built lazily, one at a time to bound memory) and held for `seconds`. Same
-// format + delivery as a still reel. Throws where MP4 isn't supported.
+// `{ renderOpts, seconds }`, `{ canvas, seconds }`, or `{ makeCanvas, seconds }`.
+// Each frame is built lazily, one at a time to bound memory, and held for
+// `seconds`. Same format + delivery as a still reel. Throws where MP4 isn't
+// supported.
 export async function downloadReelAnimation(frames, filename, { setStatus = () => {}, fps = 30 } = {}) {
   if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG or SVG.");
   if (!frames.length) throw new Error("Nothing to animate.");
@@ -142,7 +149,7 @@ export async function downloadReelAnimation(frames, filename, { setStatus = () =
     setStatus(`Rendering animation… 0/${n}`);
     const blob = await encodeMp4Provider(
       n,
-      (i) => buildReelCanvas(frames[i].renderOpts),
+      (i) => buildAnimationCanvas(frames[i]),
       (i) => frames[i].seconds,
       { fps, onSegment: (i) => { setStatus(`Rendering animation… ${i + 1}/${n}`); prog.update(`Rendering animation… ${i + 1} of ${n}`); } },
     );

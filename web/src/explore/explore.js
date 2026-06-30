@@ -1084,7 +1084,7 @@ map.on("load", async function () {
     // labels). Stacking, bottom→top: region fills, region borders, GADM1 outlines,
     // country outlines — so country borders sit on top (most prominent) and GADM1
     // borders sit between regions and countries.
-    const showOutline = activeId === "level2" && !CONSTRAINED_MOBILE;
+    const showOutline = activeId === "level2";
     if (showOutline) await ensureRegionBorders();
     if (map.getLayer("country-outline")) {
       map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");

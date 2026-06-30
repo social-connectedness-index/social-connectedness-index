@@ -1574,6 +1574,10 @@ const ANIM_FOCUS_MS = 1500; // splitting cluster kept in colour, the rest faded 
 const ANIM_SPLIT_MS = 2000; // the split revealed (rest still faded)
 const ANIM_REST_MS = 2400;  // all clusters back in colour — held a beat longer so the
                             // full map "lands" before the next split begins
+const ANIM_INTRO_FINAL_SECONDS = 5;
+const ANIM_INTERSTITIAL_SECONDS = 1.75;
+const REEL_FRAME_W = 1080;
+const REEL_FRAME_H = 1920;
 
 // The first several splits carve the map into a handful of large blocks, where the
 // "focus on the cluster about to split, then reveal the split" choreography adds
@@ -1778,6 +1782,63 @@ function phaseColorById(colorArr, keepIdx) {
 
 function setCountryBordersVisible(on) {
   if (map.getLayer(COUNTRY_LAYER)) map.setLayoutProperty(COUNTRY_LAYER, "visibility", on ? "visible" : "none");
+}
+
+function animationIntroTitle(selectionName, k) {
+  return `What does it look like if we group ${selectionName} into ${k} ${k === 1 ? "community" : "communities"} based on Facebook friendships?`;
+}
+
+function wrappedCanvasLines(ctx, text, maxWidth) {
+  const out = [];
+  for (const para of String(text || "").split("\n")) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    let line = words[0];
+    for (let i = 1; i < words.length; i++) {
+      const candidate = line + " " + words[i];
+      if (ctx.measureText(candidate).width <= maxWidth) line = candidate;
+      else { out.push(line); line = words[i]; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+function fitCanvasLines(ctx, text, maxWidth, startSize, minSize, maxLines) {
+  let size = startSize;
+  let lines = [];
+  while (size >= minSize) {
+    ctx.font = `bold ${size}px Helvetica, Arial, sans-serif`;
+    lines = wrappedCanvasLines(ctx, text, maxWidth);
+    if (lines.length <= maxLines) break;
+    size -= 2;
+  }
+  return { lines, size };
+}
+
+function makeReelTextCard(text) {
+  const canvas = document.createElement("canvas");
+  canvas.width = REEL_FRAME_W;
+  canvas.height = REEL_FRAME_H;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const maxWidth = Math.round(canvas.width * 0.82);
+  const fit = fitCanvasLines(ctx, text, maxWidth, 74, 42, 3);
+  const lineHeight = Math.round(fit.size * 1.18);
+  const blockH = lineHeight * fit.lines.length;
+  let y = Math.round((canvas.height - blockH) / 2 + fit.size * 0.82);
+
+  ctx.fillStyle = "#111111";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `bold ${fit.size}px Helvetica, Arial, sans-serif`;
+  for (const line of fit.lines) {
+    ctx.fillText(line, canvas.width / 2, y);
+    y += lineHeight;
+  }
+  return canvas;
 }
 
 // Sleep `ms`, sliced so a mode change / Stop / new step (which bump animToken)
@@ -2102,6 +2163,22 @@ async function downloadAnimationReel() {
     const push = (colorById, k, seconds, phaseCaption) => frames.push({
       renderOpts: { ...baseOpts, colorById, title: autoTitle(k), phaseCaption },
       seconds,
+    });
+
+    // Intro: show the user's final clustered map first, then a short question card
+    // before rewinding to the existing 1→K split animation.
+    frames.push({
+      renderOpts: {
+        ...baseOpts,
+        colorById: phaseColorById(seq.colorsAt[maxK], null),
+        title: animationIntroTitle(selName, maxK),
+        titleScale: 1.2,
+      },
+      seconds: ANIM_INTRO_FINAL_SECONDS,
+    });
+    frames.push({
+      makeCanvas: () => makeReelTextCard("How did we get here?"),
+      seconds: ANIM_INTERSTITIAL_SECONDS,
     });
 
     // Start: all clusters in colour at K=1.

@@ -212,6 +212,13 @@ input[type="number"] { width: 110px; }
   background: #fff; border: 1px solid #d7e0e5; border-radius: 7px;
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14); overflow: hidden; z-index: 10;
 }
+#panel.download-open {
+  overflow-y: visible;
+}
+#panel.download-open .download-menu {
+  position: static;
+  margin-top: 4px;
+}
 .download-menu button {
   display: block; width: 100%; text-align: left;
   font: inherit; font-size: 13px; color: #2a3942;
