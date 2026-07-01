@@ -1,15 +1,11 @@
 // CGFR visualizer configuration. Loaded by cgfr.html before cgfr.js.
 //
-// Reuse the same URL-restricted Mapbox token as the SCI Explorer and Cluster
-// apps:
-//
-//   web/.env.local
-//   VITE_MAPBOX_TOKEN=pk.your_token_here
-//
-// If the token is absent, the app falls back to a no-basemap mode.
+// The interactive map runs on MapLibre. Basemap tiles are disabled by default so
+// viral traffic remains free to operate. To use your own hosted basemap later,
+// set VITE_BASEMAP_STYLE_URL to a MapLibre-compatible style JSON URL.
 
 window.CGFR_CONFIG = {
-  MAPBOX_TOKEN: import.meta.env.VITE_MAPBOX_TOKEN || "",
   DATA_BASE: "./data",
-  DISABLE_BASEMAP: import.meta.env.VITE_CGFR_DISABLE_BASEMAP === "1",
+  BASEMAP_STYLE_URL: import.meta.env.VITE_BASEMAP_STYLE_URL || "",
+  DISABLE_BASEMAP: import.meta.env.VITE_DISABLE_BASEMAP === "1",
 };

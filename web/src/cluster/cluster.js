@@ -5,7 +5,7 @@
 //
 // It reuses the Interactive Explorer's data plumbing (the shared R-exported
 // ./data/ assets: GADM-best "Region" geometry sharded by country, and the
-// range-indexed worldwide region->region SCI) and Mapbox basemap setup, plus the
+// range-indexed worldwide region->region SCI) and MapLibre setup, plus the
 // Map Maker's static renderer (render.js) for the downloadable image/MP4.
 //
 // Flow: pick a regional grouping / single country / custom combination + a number
@@ -26,8 +26,12 @@ import CLUSTER_PRESETS from "./cluster_presets.json";
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that cluster.html loads config.js before cluster.js.");
 }
-mapboxgl.accessToken = window.SCI_CONFIG.MAPBOX_TOKEN;
+const maplibregl = window.maplibregl;
+if (!maplibregl) {
+  throw new Error("[SCI] MapLibre GL JS is missing — check that cluster.html loads maplibre-gl before cluster.js.");
+}
 const DATA_BASE = (window.SCI_CONFIG.DATA_BASE || "./data").replace(/\/$/, "");
+const BASEMAP_STYLE_URL = window.SCI_CONFIG.BASEMAP_STYLE_URL || "";
 
 // Region (GADM-best) sci type id — kept as "gadm2" in the exported assets.
 const SCI_TYPE = "gadm2";
@@ -60,34 +64,44 @@ const tour = createTour(TOUR_STEPS, "sci_cluster_tour_v1");
 const EMPTY_STYLE = {
   version: 8,
   name: "no-basemap",
+  projection: { type: "globe" },
   sources: {},
   layers: [{ id: "bg", type: "background", paint: { "background-color": "#e8ecef" } }],
 };
 const NO_BASEMAP_SESSION_KEY = "sciMapBasemapFailedThisSession";
+const sessionFlag = (key) => { try { return sessionStorage.getItem(key) === "1"; } catch (_) { return false; } };
 const forceNoBasemap =
+  !BASEMAP_STYLE_URL ||
   !!window.SCI_CONFIG.DISABLE_BASEMAP ||
-  sessionStorage.getItem(NO_BASEMAP_SESSION_KEY) === "1";
+  sessionFlag(NO_BASEMAP_SESSION_KEY);
 
-const map = new mapboxgl.Map({
+const map = new maplibregl.Map({
   attributionControl: false,
   container: "map",
-  style: forceNoBasemap ? EMPTY_STYLE : "mapbox://styles/mapbox/light-v11",
+  style: forceNoBasemap ? EMPTY_STYLE : BASEMAP_STYLE_URL,
   center: [10, 55],
   zoom: 2.5,
+  projection: { type: "globe" },
 });
 if (!forceNoBasemap) {
   map.on("error", function (e) {
     if (!e || !e.error) return;
     const err = e.error;
     const status = err.status || (err.message && (err.message.match(/HTTP (\d+)/) || [])[1]);
-    if (status == 401 || status == 403 || status == 429) {
-      console.warn("[SCI] Mapbox basemap failure (HTTP " + status + ") — falling back to no-basemap mode.", err);
+    if (status == 401 || status == 403 || status == 404 || status == 429) {
+      console.warn("[SCI] Basemap failure (HTTP " + status + ") — falling back to no-basemap mode.", err);
       try { sessionStorage.setItem(NO_BASEMAP_SESSION_KEY, "1"); } catch (_) {}
-      window.location.reload();
+      try { map.setStyle(EMPTY_STYLE); }
+      catch (_) { /* If the renderer rejects the style swap, leave the current style alone. */ }
     }
   });
 }
-map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
+map.addControl(new maplibregl.NavigationControl(), "bottom-right");
+function useGlobeProjection() {
+  try { map.setProjection({ type: "globe" }); }
+  catch (e) { console.warn("[SCI] setProjection failed:", e); }
+}
+map.on("style.load", useGlobeProjection);
 
 // The panel is built before the basemap finishes loading (so it's interactive
 // immediately), but painting clusters needs the map style ready. Generate awaits
@@ -103,7 +117,7 @@ function whenMapReady() {
 // toolbar) build the WebGL canvas before the URL bar settles. #map is
 // `position:fixed; height:100%`, so when the toolbar auto-hides the container
 // grows — but the browser reports that as a visualViewport change, NOT the window
-// "resize" Mapbox listens for, so the canvas keeps its shorter initial height and
+// "resize" MapLibre listens for, so the canvas keeps its shorter initial height and
 // an empty band shows below the map until something forces a resize (which is why
 // a manual refresh "fixes" it — by then the toolbar is already settled). Re-sync
 // the canvas to its container on visualViewport/orientation changes, and a couple
@@ -1733,7 +1747,7 @@ function buildAnimationSequence(maxK) {
 
 // Paint one animation frame: set each clustered region's colour (and optionally its
 // cluster label, so click-to-highlight keeps working after the animation stops).
-// Recolour the existing source IN PLACE via feature-state — NO setData, so Mapbox
+// Recolour the existing source IN PLACE via feature-state — NO setData, so MapLibre
 // keeps the already-uploaded geometry and only re-evaluates the fill colour. The
 // whole map recolours instantly instead of "painting in" region-by-region (which is
 // what setData's per-frame re-tessellation caused). colorArr is per clusterFeature;
@@ -2378,14 +2392,6 @@ function selectionBbox(ids, fc, displayIds) {
   return box || computeBbox(fc, displayIds);
 }
 
-// Desktop: the control panel floats over the left edge (left 14 + width 320), so
-// offset the camera left by roughly its width + gap and centre the globe/map in
-// the clear area to its right. Mobile: the panel is a top sheet, so reserve its
-// live height and centre the map in the part of the screen below it.
-function mapLeftPad() {
-  return window.matchMedia("(min-width: 721px)").matches ? 350 : 0;
-}
-
 function mobilePanelTopPad() {
   if (!isMobileView()) return 0;
   const panel = $("panel");
@@ -2393,7 +2399,7 @@ function mobilePanelTopPad() {
   const r = panel.getBoundingClientRect();
   if (!r.height) return 0;
   // Leave a small breathing gap below the floating panel, but keep enough map area
-  // for Mapbox camera calculations on short phone screens.
+  // for map camera calculations on short phone screens.
   return Math.min(Math.ceil(r.bottom + 12), Math.max(0, window.innerHeight - 140));
 }
 
@@ -2408,15 +2414,16 @@ function mobileDockBottomPad() {
 
 function currentMapPadding() {
   return {
-    left: mapLeftPad(),
+    left: 0,
     top: mobilePanelTopPad(),
     right: 0,
     bottom: mobileDockBottomPad(),
   };
 }
 
-// Keep the resting camera centred in the visible (panel-free) area. setPadding
-// shifts the projection centre for the initial globe and all manual pans/zooms.
+// Keep the resting camera aligned with the generated-map framing. Desktop uses
+// the real viewport centre; mobile top/bottom padding keeps the map clear of
+// docked controls.
 function applyMapOffset() {
   try { map.setPadding(currentMapPadding()); } catch (_) {}
 }
@@ -2428,8 +2435,7 @@ function fitToBbox(bbox) {
   try {
     map.setPadding(pad);
     map.fitBounds([[minLon, minLat], [maxLon, maxLat]], {
-      // Reserve room for floating panels so the map frames in the clear area.
-      // Do not retain the extra 40px fit margin as global Mapbox padding; mobile
+      // Do not retain the extra 40px fit margin as global map padding; mobile
       // visualViewport/ResizeObserver callbacks re-apply the persistent padding.
       padding: { top: 40 + pad.top, right: 40 + pad.right, bottom: 40 + pad.bottom, left: 40 + pad.left },
       duration: 900,
@@ -2551,7 +2557,7 @@ async function applyBorders() {
 }
 
 let hoveredId = null;
-const hoverPopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: "sci-tooltip", offset: 10, maxWidth: "240px" });
+const hoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: "sci-tooltip", offset: 10, maxWidth: "240px" });
 // Only show the follow-the-cursor name tooltip with a real hover pointer (a mouse).
 // On touch it would pop up on every tap, which is just noise — the tap already
 // highlights the cluster. Evaluated live so a hybrid laptop's trackpad still gets it.
@@ -2886,12 +2892,12 @@ function setupOptionInfo() {
 
 map.on("load", () => {
   mapReady = true;
-  try { map.setProjection("globe"); } catch (_) {}
-  applyMapOffset(); // centre the globe in the clear area beside the panel (desktop)
+  useGlobeProjection();
+  applyMapOffset(); // keep the globe aligned with the active viewport/control layout
 });
 
 // Build the control panel right away — it only needs the metadata JSON, not the
-// Mapbox basemap. Fetching + rendering it in parallel with the (slower) basemap load
+// Optional basemap. Fetching + rendering it in parallel with the (slower) basemap load
 // means the country picker is populated and interactive as soon as the page opens,
 // instead of waiting for the globe to finish streaming in.
 init();

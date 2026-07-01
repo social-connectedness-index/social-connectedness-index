@@ -4,15 +4,18 @@
 // active top-friend cutoff.
 
 import { createTour } from "../shared/tour.js";
-import { styleBasemapLabels } from "../shared/mapbox_style.js";
+import { styleBasemapLabels } from "../shared/basemap_style.js";
 
 if (!window.CGFR_CONFIG) {
   throw new Error("[CGFR] window.CGFR_CONFIG is missing; check that config.js loads before cgfr.js.");
 }
 
 const DATA_BASE = (window.CGFR_CONFIG.DATA_BASE || "./data").replace(/\/$/, "");
-const MAPBOX_TOKEN = window.CGFR_CONFIG.MAPBOX_TOKEN || "";
-mapboxgl.accessToken = MAPBOX_TOKEN || "cgfr-no-token";
+const BASEMAP_STYLE_URL = window.CGFR_CONFIG.BASEMAP_STYLE_URL || "";
+const maplibregl = window.maplibregl;
+if (!maplibregl) {
+  throw new Error("[CGFR] MapLibre GL JS is missing; check that cgfr.html loads maplibre-gl before cgfr.js.");
+}
 
 const TOUR_STEPS = [
   {
@@ -64,14 +67,15 @@ const IS_IOS =
 const IS_COARSE_POINTER = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 const LOW_DEVICE_MEMORY = typeof navigator.deviceMemory === "number" && navigator.deviceMemory <= 4;
 const CONSTRAINED_MOBILE = IS_IOS || IS_COARSE_POINTER || LOW_DEVICE_MEMORY;
-if (CONSTRAINED_MOBILE && "workerCount" in mapboxgl) {
-  mapboxgl.workerCount = Math.min(mapboxgl.workerCount || 2, 1);
+if (CONSTRAINED_MOBILE && "workerCount" in maplibregl) {
+  maplibregl.workerCount = Math.min(maplibregl.workerCount || 2, 1);
 }
 const GEOMETRY_SHARD_CONCURRENCY = CONSTRAINED_MOBILE ? 4 : 10;
 
 const EMPTY_STYLE = {
   version: 8,
   name: "no-basemap",
+  projection: { type: "globe" },
   sources: {},
   layers: [{ id: "bg", type: "background", paint: { "background-color": "#e8ecef" } }],
 };
@@ -79,17 +83,18 @@ const EMPTY_STYLE = {
 const NO_BASEMAP_SESSION_KEY = "cgfrMapBasemapFailedThisSession";
 const sessionFlag = (key) => { try { return sessionStorage.getItem(key) === "1"; } catch (_) { return false; } };
 const forceNoBasemap =
-  !MAPBOX_TOKEN ||
+  !BASEMAP_STYLE_URL ||
   !!window.CGFR_CONFIG.DISABLE_BASEMAP ||
   sessionFlag(NO_BASEMAP_SESSION_KEY);
 
-const map = new mapboxgl.Map({
+const map = new maplibregl.Map({
   attributionControl: false,
   container: "map",
-  style: forceNoBasemap ? EMPTY_STYLE : "mapbox://styles/mapbox/light-v11",
+  style: forceNoBasemap ? EMPTY_STYLE : BASEMAP_STYLE_URL,
   center: DEFAULT_CENTER,
   zoom: DEFAULT_ZOOM,
   maxZoom: 8,
+  projection: { type: "globe" },
 });
 
 if (!forceNoBasemap) {
@@ -97,17 +102,21 @@ if (!forceNoBasemap) {
     if (!e || !e.error) return;
     const err = e.error;
     const status = err.status || (err.message && (err.message.match(/HTTP (\d+)/) || [])[1]);
-    if (status == 401 || status == 403 || status == 429) {
-      console.warn("[CGFR] Mapbox basemap failure (HTTP " + status + "); falling back to no-basemap mode.", err);
+    if (status == 401 || status == 403 || status == 404 || status == 429) {
+      console.warn("[CGFR] Basemap failure (HTTP " + status + "); falling back to no-basemap mode.", err);
       try { sessionStorage.setItem(NO_BASEMAP_SESSION_KEY, "1"); } catch (_) {}
       try { map.setStyle(EMPTY_STYLE); }
-      catch (_) { /* If Mapbox rejects the style swap, leave the current style alone. */ }
+      catch (_) { /* If the renderer rejects the style swap, leave the current style alone. */ }
     }
   });
 }
 
-map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
-map.on("style.load", () => styleBasemapLabels(map));
+map.addControl(new maplibregl.NavigationControl(), "bottom-right");
+function useGlobeProjection() {
+  try { map.setProjection({ type: "globe" }); }
+  catch (e) { console.warn("[CGFR] setProjection failed:", e); }
+}
+map.on("style.load", () => { useGlobeProjection(); styleBasemapLabels(map); });
 
 let resizePending = false;
 function syncMapSize() {
@@ -118,7 +127,7 @@ function syncMapSize() {
 if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
 window.addEventListener("orientationchange", syncMapSize);
 window.addEventListener("resize", fitPanelTitle);
-map.on("load", () => { styleBasemapLabels(map); syncMapSize(); setTimeout(syncMapSize, 300); });
+map.on("load", () => { useGlobeProjection(); styleBasemapLabels(map); syncMapSize(); setTimeout(syncMapSize, 300); });
 
 const DEFAULT_FILL = "#e3e7ea";
 const NO_DATA_FILL = "#cdd3d8";
@@ -182,7 +191,7 @@ let selected = null;
 let countryNames = null;
 
 const supportsHover = () => !window.matchMedia || window.matchMedia("(hover: hover)").matches;
-const hoverPopup = new mapboxgl.Popup({
+const hoverPopup = new maplibregl.Popup({
   closeButton: false,
   closeOnClick: false,
   className: "cgfr-tooltip",
@@ -701,7 +710,7 @@ const foldText = (s) =>
   (s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[ßøłæœđðþı]/g, (c) => SEARCH_FOLD[c] || c);
 
 map.on("load", async function () {
-  try { map.setProjection("globe"); } catch (e) { console.warn("[CGFR] setProjection failed:", e); }
+  useGlobeProjection();
   try { countryNames = await getJSON("geo/country_names.json"); } catch (e) { countryNames = {}; }
 
   const setupDone = {};

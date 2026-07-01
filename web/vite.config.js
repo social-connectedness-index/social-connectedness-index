@@ -8,7 +8,7 @@ import { defineConfig } from "vite";
 // Four HTML entry points:
 //   index.html      — landing page / tool chooser
 //   generator.html  — the static Map Maker (canvas-rendered)
-//   explore.html    — the interactive Mapbox explorer
+//   explore.html    — the interactive MapLibre explorer
 //   cluster.html    — the Connected Communities clustering tool
 //   cgfr.html       — the Cross-Gender Friending Ratio visualizer
 export default defineConfig({

@@ -25,5 +25,6 @@ Vite. The generated `web/public/data/cgfr/*.json` files are ignored with the res
 of `web/public/data/` and are deployed through the main `social-connectedness`
 Cloudflare Pages project.
 
-The CGFR app uses the same `VITE_MAPBOX_TOKEN` as the SCI Explorer and Cluster
-apps. Without a token it falls back to a no-basemap mode.
+The CGFR app uses MapLibre and defaults to no-basemap mode, so it does not make
+third-party basemap tile requests. To use a self-hosted MapLibre-compatible
+basemap later, set `VITE_BASEMAP_STYLE_URL` for the web app.

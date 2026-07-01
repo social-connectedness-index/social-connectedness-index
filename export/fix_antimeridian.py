@@ -7,7 +7,7 @@ WHY
 A few gadm_best features have a single polygon ring that JUMPS straight across
 the +/-180 dateline (e.g. Russia's "Chukot" ~66N, Fiji's "Cakaudrove"/"Macuata"
 ~-16S). Their longitudes are clamped to [-180, 180], so the ring contains a
-vertex near +179 immediately followed by one near -179. Mapbox-GL fills that
+vertex near +179 immediately followed by one near -179. WebGL map renderers fill that
 jumping edge as a straight line right across the globe at that latitude, which
 shows up in the Interactive Explorer's Region mode as faint horizontal lines
 near the Arctic Circle and the southern tropics. (The Country layer is clean:

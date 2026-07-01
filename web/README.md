@@ -12,24 +12,23 @@ static assets under `public/data/`:
 |------|-----------|
 | `index.html` | **Landing page** — chooser with three cards. |
 | `generator.html` | **Map Maker** — the canvas-rendered static map maker (described below). 18 map types, with PNG/JPG/SVG/MP4 downloads. |
-| `explore.html` | **Interactive Explorer** — a Mapbox-GL slippy map (`src/explore/`). Click any country or region ("GADM best" — the finest available GADM level per country) and the world recolours to its SCI. Two levels only; no downloads — its job is fast, live exploration. |
-| `cluster.html` | **Connected Communities** — a Mapbox-GL map (`src/cluster/`) that groups a region's sub-national units into _clusters_ by Facebook connectedness (`-log(SCI)` distance, population-weighted average linkage, exact K cuts with only tiny non-contiguous visual fragments tidied). Pick a precomputed **regional grouping** or **single country** (instant), or an advanced **custom** combination (clustered live in-browser); choose how many clusters K; optionally animate the 1→K split sequence. PNG/SVG/MP4 downloads. |
-| `cgfr.html` | **Cross-Gender Friending Ratio** — a Mapbox-GL visualizer (`src/cgfr/`) for country and GADM-best regional CGFR values. Shares the main site's geometry, uses `cgfr/*.csv` as its source data, and writes runtime JSON to `public/data/cgfr/`. |
+| `explore.html` | **Interactive Explorer** — a MapLibre globe (`src/explore/`). Click any country or region ("GADM best" — the finest available GADM level per country) and the world recolours to its SCI. Two levels only; no downloads — its job is fast, live exploration. |
+| `cluster.html` | **Connected Communities** — a MapLibre globe (`src/cluster/`) that groups a region's sub-national units into _clusters_ by Facebook connectedness (`-log(SCI)` distance, population-weighted average linkage, exact K cuts with only tiny non-contiguous visual fragments tidied). Pick a precomputed **regional grouping** or **single country** (instant), or an advanced **custom** combination (clustered live in-browser); choose how many clusters K; optionally animate the 1→K split sequence. PNG/SVG/MP4 downloads. |
+| `cgfr.html` | **Cross-Gender Friending Ratio** — a MapLibre globe visualizer (`src/cgfr/`) for country and GADM-best regional CGFR values. Shares the main site's geometry, uses `cgfr/*.csv` as its source data, and writes runtime JSON to `public/data/cgfr/`. |
 
 Cloudflare Pages serves these at `/`, `/generator`, `/explore`, `/cluster`, and `/cgfr`.
 
-> **The Mapbox tools need a Mapbox token.** `src/explore/config.js`,
-> `src/cluster/config.js`, and `src/cgfr/config.js` read it
-> from `import.meta.env.VITE_MAPBOX_TOKEN`, which Vite inlines at build time from a
-> gitignored `web/.env.local` (`VITE_MAPBOX_TOKEN=pk.your_token_here`) — so the
-> token never lands in git. Give it scopes `styles:read`, `styles:tiles`,
-> `fonts:read` and allowlist every origin the site is served from:
-> `https://social-connectedness.org`, the `*.pages.dev` preview, and your local
-> dev origin (e.g. `http://localhost:5173`). Without a valid token these tools
-> auto-fall back to no-basemap mode (polygons on a plain background — still
-> fully usable). The SCI Explorer reuses the **same `public/data/` assets** as
-> the Map Maker (country / gadm2 geo + per-source SCI; the gadm2 id is backed by
-> GADM-best data), while CGFR adds only `public/data/cgfr/*.json`.
+> **The interactive tools are Mapbox-free by default.** `src/explore/config.js`,
+> `src/cluster/config.js`, and `src/cgfr/config.js` run MapLibre with an empty
+> local style unless `VITE_BASEMAP_STYLE_URL` is set. In the default mode, there
+> are no third-party basemap tile requests and no per-view map bill; the tools
+> draw their hosted GeoJSON polygons on a plain background. If you later self-host
+> a MapLibre-compatible style and tiles, set `VITE_BASEMAP_STYLE_URL` in
+> `web/.env.local` or the deploy environment. `VITE_DISABLE_BASEMAP=1` is a
+> kill-switch even when a style URL is configured. The SCI Explorer reuses the
+> **same `public/data/` assets** as the Map Maker (country / gadm2 geo +
+> per-source SCI; the gadm2 id is backed by GADM-best data), while CGFR adds only
+> `public/data/cgfr/*.json`.
 
 ## Map Maker — what it produces (static images, not an interactive map)
 
@@ -267,9 +266,9 @@ they live in `src/generator/` rather than `src/shared/`.)
 - `src/generator/generator.css` — Map Maker layout and controls
 - `src/generator/sci.js` — rendering math ported from R (normalize, breaks, palette, labels, comparison)
 - `src/generator/export_vector.js` — SVG download (reuses `shared/render.js`'s SVG backend)
-- `src/explore/explore.js` — Interactive Explorer (Mapbox-GL; per-source SCI fetch + client-side binning for both levels)
+- `src/explore/explore.js` — Interactive Explorer (MapLibre; per-source SCI fetch + client-side binning for both levels)
 - `src/explore/explore.css` — Explorer styling
-- `src/explore/config.js` — Explorer config (Mapbox token, data base, basemap kill-switch)
+- `src/explore/config.js` — Explorer config (data base, optional basemap style URL, basemap kill-switch)
 - `src/cluster/cluster.js` — Connected Communities UI, clustering orchestration, animation, downloads
 - `src/cluster/agglomerative.js` — pure, Node-testable clustering core (distance matrix, dendrogram, cut)
 - `src/cluster/cluster.worker.js` — runs the O(n³) dendrogram build off the main thread

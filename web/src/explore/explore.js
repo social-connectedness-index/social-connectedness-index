@@ -1,6 +1,6 @@
 // Interactive Explorer for the Social Connectedness Index.
 //
-// A Mapbox-GL slippy map that lets you click any country or region ("GADM best"
+// A MapLibre slippy map that lets you click any country or region ("GADM best"
 // — the finest available GADM level per country) and recolours the world to show
 // how strongly that place connects to everywhere else at the same level.
 //
@@ -22,14 +22,18 @@
 // separate pre-binning ETL entirely.
 
 import { createTour } from "../shared/tour.js";
-import { styleBasemapLabels } from "../shared/mapbox_style.js";
+import { styleBasemapLabels } from "../shared/basemap_style.js";
 
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that explore.html loads config.js before explore.js.");
 }
-mapboxgl.accessToken = window.SCI_CONFIG.MAPBOX_TOKEN;
+const maplibregl = window.maplibregl;
+if (!maplibregl) {
+  throw new Error("[SCI] MapLibre GL JS is missing — check that explore.html loads maplibre-gl before explore.js.");
+}
 
 const DATA_BASE = (window.SCI_CONFIG.DATA_BASE || "./data").replace(/\/$/, "");
+const BASEMAP_STYLE_URL = window.SCI_CONFIG.BASEMAP_STYLE_URL || "";
 
 // ---- first-run walkthrough -------------------------------------------------
 // Explain-only tour of the Explorer; see ../shared/tour.js for the engine. The final
@@ -84,64 +88,70 @@ const IS_IOS =
 const IS_COARSE_POINTER = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 const LOW_DEVICE_MEMORY = typeof navigator.deviceMemory === "number" && navigator.deviceMemory <= 4;
 const CONSTRAINED_MOBILE = IS_IOS || IS_COARSE_POINTER || LOW_DEVICE_MEMORY;
-if (CONSTRAINED_MOBILE && "workerCount" in mapboxgl) {
-  mapboxgl.workerCount = Math.min(mapboxgl.workerCount || 2, 1);
+if (CONSTRAINED_MOBILE && "workerCount" in maplibregl) {
+  maplibregl.workerCount = Math.min(maplibregl.workerCount || 2, 1);
 }
 const GEOMETRY_SHARD_CONCURRENCY = CONSTRAINED_MOBILE ? 4 : 10;
 
-// Empty Mapbox style — no tiles, used when the basemap is disabled (manual
-// config flag or automatic fallback after a Mapbox 401/403/429).
+// Empty MapLibre style — no tiles, used when no self-hosted basemap style is
+// configured or after a basemap provider failure.
 const EMPTY_STYLE = {
   version: 8,
   name: "no-basemap",
+  projection: { type: "globe" },
   sources: {},
   layers: [{ id: "bg", type: "background", paint: { "background-color": "#e8ecef" } }],
 };
 
-// Skip the basemap if either the config flag is set or this tab already hit a
-// Mapbox auth/quota failure earlier in the session.
+// Skip the basemap if there is no configured style, the config flag is set, or
+// this tab already hit a basemap provider failure earlier in the session.
 const NO_BASEMAP_SESSION_KEY = "sciMapBasemapFailedThisSession";
 const sessionFlag = (key) => { try { return sessionStorage.getItem(key) === "1"; } catch (_) { return false; } };
 const forceNoBasemap =
-  !window.SCI_CONFIG.MAPBOX_TOKEN ||
+  !BASEMAP_STYLE_URL ||
   !!window.SCI_CONFIG.DISABLE_BASEMAP ||
   sessionFlag(NO_BASEMAP_SESSION_KEY);
 
-const map = new mapboxgl.Map({
+const map = new maplibregl.Map({
   attributionControl: false,
   container: "map",
-  style: forceNoBasemap ? EMPTY_STYLE : "mapbox://styles/mapbox/light-v11",
+  style: forceNoBasemap ? EMPTY_STYLE : BASEMAP_STYLE_URL,
   center: DEFAULT_CENTER,
   zoom: DEFAULT_ZOOM,
   maxZoom: 8,
+  projection: { type: "globe" },
 });
 
-// Auto-fallback on Mapbox tile/style failures (401 bad token, 403 wrong
-// origin, 429 quota). Mark the session and swap into no-basemap mode without
-// reloading; reload loops are especially hostile to mobile Safari.
+// Auto-fallback on basemap tile/style failures. Mark the session and swap into
+// no-basemap mode without reloading; reload loops are especially hostile to
+// mobile Safari.
 if (!forceNoBasemap) {
   map.on("error", function (e) {
     if (!e || !e.error) return;
     const err = e.error;
     const status = err.status || (err.message && (err.message.match(/HTTP (\d+)/) || [])[1]);
-    if (status == 401 || status == 403 || status == 429) {
-      console.warn("[SCI] Mapbox basemap failure (HTTP " + status + ") — falling back to no-basemap mode.", err);
+    if (status == 401 || status == 403 || status == 404 || status == 429) {
+      console.warn("[SCI] Basemap failure (HTTP " + status + ") — falling back to no-basemap mode.", err);
       try { sessionStorage.setItem(NO_BASEMAP_SESSION_KEY, "1"); } catch (_) {}
       try { map.setStyle(EMPTY_STYLE); }
-      catch (_) { /* If Mapbox rejects the style swap, leave the current style alone. */ }
+      catch (_) { /* If the renderer rejects the style swap, leave the current style alone. */ }
     }
   });
 }
 
 // Zoom/compass at bottom-right so it doesn't sit under the top-right results card.
-map.addControl(new mapboxgl.NavigationControl(), "bottom-right");
-map.on("style.load", () => styleBasemapLabels(map));
+map.addControl(new maplibregl.NavigationControl(), "bottom-right");
+function useGlobeProjection() {
+  try { map.setProjection({ type: "globe" }); }
+  catch (e) { console.warn("[SCI] setProjection failed:", e); }
+}
+map.on("style.load", () => { useGlobeProjection(); styleBasemapLabels(map); });
 
 // --- Mobile viewport fix: iOS Safari (and other mobile browsers with a dynamic
 // toolbar) build the WebGL canvas before the URL bar settles. #map is
 // `position:fixed; height:100%`, so when the toolbar auto-hides the container
 // grows — but the browser reports that as a visualViewport change, NOT the window
-// "resize" Mapbox listens for, so the canvas keeps its shorter initial height and
+// "resize" MapLibre listens for, so the canvas keeps its shorter initial height and
 // an empty band shows below the map until something forces a resize (which is why
 // a manual refresh "fixes" it — by then the toolbar is already settled). Re-sync
 // the canvas to its container on visualViewport/orientation changes, and a couple
@@ -155,11 +165,10 @@ function syncMapSize() {
 }
 if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
 window.addEventListener("orientationchange", syncMapSize);
-map.on("load", () => { styleBasemapLabels(map); syncMapSize(); setTimeout(syncMapSize, 300); });
-// No on-map AttributionControl: the required © Mapbox / © OpenStreetMap credit
-// lives in the "About this map" (i) panel instead (see #data-explanation in
-// explore.html) — equivalent to Mapbox's own compact "behind a click" control,
-// just relocated to keep the map corners clean.
+map.on("load", () => { useGlobeProjection(); styleBasemapLabels(map); syncMapSize(); setTimeout(syncMapSize, 300); });
+// No on-map AttributionControl: the MapLibre/basemap note lives in the "About
+// this map" (i) panel instead (see #data-explanation in explore.html), relocated
+// to keep the map corners clean.
 
 let hoveredStateId = null;
 
@@ -171,7 +180,7 @@ const supportsHover = () => !window.matchMedia || window.matchMedia("(hover: hov
 
 // Hover tooltip: region name (always) + its SCI to the selected source (once a
 // region has been clicked). pointer-events:none (CSS) so it never blocks hover.
-const hoverPopup = new mapboxgl.Popup({
+const hoverPopup = new maplibregl.Popup({
   closeButton: false,
   closeOnClick: false,
   className: "sci-tooltip",
@@ -1111,7 +1120,7 @@ map.on("load", async function () {
   }
 
   // Globe projection only (the Flat toggle was removed).
-  try { map.setProjection("globe"); } catch (e) { console.warn("[SCI] setProjection failed:", e); }
+  useGlobeProjection();
 
   // Initial level: Region (default). Ensure level0 first so the country source +
   // country-outline layer exist (Region mode draws national borders on top), then

@@ -19,8 +19,7 @@ private_keys.json
 web/node_modules
 web/dist
 web/.wrangler
-# Local env files (hold the Mapbox token for the Interactive Explorer — kept out
-# of git; the deployed token is embedded at `vite build` time from .env.local)
+# Local env files (optional Vite/Cloudflare settings; kept out of git)
 web/.env
 web/.env.local
 web/.env.*.local

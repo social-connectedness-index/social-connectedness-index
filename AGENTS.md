@@ -15,7 +15,7 @@ This repository supports the Social Connectedness Index (SCI):
   maps.
 - A static Vite web app (`web/`) with four browser-only tools:
   - `generator.html`: Map Maker, canvas/SVG/MP4 static map generation.
-  - `explore.html`: Mapbox interactive explorer.
+  - `explore.html`: MapLibre interactive explorer.
   - `cluster.html`: Connected Communities clustering tool.
   - `cgfr.html`: Cross-Gender Friending Ratio visualizer at `/cgfr`.
 - Offline export scripts that convert local R/geospatial/SCI data into static
@@ -49,7 +49,7 @@ There is no database and no server runtime for the website.
     deployed web data.
 - `web/`: static website.
   - `web/src/generator/`: Map Maker UI and SCI coloring math.
-  - `web/src/explore/`: Mapbox explorer.
+  - `web/src/explore/`: MapLibre explorer.
   - `web/src/cluster/`: clustering UI, worker, pure clustering core.
   - `web/src/cgfr/`: CGFR visualizer.
   - `web/src/shared/`: rendering, video/reel export, guided tour.
@@ -136,9 +136,9 @@ not run it for ordinary code cleanup unless explicitly requested.
 
 - The website is static/client-side. Avoid introducing server assumptions.
 - `generator.html` renders static maps, not a slippy map.
-- `explore.html`, `cluster.html`, and `cgfr.html` use Mapbox GL when
-  `VITE_MAPBOX_TOKEN` is available, and fall back to no-basemap mode when
-  unavailable or rejected.
+- `explore.html`, `cluster.html`, and `cgfr.html` use MapLibre globes. They
+  default to no-basemap mode to avoid third-party tile costs;
+  `VITE_BASEMAP_STYLE_URL` can point at a self-hosted MapLibre-compatible style.
 - The web "gadm2" level represents GADM-best data/geometry, not always literal
   GADM2. The standalone R `gadm2` type remains true GADM2.
 - The browser receives raw `scaled_sci` and computes normalization, breaks, and
