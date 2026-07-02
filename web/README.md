@@ -24,7 +24,8 @@ Cloudflare Pages serves these at `/`, `/generator`, `/explore`, `/cluster`, and 
 > later self-host a MapLibre-compatible style and tiles, set
 > `VITE_BASEMAP_STYLE_URL` in `web/.env.local` or the deploy environment.
 > `VITE_DISABLE_BASEMAP=1` is a no-basemap kill-switch even when a style URL is
-> configured. The SCI Explorer reuses the
+> configured. Map/provider attribution is shown in each tool's About panel rather
+> than as an on-map MapLibre control. The SCI Explorer reuses the
 > **same `public/data/` assets** as the Map Maker (country / gadm2 geo +
 > per-source SCI; the gadm2 id is backed by GADM-best data), while CGFR adds only
 > `public/data/cgfr/*.json`.

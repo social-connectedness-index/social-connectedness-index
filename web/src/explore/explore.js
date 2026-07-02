@@ -113,7 +113,8 @@ const forceNoBasemap =
   sessionFlag(NO_BASEMAP_SESSION_KEY);
 
 const map = new maplibregl.Map({
-  attributionControl: !forceNoBasemap,
+  // Attribution is listed in the About panel instead of overlaid on the map.
+  attributionControl: false,
   container: "map",
   style: forceNoBasemap ? EMPTY_STYLE : BASEMAP_STYLE_URL,
   center: DEFAULT_CENTER,
