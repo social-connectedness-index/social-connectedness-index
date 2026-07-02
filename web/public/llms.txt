@@ -7,8 +7,8 @@ between places. Four client-side tools share static generated data:
 - /generator — Map Maker: makes a static map image (PNG/JPG/SVG, plus an MP4
   reel) for one "home" region's friendship pattern, or a two-region comparison.
 - /explore   — Interactive Explorer: a MapLibre globe; click a country/region
-  to recolor the world by its SCI. It runs with no third-party basemap tiles by
-  default. (No programmatic API; human/visual use.)
+  to recolor the world by its SCI. It uses the free OpenFreeMap Positron
+  basemap by default. (No programmatic API; human/visual use.)
 - /cluster   — Connected Communities: groups a region's sub-national units into
   clusters by Facebook connectedness (-log(SCI) distance, population-weighted
   average-linkage hierarchical clustering, exact K cuts with only tiny
@@ -18,8 +18,8 @@ between places. Four client-side tools share static generated data:
   sequence; PNG/SVG/MP4 downloads. (No programmatic API; human/visual use.)
 - /cgfr      — Cross-Gender Friending Ratio visualizer: a MapLibre globe for
   country and GADM-best regional CGFR values, sharing the site's place geometry
-  and search aliases. It runs with no third-party basemap tiles by default. (No
-  programmatic API; human/visual use.)
+  and search aliases. It uses the free OpenFreeMap Positron basemap by default.
+  (No programmatic API; human/visual use.)
 
 Everything runs client-side; there is no server-side API. The Map Maker can,
 however, be driven programmatically in two ways — both work in a headless browser

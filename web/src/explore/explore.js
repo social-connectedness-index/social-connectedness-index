@@ -22,7 +22,7 @@
 // separate pre-binning ETL entirely.
 
 import { createTour } from "../shared/tour.js";
-import { styleBasemapLabels } from "../shared/basemap_style.js";
+import { firstTextSymbolLayerId, styleBasemapLabels } from "../shared/basemap_style.js";
 
 if (!window.SCI_CONFIG) {
   throw new Error("[SCI] window.SCI_CONFIG is missing — check that explore.html loads config.js before explore.js.");
@@ -93,8 +93,8 @@ if (CONSTRAINED_MOBILE && "workerCount" in maplibregl) {
 }
 const GEOMETRY_SHARD_CONCURRENCY = CONSTRAINED_MOBILE ? 4 : 10;
 
-// Empty MapLibre style — no tiles, used when no self-hosted basemap style is
-// configured or after a basemap provider failure.
+// Empty MapLibre style — no tiles, used when the basemap is disabled or after a
+// basemap provider failure.
 const EMPTY_STYLE = {
   version: 8,
   name: "no-basemap",
@@ -103,8 +103,8 @@ const EMPTY_STYLE = {
   layers: [{ id: "bg", type: "background", paint: { "background-color": "#e8ecef" } }],
 };
 
-// Skip the basemap if there is no configured style, the config flag is set, or
-// this tab already hit a basemap provider failure earlier in the session.
+// Skip the basemap if the config flag is set, no style is configured, or this
+// tab already hit a basemap provider failure earlier in the session.
 const NO_BASEMAP_SESSION_KEY = "sciMapBasemapFailedThisSession";
 const sessionFlag = (key) => { try { return sessionStorage.getItem(key) === "1"; } catch (_) { return false; } };
 const forceNoBasemap =
@@ -113,7 +113,7 @@ const forceNoBasemap =
   sessionFlag(NO_BASEMAP_SESSION_KEY);
 
 const map = new maplibregl.Map({
-  attributionControl: false,
+  attributionControl: !forceNoBasemap,
   container: "map",
   style: forceNoBasemap ? EMPTY_STYLE : BASEMAP_STYLE_URL,
   center: DEFAULT_CENTER,
@@ -166,10 +166,6 @@ function syncMapSize() {
 if (window.visualViewport) window.visualViewport.addEventListener("resize", syncMapSize);
 window.addEventListener("orientationchange", syncMapSize);
 map.on("load", () => { useGlobeProjection(); styleBasemapLabels(map); syncMapSize(); setTimeout(syncMapSize, 300); });
-// No on-map AttributionControl: the MapLibre/basemap note lives in the "About
-// this map" (i) panel instead (see #data-explanation in explore.html), relocated
-// to keep the map corners clean.
-
 let hoveredStateId = null;
 
 // Only show the follow-the-cursor name/SCI tooltip on devices with a real hover
@@ -705,7 +701,7 @@ map.on("load", async function () {
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
 
-    const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+    const beforeId = firstTextSymbolLayerId(map);
     map.addLayer(
       {
         id: levelKey,
@@ -1037,7 +1033,7 @@ map.on("load", async function () {
       return; // leave regionBordersReady false so a later mode switch can retry
     }
     regionBordersReady = true;
-    const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+    const beforeId = firstTextSymbolLayerId(map);
     if (!map.getLayer("gadm1-outline")) {
       if (!map.getSource("border-state")) {
         map.addSource("border-state", { type: "geojson", data: stateGeo });
@@ -1098,7 +1094,7 @@ map.on("load", async function () {
     if (map.getLayer("country-outline")) {
       map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");
       if (showOutline) {
-        const labelLayer = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+        const labelLayer = firstTextSymbolLayerId(map);
         try { map.moveLayer("country-outline", labelLayer); } catch (_) {}
       }
     }

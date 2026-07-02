@@ -19,6 +19,7 @@ import { createTour } from "../shared/tour.js";
 import { buildDistanceMatrix, buildDendrogram, cutDendrogram, buildCentroids, buildWeights, SPATIAL_ALPHA } from "./agglomerative.js";
 import { renderMap, renderSvg, computeBbox, naturalHeight } from "../shared/render.js";
 import { downloadReel, downloadReelAnimation, mp4Supported } from "../shared/reel.js";
+import { firstTextSymbolLayerId, styleBasemapLabels } from "../shared/basemap_style.js";
 // Hand-authored regional-grouping presets (see cluster_presets.json). Bundled at
 // build time so it lives in version control (public/data/ is gitignored data).
 import CLUSTER_PRESETS from "./cluster_presets.json";
@@ -76,7 +77,7 @@ const forceNoBasemap =
   sessionFlag(NO_BASEMAP_SESSION_KEY);
 
 const map = new maplibregl.Map({
-  attributionControl: false,
+  attributionControl: !forceNoBasemap,
   container: "map",
   style: forceNoBasemap ? EMPTY_STYLE : BASEMAP_STYLE_URL,
   center: [10, 55],
@@ -101,7 +102,7 @@ function useGlobeProjection() {
   try { map.setProjection({ type: "globe" }); }
   catch (e) { console.warn("[SCI] setProjection failed:", e); }
 }
-map.on("style.load", useGlobeProjection);
+map.on("style.load", () => { useGlobeProjection(); styleBasemapLabels(map); });
 
 // The panel is built before the basemap finishes loading (so it's interactive
 // immediately), but painting clusters needs the map style ready. Generate awaits
@@ -2240,7 +2241,7 @@ function paintClusters(fc) {
     map.removeFeatureState({ source: SOURCE_ID });
   }
   if (!layersAdded) {
-    const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+    const beforeId = firstTextSymbolLayerId(map);
     map.addLayer({
       id: FILL_LAYER,
       type: "fill",
@@ -2482,7 +2483,7 @@ async function applyBorders() {
   showSpinner();
   try {
     const codeSet = new Set(lastResult.countryCodes);
-    const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+    const beforeId = firstTextSymbolLayerId(map);
 
     // --- State/province borders (optional, subtle, underneath) ---------------
     if (showState) {

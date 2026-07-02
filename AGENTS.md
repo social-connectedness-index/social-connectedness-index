@@ -137,8 +137,8 @@ not run it for ordinary code cleanup unless explicitly requested.
 - The website is static/client-side. Avoid introducing server assumptions.
 - `generator.html` renders static maps, not a slippy map.
 - `explore.html`, `cluster.html`, and `cgfr.html` use MapLibre globes. They
-  default to no-basemap mode to avoid third-party tile costs;
-  `VITE_BASEMAP_STYLE_URL` can point at a self-hosted MapLibre-compatible style.
+  default to the free OpenFreeMap Positron basemap; `VITE_BASEMAP_STYLE_URL`
+  can override it, and `VITE_DISABLE_BASEMAP=1` restores no-basemap mode.
 - The web "gadm2" level represents GADM-best data/geometry, not always literal
   GADM2. The standalone R `gadm2` type remains true GADM2.
 - The browser receives raw `scaled_sci` and computes normalization, breaks, and

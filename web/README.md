@@ -19,13 +19,12 @@ static assets under `public/data/`:
 Cloudflare Pages serves these at `/`, `/generator`, `/explore`, `/cluster`, and `/cgfr`.
 
 > **The interactive tools are Mapbox-free by default.** `src/explore/config.js`,
-> `src/cluster/config.js`, and `src/cgfr/config.js` run MapLibre with an empty
-> local style unless `VITE_BASEMAP_STYLE_URL` is set. In the default mode, there
-> are no third-party basemap tile requests and no per-view map bill; the tools
-> draw their hosted GeoJSON polygons on a plain background. If you later self-host
-> a MapLibre-compatible style and tiles, set `VITE_BASEMAP_STYLE_URL` in
-> `web/.env.local` or the deploy environment. `VITE_DISABLE_BASEMAP=1` is a
-> kill-switch even when a style URL is configured. The SCI Explorer reuses the
+> `src/cluster/config.js`, and `src/cgfr/config.js` run MapLibre with the free
+> OpenFreeMap Positron style unless `VITE_BASEMAP_STYLE_URL` overrides it. If you
+> later self-host a MapLibre-compatible style and tiles, set
+> `VITE_BASEMAP_STYLE_URL` in `web/.env.local` or the deploy environment.
+> `VITE_DISABLE_BASEMAP=1` is a no-basemap kill-switch even when a style URL is
+> configured. The SCI Explorer reuses the
 > **same `public/data/` assets** as the Map Maker (country / gadm2 geo +
 > per-source SCI; the gadm2 id is backed by GADM-best data), while CGFR adds only
 > `public/data/cgfr/*.json`.
@@ -268,7 +267,7 @@ they live in `src/generator/` rather than `src/shared/`.)
 - `src/generator/export_vector.js` — SVG download (reuses `shared/render.js`'s SVG backend)
 - `src/explore/explore.js` — Interactive Explorer (MapLibre; per-source SCI fetch + client-side binning for both levels)
 - `src/explore/explore.css` — Explorer styling
-- `src/explore/config.js` — Explorer config (data base, optional basemap style URL, basemap kill-switch)
+- `src/explore/config.js` — Explorer config (data base, basemap style default/override, basemap kill-switch)
 - `src/cluster/cluster.js` — Connected Communities UI, clustering orchestration, animation, downloads
 - `src/cluster/agglomerative.js` — pure, Node-testable clustering core (distance matrix, dendrogram, cut)
 - `src/cluster/cluster.worker.js` — runs the O(n³) dendrogram build off the main thread

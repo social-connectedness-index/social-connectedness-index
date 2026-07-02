@@ -4,7 +4,7 @@
 // active top-friend cutoff.
 
 import { createTour } from "../shared/tour.js";
-import { styleBasemapLabels } from "../shared/basemap_style.js";
+import { firstTextSymbolLayerId, styleBasemapLabels } from "../shared/basemap_style.js";
 
 if (!window.CGFR_CONFIG) {
   throw new Error("[CGFR] window.CGFR_CONFIG is missing; check that config.js loads before cgfr.js.");
@@ -88,7 +88,7 @@ const forceNoBasemap =
   sessionFlag(NO_BASEMAP_SESSION_KEY);
 
 const map = new maplibregl.Map({
-  attributionControl: false,
+  attributionControl: !forceNoBasemap,
   container: "map",
   style: forceNoBasemap ? EMPTY_STYLE : BASEMAP_STYLE_URL,
   center: DEFAULT_CENTER,
@@ -599,7 +599,7 @@ function selectedOutlineOpacityExpression(levelKey) {
 function liftSelectedOutline(levelKey) {
   const id = selectedOutlineLayerId(levelKey);
   if (!map.getLayer(id)) return;
-  const labelLayer = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+  const labelLayer = firstTextSymbolLayerId(map);
   try { map.moveLayer(id, labelLayer); } catch (_) {}
 }
 
@@ -748,7 +748,7 @@ map.on("load", async function () {
     prepareFeatureValues(cfg);
 
     map.addSource(levelKey, { type: "geojson", data: geojson });
-    const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+    const beforeId = firstTextSymbolLayerId(map);
     map.addLayer(
       {
         id: levelKey,
@@ -840,7 +840,7 @@ map.on("load", async function () {
       return;
     }
     regionBordersReady = true;
-    const beforeId = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+    const beforeId = firstTextSymbolLayerId(map);
     if (!map.getLayer("gadm1-outline")) {
       if (!map.getSource("border-state")) map.addSource("border-state", { type: "geojson", data: stateGeo });
       map.addLayer(
@@ -891,7 +891,7 @@ map.on("load", async function () {
     if (map.getLayer("country-outline")) {
       map.setLayoutProperty("country-outline", "visibility", showOutline ? "visible" : "none");
       if (showOutline) {
-        const labelLayer = map.getLayer("waterway-label") ? "waterway-label" : undefined;
+        const labelLayer = firstTextSymbolLayerId(map);
         try { map.moveLayer("country-outline", labelLayer); } catch (_) {}
       }
     }

@@ -1,3 +1,17 @@
+export function firstTextSymbolLayerId(map) {
+  const style = map && map.getStyle && map.getStyle();
+  const layers = style && style.layers;
+  if (!layers) return undefined;
+
+  const layer = layers.find((candidate) => (
+    candidate &&
+    candidate.type === "symbol" &&
+    candidate.layout &&
+    candidate.layout["text-field"]
+  ));
+  return layer && layer.id;
+}
+
 export function styleBasemapLabels(map) {
   const style = map && map.getStyle && map.getStyle();
   const layers = style && style.layers;
