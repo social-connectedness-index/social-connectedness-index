@@ -20,6 +20,7 @@ import { buildDistanceMatrix, buildDendrogram, cutDendrogram, buildCentroids, bu
 import { renderMap, renderSvg, computeBbox, naturalHeight } from "../shared/render.js";
 import { downloadReel, downloadReelAnimation, mp4Supported } from "../shared/reel.js";
 import { firstTextSymbolLayerId, styleBasemapLabels } from "../shared/basemap_style.js";
+import { EXPORT_CREDIT } from "../shared/credits.js";
 // Hand-authored regional-grouping presets (see cluster_presets.json). Bundled at
 // build time so it lives in version control (public/data/ is gitignored data).
 import CLUSTER_PRESETS from "./cluster_presets.json";
@@ -2685,8 +2686,7 @@ function buildRenderOpts(width) {
     strongBorderColor: COUNTRY_BORDER_COLOR,
     title: r.title,
     subtitle: "",
-    // Exactly the Map Maker's caption (src/generator/generator.js CAPTION).
-    caption: "@Social_Capital_Lab · social-connectedness.org",
+    caption: EXPORT_CREDIT,
     // No colour-scale legend on the clustered image (communities are categorical).
     legend: null,
     // Larger title + caption than the Generator's defaults.

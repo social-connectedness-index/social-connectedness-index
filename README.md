@@ -462,7 +462,7 @@ Beyond the fields available in `map_structs.R`, `make_map()` accepts:
 | `na_color`             | `"#BFBFBF"`                     | Fill for regions with no data                |
 | `background_color`     | `"white"`                       | Plot background color                        |
 | `subtitle`             | `NULL`                          | Subtitle text                                |
-| `caption`              | default citation                | Caption text; `FALSE` to suppress            |
+| `caption`              | default lab/site credit         | Caption text; `FALSE` to suppress            |
 | `font_family`          | `"Helvetica"`                   | Font family                                  |
 | `base_font_size`       | `24`                            | Base font size (all text scales from this)   |
 | `output_path`          | `NULL`                          | File path to save; `NULL` returns the plot   |

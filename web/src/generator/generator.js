@@ -17,6 +17,7 @@ import { buildReelCanvas, downloadReel, mp4Supported } from "../shared/reel.js";
 import { encodeMp4 } from "../shared/video.js";
 import { downloadSvg } from "./export_vector.js";
 import { createTour } from "../shared/tour.js";
+import { EXPORT_CREDIT } from "../shared/credits.js";
 // Sub-regional groupings shared with the Connected Communities (cluster) app, so the
 // same ready-made groupings (DACH, Nordic, Andean, …) are offered here under "Regions
 // to show". The broad continents + sub-continental groups they also reference already
@@ -79,7 +80,6 @@ const base = import.meta.env.BASE_URL;
 const dataUrl = (p) => `${base}data/${p}`;
 const $ = (id) => document.getElementById(id);
 
-const CAPTION = "@Social_Capital_Lab · social-connectedness.org";
 const SHARE_URL = "https://social-connectedness.org/";
 const MAX_OPTIONS = 1500; // cap rendered <option>s for huge levels (us_zcta)
 // Palettes whose colors clash with a red home-region highlight (use black instead).
@@ -1061,7 +1061,7 @@ async function generate() {
       // When shown, a typed value wins; an empty box falls back to the auto default.
       title: $("titleOn").checked ? ($("title").value || autoTitle()) : "",
       subtitle: $("subtitleOn").checked ? ($("subtitle").value || autoSubtitle()) : "",
-      caption: CAPTION, legend, width: w, height: h,
+      caption: EXPORT_CREDIT, legend, width: w, height: h,
       titleScale: 1.2,
       captionScale: 1.5,
     };
