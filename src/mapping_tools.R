@@ -81,10 +81,7 @@ default_map_colors <- c(
 )
 
 default_caption <- function() {
-  paste0(
-    "Social Connectedness Index Data: tinyurl.com/sci-dataset\n",
-    "@Social_Capital_Lab"
-  )
+  "@Social_Capital_Lab · social-connectedness.org"
 }
 
 map_type_configs <- list(
@@ -561,7 +558,7 @@ build_map_plot <- function(
         margin = margin(b = 20)
       ),
       plot.caption = element_text(
-        size = round(base_font_size * 40 / 24),
+        size = round(base_font_size * 44 / 24),
         hjust = 0.5,
         color = "gray10",
         margin = margin(t = 60)

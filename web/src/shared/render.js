@@ -223,7 +223,7 @@ function layoutChrome(W, opts) {
   const margin = Math.round(W * 0.025);
   const titleFs = Math.round((W / 40) * titleScale);
   const subFs = Math.round(W / 44);
-  const capFs = Math.round((W / 78) * captionScale);  // caption (dataset link + handle)
+  const capFs = Math.round((W / 72) * captionScale);  // caption credit
   const legendFs = Math.round(W / 68); // legend title + tick labels
   const textMaxW = W - margin * 2;
   const titleFit = title ? fitText(title, textMaxW, titleFs, true, 2, Math.round(titleFs * 0.62)) : { lines: [], size: titleFs };

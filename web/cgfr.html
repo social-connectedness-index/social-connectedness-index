@@ -71,22 +71,24 @@
     <h1 id="title">Select a place</h1>
 
     <div class="panel-actions">
-      <div class="control-row cutoff-row">
-        <label class="control-label" for="cutoff-slider">Top-friend cutoff<span class="info-wrap">
+      <div class="cutoff-control">
+        <label class="control-label cutoff-label" for="cutoff-slider">Top-friend cutoff<span class="info-wrap">
           <button type="button" class="opt-info-btn" aria-label="What does this do?" aria-expanded="false">
             <span class="info-icon" aria-hidden="true">i</span>
           </button>
           <span class="info-tip" role="tooltip">The slider switches the CGFR measure across top-friend cutoffs. Lower values use only each person's strongest ties; higher values include a wider friendship circle.</span>
         </span></label>
-      </div>
-      <input type="range" id="cutoff-slider" min="0" max="9" step="1" value="5"
-             aria-label="Top-friend cutoff" />
-      <div class="cutoff-ticks" aria-hidden="true">
-        <span>5</span>
-        <span>50</span>
-        <span>100</span>
-        <span>150</span>
-        <span>200</span>
+        <div class="cutoff-slider-group">
+          <input type="range" id="cutoff-slider" min="0" max="9" step="1" value="5"
+                 aria-label="Top-friend cutoff" />
+          <div class="cutoff-ticks" aria-hidden="true">
+            <span>5</span>
+            <span>50</span>
+            <span>100</span>
+            <span>150</span>
+            <span>200</span>
+          </div>
+        </div>
       </div>
 
       <label class="toggle-row" id="focus-country-row" for="focus-country" style="display: none;">

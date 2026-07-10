@@ -2686,7 +2686,7 @@ function buildRenderOpts(width) {
     title: r.title,
     subtitle: "",
     // Exactly the Map Maker's caption (src/generator/generator.js CAPTION).
-    caption: "Social Connectedness Index Data: tinyurl.com/sci-dataset\n@Social_Capital_Lab · social-connectedness.org",
+    caption: "@Social_Capital_Lab · social-connectedness.org",
     // No colour-scale legend on the clustered image (communities are categorical).
     legend: null,
     // Larger title + caption than the Generator's defaults.
