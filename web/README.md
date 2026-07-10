@@ -5,18 +5,20 @@ A **static, browser-rendered** site for the Social Connectedness Index, live at
 in the visitor's browser, so the site is just static files on a CDN and scales to
 viral traffic at zero marginal cost.
 
-The site is a small **multi-page** app with four tools that share generated
-static assets under `public/data/`:
+The site is a small **multi-page** app with guided splash pages and four tools
+that share generated static assets under `public/data/`:
 
 | Page | What it is |
 |------|-----------|
-| `index.html` | **Landing page** — chooser with three cards. |
+| `index.html` | **SCI splash page** — accessible introduction to the Social Connectedness Index, examples of how to read it, and links to the SCI tools. |
 | `generator.html` | **Map Maker** — the canvas-rendered static map maker (described below). 18 map types, with PNG/JPG/SVG/MP4 downloads. |
 | `explore.html` | **Interactive Explorer** — a MapLibre globe (`src/explore/`). Click any country or region ("GADM best" — the finest available GADM level per country) and the world recolours to its SCI. Two levels only; no downloads — its job is fast, live exploration. |
 | `cluster.html` | **Connected Communities** — a MapLibre globe (`src/cluster/`) that groups a region's sub-national units into _clusters_ by Facebook connectedness (`-log(SCI)` distance, population-weighted average linkage, exact K cuts with only tiny non-contiguous visual fragments tidied). Pick a precomputed **regional grouping** or **single country** (instant), or an advanced **custom** combination (clustered live in-browser); choose how many clusters K; optionally animate the 1→K split sequence. PNG/SVG/MP4 downloads. |
+| `cgfr-intro.html` | **CGFR splash page** — plain-language introduction to the Cross-Gender Friending Ratio before opening the visualizer. |
 | `cgfr.html` | **Cross-Gender Friending Ratio** — a MapLibre globe visualizer (`src/cgfr/`) for country and GADM-best regional CGFR values. Shares the main site's geometry, uses `cgfr/*.csv` as its source data, and writes runtime JSON to `public/data/cgfr/`. |
 
-Cloudflare Pages serves these at `/`, `/generator`, `/explore`, `/cluster`, and `/cgfr`.
+Cloudflare Pages serves these at `/`, `/generator`, `/explore`, `/cluster`,
+`/cgfr-intro`, and `/cgfr`.
 
 > **The interactive tools are Mapbox-free by default.** `src/explore/config.js`,
 > `src/cluster/config.js`, and `src/cgfr/config.js` run MapLibre with the free

@@ -6,141 +6,234 @@
     <title>Social Connectedness Index</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="description" content="Explore and map Facebook's Social Connectedness Index — the relative likelihood of friendship between places." />
+    <meta name="description" content="A guided introduction to Facebook's Social Connectedness Index and tools for exploring social ties between places." />
+    <script>document.documentElement.classList.add("reveal-ready");</script>
     <link rel="stylesheet" href="./src/shared/global.css" />
     <link rel="stylesheet" href="./src/landing.css" />
   </head>
-  <body>
-    <main class="landing">
-      <header class="landing-head">
-        <h1>Social Connectedness Index</h1>
-        <p class="lede">
-          The Social Connectedness Index (SCI) measures the relative probability that
-          Facebook users in two locations are friends. Choose a tool below to explore or map the data.
-        </p>
-      </header>
-
-      <section class="tool-grid">
-        <a class="tool-card" href="./explore.html">
-          <div class="tool-card-art art-explore" aria-hidden="true"></div>
-          <div class="tool-card-body">
-            <h2>Interactive Explorer</h2>
-            <p>
-              Click any country or region on a interactive globe and
-              watch it light up with where it's most connected. The fastest way to explore
-              the data to discover surprising links.
-            </p>
-            <span class="tool-cta">Start exploring →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="./generator.html">
-          <div class="tool-card-art art-generator" aria-hidden="true"></div>
-          <div class="tool-card-body">
-            <h2>Map Maker</h2>
-            <p>
-              Build polished, publication-quality SCI maps with full control over geography,
-              colors, breaks, and titles — then download as image or video to share them.
-            </p>
-            <span class="tool-cta">Make a map →</span>
-          </div>
-        </a>
-
-        <a class="tool-card" href="./cluster.html">
-          <div class="tool-card-art art-cluster" aria-hidden="true"></div>
-          <div class="tool-card-body">
-            <h2>Connected Communities</h2>
-            <p>
-              Pick a region or country and a number of clusters, then watch its places group by
-              how tightly they're connected — revealing which truly belong together.
-            </p>
-            <span class="tool-cta">Find clusters →</span>
-          </div>
-        </a>
-      </section>
-
-      <aside class="related-tool" aria-label="Related data tool">
-        <span>If the SCI tools are useful for your work, you may also like the Cross-Gender Friending Ratio data.</span>
-        <a href="./cgfr.html">Open CGFR visualizer →</a>
-      </aside>
-
-      <!-- ============================================================
-           CITATIONS — each reference sits in a <span class="citation-text">,
-           with the paper title wrapped in an <a href="…"> to its PDF/DOI.
-           Add more papers by copying a <li class="citation"> block.
-           ============================================================ -->
-      <section class="citations" id="citations">
-        <div class="citations-head">
-          <p class="citations-intro">If you use the Social Connectedness Index in your work, please cite:</p>
-          <button type="button" id="bibtex-btn" class="bibtex-btn" title="Download citations as BibTeX">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3v12" />
-              <path d="m7 11 5 5 5-5" />
-              <path d="M5 21h14" />
-            </svg>
-            BibTeX
-          </button>
+  <body class="story-page sci-story">
+    <nav class="chapter-bar" aria-label="Splash page chapters">
+      <a href="#meaning">Meaning</a>
+      <a href="#stories">Uses</a>
+      <a href="#tips">Tips</a>
+      <a href="#tools">Tools</a>
+    </nav>
+    <main>
+      <section id="overview" class="splash-hero sci-hero with-screen-nav">
+        <div class="hero-content reveal">
+          <h1 class="fit-heading">Social Connectedness Index</h1>
+          <p class="hero-lede">
+            The Social Connectedness Index (SCI) helps answer a simple question:
+            if you pick one person in one place and another person somewhere else,
+            how likely are they to be friends?
+          </p>
         </div>
-        <ol class="citation-list">
-          <li class="citation">
-            <span class="citation-text">Johnston, D., Kuchler, T., Kulkarni, M., & Stroebel, J. (2026). <a href="https://www.sciencedirect.com/science/article/pii/S2352340926004579" target="_blank" rel="noopener">The Social Connectedness Index: A Large-Scale Dataset of Social Ties Across Geographic Locations</a>. <em>Data in Brief</em>, 67, 112905.</span>
-          </li>
-          <li class="citation">
-            <span class="citation-text">Bailey, M., Cao, R., Kuchler, T., Stroebel, J., & Wong, A. (2018). <a href="https://www.aeaweb.org/articles?id=10.1257/jep.32.3.259" target="_blank" rel="noopener">Social Connectedness: Measurement, Determinants, and Effects</a>. <em>Journal of Economic Perspectives</em>, 32(3), 259-280.</span>
-          </li>
-        </ol>
-        <p class="data-source">
-          Data: <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Facebook Social Connectedness Index</a> (Humanitarian Data Exchange)
-        </p>
+        <nav class="section-nav" aria-label="Splash page navigation">
+          <a class="skip-link" href="#tools">Skip to tools</a>
+          <a class="next-link" href="#meaning">Next <span aria-hidden="true">&darr;</span></a>
+        </nav>
       </section>
 
-      <footer class="landing-foot">
-        <!--
-        <a class="lab-credit" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener">
-          <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" class="lab-logo" />
-          <span><strong>Social Capital Lab</strong></span>
-        </a>
-        -->
-      </footer>
+      <section id="meaning" class="intro-band with-screen-nav">
+        <div class="section-copy reveal">
+          <p class="eyebrow">What the number means</p>
+          <h2>How intense are the social ties between two places?</h2>
+          <p>
+            The SCI is a globally comparable measure of the relative probability that two people in different locations are Facebook friends.
+          </p>
+        </div>
+        <div class="concept-grid">
+          <article class="concept-tile reveal">
+            <h3>The SCI is relative.</h3>
+            <p>
+              If one SCI value is twice another, the friendship likelihood is twice
+              as high. The exact units matter less than ratios and patterns.
+            </p>
+          </article>
+          <article class="concept-tile reveal">
+            <h3>The SCI is symmetric.</h3>
+            <p>
+              The connection from A to B is the same as the connection from B to A,
+              because Facebook friendships are mutual links.
+            </p>
+          </article>
+          <article class="concept-tile reveal">
+            <h3>The SCI is privacy protected.</h3>
+            <p>
+              The public data are aggregated and differentially private. The tools
+              never expose person-level friendship records.
+            </p>
+          </article>
+        </div>
+        <nav class="section-nav" aria-label="Splash page navigation">
+          <a class="skip-link" href="#tools">Skip to tools</a>
+          <a class="next-link" href="#stories">Next <span aria-hidden="true">&darr;</span></a>
+        </nav>
+      </section>
+
+      <section id="stories" class="story-band with-screen-nav">
+        <div class="section-copy reveal">
+          <p class="eyebrow">What people use it for</p>
+          <h2>The SCI turns social ties into evidence.</h2>
+          <p>
+            The papers describe a dataset built for researchers and policy teams,
+            but the intuition is useful for anyone trying to understand how places
+            are socially connected.
+          </p>
+        </div>
+        <div class="insight-grid">
+          <article class="insight-card reveal">
+            <h3>Markets and trade</h3>
+            <p>
+              Social ties can help explain where business relationships form.
+              Prior SCI research finds that more connected places tend to trade
+              more with each other.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Health and mobility</h3>
+            <p>
+              During COVID-19, social network structure helped researchers study
+              how behavior and disease risk moved across places.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Migration and displacement</h3>
+            <p>
+              Friendship networks can reveal where people may have family,
+              friends, or support systems when they move or are displaced.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Communities that cross lines</h3>
+            <p>
+              Administrative borders are not always social borders. SCI clusters
+              show which regions behave like connected communities.
+            </p>
+          </article>
+        </div>
+        <nav class="section-nav" aria-label="Splash page navigation">
+          <a class="skip-link" href="#tools">Skip to tools</a>
+          <a class="next-link" href="#tips">Next <span aria-hidden="true">&darr;</span></a>
+        </nav>
+      </section>
+
+      <section id="tips" class="expect-band with-screen-nav">
+        <div class="expect-layout">
+          <div class="section-copy reveal">
+            <p class="eyebrow">Before opening a tool</p>
+            <h2>Three tips make the maps easier to read.</h2>
+          </div>
+          <ol class="numbered-list">
+            <li class="reveal">
+              <strong>Choose a starting place.</strong>
+              Then read the map as "where are people here most connected?"
+            </li>
+            <li class="reveal">
+              <strong>Look for exceptions.</strong>
+              The surprising bright spots are often more interesting than the
+              obvious nearby ones.
+            </li>
+            <li class="reveal">
+              <strong>Use the tool that matches the question.</strong>
+              Explore live, make a publication map, or cluster regions into
+              connected communities.
+            </li>
+          </ol>
+        </div>
+        <nav class="section-nav" aria-label="Splash page navigation">
+          <a class="skip-link" href="#tools">Skip to tools</a>
+          <a class="next-link" href="#tools">Next <span aria-hidden="true">&darr;</span></a>
+        </nav>
+      </section>
+
+      <section id="tools" class="tools-band">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Open the tools</p>
+          <h2>Choose the view that fits your question.</h2>
+        </div>
+        <div class="tool-grid">
+          <a class="tool-card reveal" href="./explore.html">
+            <div class="tool-card-art art-explore" aria-hidden="true"></div>
+            <div class="tool-card-body">
+              <h3>Interactive Explorer</h3>
+              <p>
+                Click a country or region and see where it is most socially
+                connected.
+              </p>
+              <span class="tool-cta">Start exploring &rarr;</span>
+            </div>
+          </a>
+
+          <a class="tool-card reveal" href="./generator.html">
+            <div class="tool-card-art art-generator" aria-hidden="true"></div>
+            <div class="tool-card-body">
+              <h3>Map Maker</h3>
+              <p>
+                Build polished SCI maps with custom geography, colors, titles,
+                and downloads.
+              </p>
+              <span class="tool-cta">Make a map &rarr;</span>
+            </div>
+          </a>
+
+          <a class="tool-card reveal" href="./cluster.html">
+            <div class="tool-card-art art-cluster" aria-hidden="true"></div>
+            <div class="tool-card-body">
+              <h3>Connected Communities</h3>
+              <p>
+                Group regions by the strength of their friendship ties and see
+                social communities emerge.
+              </p>
+              <span class="tool-cta">Find clusters &rarr;</span>
+            </div>
+          </a>
+        </div>
+
+        <aside class="cgfr-callout reveal" aria-label="Related CGFR tool">
+          <div>
+            <p class="eyebrow">Related dataset</p>
+            <h3>Cross-Gender Friending Ratio</h3>
+            <p>
+              The CGFR uses friendship networks to study how gender-segregated
+              social ties are across countries and regions.
+            </p>
+          </div>
+          <a class="primary-link" href="./cgfr-intro.html">Learn about the CGFR</a>
+        </aside>
+
+        <div class="citations-card reveal" id="citations">
+          <div class="citations-head">
+            <p class="citations-intro">If you use the Social Connectedness Index in your work, please cite:</p>
+            <button type="button" id="bibtex-btn" class="bibtex-btn" title="Download citations as BibTeX">
+              <span aria-hidden="true">&darr;</span>
+              BibTeX
+            </button>
+          </div>
+          <ol class="citation-list">
+            <li class="citation">
+              <span class="citation-text">Johnston, D., Kuchler, T., Kulkarni, M., &amp; Stroebel, J. (2026). <a href="https://www.sciencedirect.com/science/article/pii/S2352340926004579" target="_blank" rel="noopener">The Social Connectedness Index: A Large-Scale Dataset of Social Ties Across Geographic Locations</a>. <em>Data in Brief</em>, 67, 112905.</span>
+            </li>
+            <li class="citation">
+              <span class="citation-text">Bailey, M., Cao, R., Kuchler, T., Stroebel, J., &amp; Wong, A. (2018). <a href="https://www.aeaweb.org/articles?id=10.1257/jep.32.3.259" target="_blank" rel="noopener">Social Connectedness: Measurement, Determinants, and Effects</a>. <em>Journal of Economic Perspectives</em>, 32(3), 259-280.</span>
+            </li>
+          </ol>
+          <p class="data-source">
+            Data: <a href="https://data.humdata.org/dataset/social-connectedness-index" target="_blank" rel="noopener">Facebook Social Connectedness Index</a> (Humanitarian Data Exchange)
+          </p>
+        </div>
+
+        <footer class="landing-foot">
+          <!--
+          <a class="lab-credit" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener">
+            <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" class="lab-logo" />
+            <span><strong>Social Capital Lab</strong></span>
+          </a>
+          -->
+        </footer>
+      </section>
     </main>
 
-    <script type="module">
-      // BibTeX for the two cited papers, downloaded as a single .bib file.
-      const BIBTEX = `@article{johnston2026social,
-  title = {The Social Connectedness Index: A large-scale dataset of social ties across geographic locations},
-  author = {Drew Johnston and Theresa Kuchler and Manas Kulkarni and Johannes Stroebel},
-  journal = {Data in Brief},
-  volume = {67},
-  pages = {112905},
-  year = {2026},
-  issn = {2352-3409},
-  doi = {https://doi.org/10.1016/j.dib.2026.112905},
-  url = {https://www.sciencedirect.com/science/article/pii/S2352340926004579}
-}
-
-@article{bailey2018social,
-  title   = {Social Connectedness: Measurement, Determinants, and Effects},
-  author  = {Bailey, Michael and Cao, Rachel and Kuchler, Theresa and Stroebel, Johannes and Wong, Arlene},
-  journal = {Journal of Economic Perspectives},
-  volume  = {32},
-  number  = {3},
-  pages   = {259--280},
-  year    = {2018}, 
-  doi = {https://doi.org/10.1257/jep.32.3.259},
-  url = {https://www.aeaweb.org/articles?id=10.1257/jep.32.3.259}
-}
-`;
-      document.getElementById("bibtex-btn")?.addEventListener("click", () => {
-        const blob = new Blob([BIBTEX], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "social-connectedness-index.bib";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      });
-    </script>
+    <script type="module" src="./src/landing.js"></script>
   </body>
 </html>
