@@ -183,6 +183,7 @@ const LEVELS = {
 
 let gSel = "level2";
 let cutoffs = [5, 10, 25, 50, 75, 100, 125, 150, 175, 200];
+const cutoffSliderLabels = [5, 50, 100, 150, 200];
 let cutoffIndex = 5;
 let focusCountry = false;
 let dynamicScale = false;
@@ -245,6 +246,33 @@ function formatCgfr(value) {
 
 function currentCutoff() {
   return cutoffs[cutoffIndex] || cutoffs[0];
+}
+
+function sliderPositionForCutoff(cutoff) {
+  if (!Number.isFinite(cutoff)) return 0;
+  if (cutoff <= cutoffSliderLabels[0]) return 0;
+  const last = cutoffSliderLabels.length - 1;
+  if (cutoff >= cutoffSliderLabels[last]) return last;
+
+  for (let i = 0; i < last; i++) {
+    const a = cutoffSliderLabels[i];
+    const b = cutoffSliderLabels[i + 1];
+    if (cutoff <= b) return i + (cutoff - a) / (b - a);
+  }
+  return last;
+}
+
+function cutoffIndexForSliderPosition(position) {
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  cutoffs.forEach((cutoff, i) => {
+    const distance = Math.abs(sliderPositionForCutoff(cutoff) - position);
+    if (distance < bestDistance) {
+      bestIndex = i;
+      bestDistance = distance;
+    }
+  });
+  return bestIndex;
 }
 
 function isFocusActiveFor(cfg) {
@@ -699,10 +727,10 @@ function focusSelectedCountry() {
   catch (e) { console.warn("[CGFR] focus zoom failed:", e); }
 }
 
-function updateCutoff(nextIndex) {
-  cutoffIndex = Math.max(0, Math.min(cutoffs.length - 1, nextIndex));
+function updateCutoffFromSlider(position) {
+  cutoffIndex = cutoffIndexForSliderPosition(position);
   const slider = document.getElementById("cutoff-slider");
-  if (slider) slider.value = String(cutoffIndex);
+  if (slider) slider.value = String(sliderPositionForCutoff(currentCutoff()));
   repaintLevel(gSel);
 }
 
@@ -1024,9 +1052,11 @@ map.on("load", async function () {
   (function setupCutoffSlider() {
     const slider = document.getElementById("cutoff-slider");
     if (!slider) return;
-    slider.max = String(cutoffs.length - 1);
-    slider.value = String(cutoffIndex);
-    slider.addEventListener("input", () => updateCutoff(parseInt(slider.value, 10)));
+    slider.min = "0";
+    slider.max = String(cutoffSliderLabels.length - 1);
+    slider.step = "0.001";
+    slider.value = String(sliderPositionForCutoff(currentCutoff()));
+    slider.addEventListener("input", () => updateCutoffFromSlider(parseFloat(slider.value)));
   })();
 
   (function setupFocusCountry() {
