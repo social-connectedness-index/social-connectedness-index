@@ -424,6 +424,8 @@ north_america_iso2_codes = c(
   "US" # USA → United States
 )
 
+# Country groups exported to the web app. Southeast Asia is split into mainland
+# and maritime presets for the UI; the Philippines belongs to the maritime group.
 southeast_asia_iso2_codes = c(
   "MM", # MMR → Myanmar
   "TH", # THA → Thailand
@@ -435,6 +437,7 @@ southeast_asia_iso2_codes = c(
 maritime_southeast_asia_iso2_codes = c(
   "ID", # IDN → Indonesia
   "MY", # MYS → Malaysia
+  "PH", # PHL → Philippines
   "SG", # SGP → Singapore
   "BN", # BRN → Brunei
   "TL", # TLS → Timor-Leste

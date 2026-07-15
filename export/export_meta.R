@@ -137,8 +137,8 @@ export_meta <- function(out_root) {
     "West Asia"        = list(xlim = c(25, 61),    ylim = c(12, 43)),
     "East Asia"        = list(xlim = c(120, 146),  ylim = c(20, 46)),
     "Central Asia"     = list(xlim = c(43, 91),    ylim = c(33, 59)),
-    "Southeast Asia"   = list(xlim = c(92, 110),   ylim = c(5, 28)),
-    "Maritime SE Asia" = list(xlim = c(74, 174),   ylim = c(-31, 29)),
+    "Southeast Asia"   = list(xlim = c(92, 110),   ylim = c(5, 28)),  # mainland SE Asia
+    "Maritime SE Asia" = list(xlim = c(94, 158),   ylim = c(-12, 23)), # includes PH + PNG
     "North America"    = list(xlim = c(-168, -52), ylim = c(6, 83)),
     "Central America"  = list(xlim = c(-118, -77), ylim = c(6, 33)),
     "South America"    = list(xlim = c(-85, -33),  ylim = c(-55, 12)),

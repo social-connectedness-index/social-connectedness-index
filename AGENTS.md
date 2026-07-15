@@ -156,6 +156,9 @@ not run it for ordinary code cleanup unless explicitly requested.
   DOM-free/Node-testable.
 - `web/src/cluster/cluster_presets.json` is the canonical preset source. After
   changing it, rerun precompute before deployment.
+- Country-group membership comes from `src/constants.R`, and group zoom bounds
+  come from `export/export_meta.R`. After changing either, rerun the metadata
+  export and cluster precompute before deployment.
 - Cluster regional filters, such as South America's French Guiana-only handling
   for the France shard, must stay aligned between `web/src/cluster/cluster.js`
   and `web/scripts/precompute_clusters.mjs`; rerun precompute after changing them.

@@ -148,19 +148,22 @@ npm run precompute                  # cluster dendrograms for every preset + sin
 ```
 
 `precompute` builds a population-weighted merge tree for each single country and each regional grouping
-(continents in `public/data/groups.json` + the sub-regional presets in
-**`src/cluster/cluster_presets.json`**) so those selections load instantly in the
-browser (just a tiny tree fetch + an O(n) cut) instead of fetching connectedness and
-running the O(n³) clustering live. Cutting that tree is exact for K; the browser then
-applies the same small non-contiguous-fragment cleanup used by the live path. The
-precompute step is resumable and idempotent — re-run it after
-re-exporting the data, after editing `cluster_presets.json`, **or after changing
-the region filters in `src/cluster/cluster.js` / `scripts/precompute_clusters.mjs`**
-(then rebuild). South America's preset is one such filtered selection: it includes
-France only to load French Guiana (`GUF.*`) from the France shard, and the
-precompute key includes that scoped region filter. A selection that doesn't match a
-precomputed tree (an advanced "custom" combination) falls back to the live
-in-browser path.
+(continent/country groups exported from `src/constants.R` into `public/data/groups.json` +
+the sub-regional presets in **`src/cluster/cluster_presets.json`**) so those selections load
+instantly in the browser (just a tiny tree fetch + an O(n) cut) instead of fetching
+connectedness and running the O(n³) clustering live. Group zoom boxes are exported
+from `export/export_meta.R` into `public/data/bounds.json`.
+
+Cutting that tree is exact for K; the browser then applies the same small
+non-contiguous-fragment cleanup used by the live path. The precompute step is
+resumable and idempotent — re-run it after re-exporting the data, after editing
+`cluster_presets.json`, after changing country-group membership in `src/constants.R`,
+after changing group bounds in `export/export_meta.R`, **or after changing the region
+filters in `src/cluster/cluster.js` / `scripts/precompute_clusters.mjs`** (then rebuild).
+South America's preset is one such filtered selection: it includes France only to load
+French Guiana (`GUF.*`) from the France shard, and the precompute key includes that
+scoped region filter. A selection that doesn't match a precomputed tree (an advanced
+"custom" combination) falls back to the live in-browser path.
 
 ### CGFR — browser JSON
 
