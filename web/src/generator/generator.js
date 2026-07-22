@@ -1122,24 +1122,78 @@ const canvasBlob = (canvas, type, quality) =>
 // the identical portrait video format. buildReelCanvas takes render.js options;
 // here we pass `lastRender`.
 
-const slug = () => (sourceLabelText().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "") || "sci_map");
+const FILENAME_LEVEL = {
+  country: "country",
+  gadm1: "region",
+  gadm2: "region",
+  us_county: "county",
+  us_cbsa: "metro",
+  us_zcta: "zip",
+};
+
+function filenameText(label) {
+  let text = String(label || "")
+    .replace(/\s*\([^)]*\)\s*$/g, "")
+    .replace(/,\s*[A-Z]{2}(?:-[A-Z]{2})*$/g, "")
+    .replace(/^the\s+/i, "")
+    .trim();
+  if (/^new york city\b/i.test(text) || /^new york-newark-jersey city\b/i.test(text)) return "nyc";
+  return text;
+}
+
+function slugPart(label, fallback = "map") {
+  return (filenameText(label) || fallback)
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase() || fallback;
+}
+
+function sourceFilenamePart() {
+  if (!compareMode()) return slugPart(labelOf($("sourceA")), "source");
+  return `${slugPart(labelOf($("sourceA")), "source_a")}_vs_${slugPart(labelOf($("sourceB")), "source_b")}`;
+}
+
+function destinationFilenameLabel() {
+  const cbsa = selectedCbsa();
+  if (cbsa) return cbsa.title;
+  const t = typeInfo();
+  if (t && t.friendGeo && t.friendGeo.startsWith("us_")) return "United States";
+  const gsel = selectedGroups();
+  if (gsel.includes(OPT_ALL)) return "world";
+  const names = [];
+  const oc = originCountry();
+  for (const g of gsel) {
+    if (g === OPT_SAME_COUNTRY) { const n = countryName(oc); if (n) names.push(n); }
+    else if (g === OPT_SAME_SUBCONT) { const r = originRegion(oc); if (r && r.name) names.push(r.name); }
+    else names.push(g);
+  }
+  for (const c of selectedCustom()) { const n = countryName(c); if (n) names.push(n); }
+  return names.length ? joinNames(names) : "world";
+}
+
+function downloadBasename() {
+  const origin = FILENAME_LEVEL[$("originType").value] || $("originType").value || "origin";
+  const dest = FILENAME_LEVEL[$("destType").value] || $("destType").value || "destination";
+  return `${origin}_to_${dest}_${sourceFilenamePart()}_to_${slugPart(destinationFilenameLabel(), "world")}`;
+}
 
 async function download(fmt) {
   if (!lastCanvas) { showError(new Error("Generate a map first.")); return; }
+  const name = downloadBasename();
   try {
     if (fmt === "png") {
-      lastCanvas.toBlob((b) => downloadBlob(b, `${slug()}.png`), "image/png");
+      lastCanvas.toBlob((b) => downloadBlob(b, `${name}.png`), "image/png");
     } else if (fmt === "jpg") {
-      lastCanvas.toBlob((b) => downloadBlob(b, `${slug()}.jpg`), "image/jpeg", 0.92);
+      lastCanvas.toBlob((b) => downloadBlob(b, `${name}.jpg`), "image/jpeg", 0.92);
     } else if (fmt === "svg") {
-      downloadSvg(lastRender, `${slug()}.svg`);
+      downloadSvg(lastRender, `${name}.svg`);
     } else if (fmt === "mp4") {
       if (!mp4Supported()) throw new Error("MP4 needs Chrome, Edge, or Safari 17+. Try PNG/JPG.");
       // downloadReel shows the shared "Generating your video…" popup, blocks
       // repeat clicks, encodes the 9:16 reel, and delivers it (download / share /
       // iOS save overlay). Errors are reported inside the popup, not thrown.
       const setStatus = (m) => { $("status").textContent = m; };
-      await downloadReel(lastRender, `${slug()}.mp4`, { setStatus, seconds: 20, fps: 30 });
+      await downloadReel(lastRender, `${name}.mp4`, { setStatus, seconds: 20, fps: 30 });
     }
   } catch (e) {
     showError(e);
@@ -1173,7 +1227,7 @@ async function sharePng(platform) {
   if (!lastCanvas) { showError(new Error("Generate a map first.")); return; }
   try {
     const blob = await canvasBlob(lastCanvas, "image/png");
-    const file = new File([blob], `${slug()}.png`, { type: "image/png" });
+    const file = new File([blob], `${downloadBasename()}.png`, { type: "image/png" });
     const caption = ($("title").value || "Social Connectedness Index map").replace(/\n/g, " ");
 
     // Best path: native share sheet with the actual image attached.
@@ -1188,7 +1242,7 @@ async function sharePng(platform) {
     }
 
     // Fallback: give them the file, then open the platform's composer to attach it.
-    downloadBlob(blob, `${slug()}.png`);
+    downloadBlob(blob, `${downloadBasename()}.png`);
     const url = shareIntentUrl(platform, caption);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
     $("status").textContent =

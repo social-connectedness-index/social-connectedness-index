@@ -2219,7 +2219,7 @@ async function downloadAnimationReel() {
       if (k % 4 === 0) await sleep(0); // yield so the "Preparing…" status can paint
     }
 
-    const name = slug(lastResult.title) + "_animation";
+    const name = downloadBasename(maxK) + "_animation";
     await downloadReelAnimation(frames, name + ".mp4", { setStatus });
   } catch (e) {
     console.error("[SCI] animation export failed:", e);
@@ -2699,6 +2699,14 @@ function buildRenderOpts(width) {
   return opts;
 }
 
+const INSTAGRAM_POST_MAX_HEIGHT_RATIO = 4 / 3;
+
+function buildStaticImageRenderOpts(width) {
+  const opts = buildRenderOpts(width);
+  opts.height = Math.min(opts.height, width * INSTAGRAM_POST_MAX_HEIGHT_RATIO);
+  return opts;
+}
+
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -2711,9 +2719,16 @@ function downloadBlob(blob, filename) {
 
 function slug(s) { return (s || "clusters").replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "").toLowerCase().slice(0, 60) || "clusters"; }
 
+function downloadBasename(k = lastResult && lastResult.usedK) {
+  const name = slug(lastResult && lastResult.name);
+  const count = Number.isFinite(k) ? k : parseInt(k, 10);
+  const suffix = count === 1 ? "cluster" : "clusters";
+  return `${name}_${count || "0"}_${suffix}`;
+}
+
 async function download(fmt) {
   if (!lastResult) return;
-  const name = slug(lastResult.title);
+  const name = downloadBasename();
   try {
     if (fmt === "mp4") {
       // 9:16 reel for Instagram/TikTok — same format as the Map Maker, from
@@ -2729,7 +2744,7 @@ async function download(fmt) {
       return;
     }
     const W = 2400;
-    const opts = buildRenderOpts(W);
+    const opts = buildStaticImageRenderOpts(W);
     if (fmt === "svg") {
       const svg = renderSvg(opts);
       downloadBlob(new Blob([svg], { type: "image/svg+xml" }), name + ".svg");
