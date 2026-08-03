@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Cross-Gender Friending Ratio</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="description" content="A guided introduction to the Cross-Gender Friending Ratio before opening the interactive visualizer." />
+    <script>document.documentElement.classList.add("reveal-ready");</script>
+    <link rel="stylesheet" href="./src/shared/global.css" />
+    <link rel="stylesheet" href="./src/landing.css" />
+  </head>
+  <body class="story-page cgfr-story">
+    <main>
+      <section id="overview" class="splash-hero cgfr-hero">
+        <div class="hero-content reveal">
+          <h1 class="fit-heading">Cross-Gender Friending Ratio</h1>
+          <p class="hero-lede">
+            A global dataset of cross-gender friendship links spanning nearly 200 countries and territories, constructed from more than a trillion friendship ties among Facebook users.
+          </p>
+        </div>
+        <a class="hero-scroll-cue" href="#meaning" aria-label="Scroll to Cross-Gender Friending Ratio details"></a>
+      </section>
+
+      <section id="meaning" class="intro-band cgfr-intro">
+        <div class="section-copy reveal">
+          <p class="eyebrow">What the number means</p>
+          <p>
+            For each location, the Cross-Gender Friending Ratio compares the
+            share of women in men's friendship networks with the share of women
+            in women's friendship networks. A value of 1 means men and women
+            form equal shares of their ties with women.
+          </p>
+        </div>
+        <div class="ratio-demo reveal" aria-label="CGFR equation illustration">
+          <div class="ratio-row">
+            <span>Women in men's networks</span>
+            <strong>45%</strong>
+          </div>
+          <div class="ratio-rule"></div>
+          <div class="ratio-row">
+            <span>Women in women's networks</span>
+            <strong><span class="ratio-op ratio-divide" aria-hidden="true">&divide;</span>60%</strong>
+          </div>
+          <div class="ratio-rule"></div>
+          <div class="ratio-row ratio-result">
+            <span>CGFR</span>
+            <strong><span class="ratio-op ratio-equals" aria-hidden="true">=</span>0.75</strong>
+          </div>
+        </div>
+      </section>
+
+      <section id="reading" class="story-band">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Why it matters</p>
+          <p>
+            A large share of the global regional variation in cross-gender
+            friending happens within countries, not only between them, and is
+            linked to broader gender relations.
+          </p>
+        </div>
+        <div class="insight-grid">
+          <article class="insight-card reveal">
+            <h3>Gender gaps</h3>
+            <p>
+              Across countries, the observed variation in CGFR correlates
+              strongly with gender differences in labor force participation.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Regional attitudes</h3>
+            <p>
+              Within countries, people from areas with higher CGFR are typically
+              more supportive of equal treatment of men and women.
+            </p>
+          </article>
+          <article class="insight-card reveal">
+            <h3>Demographic trends</h3>
+            <p>
+              County-level differences in CGFR line up with demographic and
+              socioeconomic patterns across the United States.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="open" class="tools-band single-cta">
+        <div class="section-copy reveal">
+          <p class="eyebrow">Explore the map</p>
+          <p>
+            Compare patterns in the Cross-Gender Friending Ratio across
+            countries and regions using the interactive map.
+          </p>
+        </div>
+        <div class="tool-grid cgfr-tool-grid">
+          <a class="tool-card reveal" href="./cgfr.html">
+            <div class="tool-card-art art-cgfr" aria-hidden="true"></div>
+            <div class="tool-card-body">
+              <h3>Interactive Explorer</h3>
+              <p>
+                Click any country or region on an interactive globe and see
+                where cross-gender friendship networks are more or less
+                separated.
+              </p>
+              <span class="tool-cta">Start exploring &rarr;</span>
+            </div>
+          </a>
+        </div>
+
+        <div class="citations-card reveal" id="citations">
+          <div class="citations-head">
+            <p class="citations-intro">If you use the Cross-Gender Friending Ratio in your work, please cite:</p>
+            <button type="button" class="bibtex-btn" title="Download citations as BibTeX">
+              <span aria-hidden="true">&darr;</span>
+              BibTeX
+            </button>
+          </div>
+          <ol class="citation-list">
+            <li class="citation">
+              <span class="citation-text">Bailey, M., Johnston, D., Kuchler, T., Kumar, A., &amp; Stroebel, J. (2025). <a href="https://www.aeaweb.org/articles?id=10.1257/pandp.20251032" target="_blank" rel="noopener">Cross-Gender Social Ties around the World</a>. <em>AEA Papers and Proceedings</em>, 115, 132-138.</span>
+            </li>
+          </ol>
+          <p class="data-source">
+            Data: <a href="https://data.humdata.org/dataset/cross-gender-ties" target="_blank" rel="noopener">Cross-Gender Ties</a> (Humanitarian Data Exchange)
+          </p>
+        </div>
+
+        <aside class="cgfr-callout reveal" aria-label="Related SCI tools">
+          <div>
+            <p class="eyebrow">Related dataset</p>
+            <h3>Social Connectedness Index</h3>
+            <p>
+              The SCI maps the strength of friendship ties between places and
+              includes tools for exploring, making maps, and finding connected
+              communities.
+            </p>
+          </div>
+          <a class="primary-link" href="./index.html">Learn about the SCI</a>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module" src="./src/landing.js"></script>
+  </body>
+</html>
