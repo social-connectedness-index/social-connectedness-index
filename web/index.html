@@ -12,34 +12,23 @@
     <link rel="stylesheet" href="./src/landing.css" />
   </head>
   <body class="story-page sci-story">
-    <nav class="chapter-bar" aria-label="Splash page chapters">
-      <a href="#meaning">Meaning</a>
-      <a href="#stories">Uses</a>
-      <a href="#tips">Tips</a>
-      <a href="#tools">Tools</a>
-    </nav>
     <main>
-      <section id="overview" class="splash-hero sci-hero with-screen-nav">
+      <section id="overview" class="splash-hero sci-hero">
         <div class="hero-content reveal">
           <h1 class="fit-heading">Social Connectedness Index</h1>
           <p class="hero-lede">
-            The Social Connectedness Index (SCI) helps answer a simple question:
-            if you pick one person in one place and another person somewhere else,
-            how likely are they to be friends?
+            The Social Connectedness Index (SCI) is a globally comparable measure of the relative probability that Facebook users in two locations are friends. 
           </p>
         </div>
-        <nav class="section-nav" aria-label="Splash page navigation">
-          <a class="skip-link" href="#tools">Skip to tools</a>
-          <a class="next-link" href="#meaning">Next <span aria-hidden="true">&darr;</span></a>
-        </nav>
+        <a class="hero-scroll-cue" href="#meaning" aria-label="Scroll to Social Connectedness Index details"></a>
       </section>
 
-      <section id="meaning" class="intro-band with-screen-nav">
+      <section id="meaning" class="intro-band">
         <div class="section-copy reveal">
           <p class="eyebrow">What the number means</p>
-          <h2>How intense are the social ties between two places?</h2>
           <p>
-            The SCI is a globally comparable measure of the relative probability that two people in different locations are Facebook friends.
+            The SCI answers a simple question: if you pick one person in one place and another person somewhere else,
+            how likely are they to be friends?
           </p>
         </div>
         <div class="concept-grid">
@@ -65,92 +54,52 @@
             </p>
           </article>
         </div>
-        <nav class="section-nav" aria-label="Splash page navigation">
-          <a class="skip-link" href="#tools">Skip to tools</a>
-          <a class="next-link" href="#stories">Next <span aria-hidden="true">&darr;</span></a>
-        </nav>
       </section>
 
-      <section id="stories" class="story-band with-screen-nav">
+      <section id="stories" class="story-band">
         <div class="section-copy reveal">
-          <p class="eyebrow">What people use it for</p>
-          <h2>The SCI turns social ties into evidence.</h2>
+          <p class="eyebrow">Why it matters</p>
           <p>
-            The papers describe a dataset built for researchers and policy teams,
-            but the intuition is useful for anyone trying to understand how places
-            are socially connected.
+            By leveraging social network data, the SCI overcomes longstanding measurement challenges and enables new lines of research on the role of social networks in determining economic, social, and political outcomes.
           </p>
         </div>
         <div class="insight-grid">
           <article class="insight-card reveal">
-            <h3>Markets and trade</h3>
+            <h3>Markets & trade</h3>
             <p>
-              Social ties can help explain where business relationships form.
-              Prior SCI research finds that more connected places tend to trade
-              more with each other.
+              Social connectedness is an important determinant of international and subnational trade flows.
             </p>
           </article>
           <article class="insight-card reveal">
-            <h3>Health and mobility</h3>
+            <h3>Health & mobility</h3>
             <p>
-              During COVID-19, social network structure helped researchers study
-              how behavior and disease risk moved across places.
+              The SCI has shown that the geographic spread of COVID-19 correlates with social network structure.
             </p>
           </article>
           <article class="insight-card reveal">
-            <h3>Migration and displacement</h3>
+            <h3>Migration flows</h3>
             <p>
               Friendship networks can reveal where people may have family,
               friends, or support systems when they move or are displaced.
             </p>
           </article>
           <article class="insight-card reveal">
-            <h3>Communities that cross lines</h3>
+            <h3>Social clusters</h3>
             <p>
               Administrative borders are not always social borders. SCI clusters
               show which regions behave like connected communities.
             </p>
           </article>
         </div>
-        <nav class="section-nav" aria-label="Splash page navigation">
-          <a class="skip-link" href="#tools">Skip to tools</a>
-          <a class="next-link" href="#tips">Next <span aria-hidden="true">&darr;</span></a>
-        </nav>
-      </section>
-
-      <section id="tips" class="expect-band with-screen-nav">
-        <div class="expect-layout">
-          <div class="section-copy reveal">
-            <p class="eyebrow">Before opening a tool</p>
-            <h2>Three tips make the maps easier to read.</h2>
-          </div>
-          <ol class="numbered-list">
-            <li class="reveal">
-              <strong>Choose a starting place.</strong>
-              Then read the map as "where are people here most connected?"
-            </li>
-            <li class="reveal">
-              <strong>Look for exceptions.</strong>
-              The surprising bright spots are often more interesting than the
-              obvious nearby ones.
-            </li>
-            <li class="reveal">
-              <strong>Use the tool that matches the question.</strong>
-              Explore live, make a publication map, or cluster regions into
-              connected communities.
-            </li>
-          </ol>
-        </div>
-        <nav class="section-nav" aria-label="Splash page navigation">
-          <a class="skip-link" href="#tools">Skip to tools</a>
-          <a class="next-link" href="#tools">Next <span aria-hidden="true">&darr;</span></a>
-        </nav>
       </section>
 
       <section id="tools" class="tools-band">
         <div class="section-copy reveal">
-          <p class="eyebrow">Open the tools</p>
-          <h2>Choose the view that fits your question.</h2>
+          <p class="eyebrow">Explore the tools</p>
+          <p>
+            Explore connections live, make publication-ready maps, or group
+            regions into connected communities.
+          </p>
         </div>
         <div class="tool-grid">
           <a class="tool-card reveal" href="./explore.html">
@@ -158,8 +107,9 @@
             <div class="tool-card-body">
               <h3>Interactive Explorer</h3>
               <p>
-                Click a country or region and see where it is most socially
-                connected.
+                Click any country or region on an interactive globe and watch it
+                light up with where it's most connected. The fastest way to
+                explore the data to discover surprising links.
               </p>
               <span class="tool-cta">Start exploring &rarr;</span>
             </div>
@@ -170,8 +120,9 @@
             <div class="tool-card-body">
               <h3>Map Maker</h3>
               <p>
-                Build polished SCI maps with custom geography, colors, titles,
-                and downloads.
+                Build polished, publication-quality SCI maps with full control
+                over geography, colors, breaks, and titles &mdash; then download as an
+                image or video to share them.
               </p>
               <span class="tool-cta">Make a map &rarr;</span>
             </div>
@@ -182,30 +133,19 @@
             <div class="tool-card-body">
               <h3>Connected Communities</h3>
               <p>
-                Group regions by the strength of their friendship ties and see
-                social communities emerge.
+                Pick a region or country and a number of clusters, then watch
+                its places group by how tightly they're connected &mdash; revealing
+                which truly belong together.
               </p>
               <span class="tool-cta">Find clusters &rarr;</span>
             </div>
           </a>
         </div>
 
-        <aside class="cgfr-callout reveal" aria-label="Related CGFR tool">
-          <div>
-            <p class="eyebrow">Related dataset</p>
-            <h3>Cross-Gender Friending Ratio</h3>
-            <p>
-              The CGFR uses friendship networks to study how gender-segregated
-              social ties are across countries and regions.
-            </p>
-          </div>
-          <a class="primary-link" href="./cgfr-intro.html">Learn about the CGFR</a>
-        </aside>
-
         <div class="citations-card reveal" id="citations">
           <div class="citations-head">
             <p class="citations-intro">If you use the Social Connectedness Index in your work, please cite:</p>
-            <button type="button" id="bibtex-btn" class="bibtex-btn" title="Download citations as BibTeX">
+            <button type="button" class="bibtex-btn" title="Download citations as BibTeX">
               <span aria-hidden="true">&darr;</span>
               BibTeX
             </button>
@@ -223,14 +163,17 @@
           </p>
         </div>
 
-        <footer class="landing-foot">
-          <!--
-          <a class="lab-credit" href="https://www.social-capital-lab.org/" target="_blank" rel="noopener">
-            <img src="/img/social-capital-lab-logo.png" alt="Social Capital Lab" class="lab-logo" />
-            <span><strong>Social Capital Lab</strong></span>
-          </a>
-          -->
-        </footer>
+        <aside class="cgfr-callout reveal" aria-label="Related CGFR tool">
+          <div>
+            <p class="eyebrow">Related dataset</p>
+            <h3>Cross-Gender Friending Ratio</h3>
+            <p>
+              The CGFR uses friendship networks to study how gender-segregated
+              social ties are across countries and regions.
+            </p>
+          </div>
+          <a class="primary-link" href="./cgfr-intro.html">Learn about the CGFR</a>
+        </aside>
       </section>
     </main>
 

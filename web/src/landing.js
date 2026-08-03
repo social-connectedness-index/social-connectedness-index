@@ -88,83 +88,27 @@ function setupFitHeadings() {
 }
 
 function setupBibtexDownload() {
-  const button = document.getElementById("bibtex-btn");
-  if (!button) return;
+  const buttons = Array.from(document.querySelectorAll(".bibtex-btn"));
+  if (!buttons.length) return;
   const isCgfrPage = document.body.classList.contains("cgfr-story");
   const bibtex = isCgfrPage ? CGFR_BIBTEX : SCI_BIBTEX;
   const filename = isCgfrPage ? "cross-gender-friending-ratio.bib" : "social-connectedness-index.bib";
 
-  button.addEventListener("click", () => {
-    const blob = new Blob([bibtex], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+  buttons.forEach(button => {
+    button.addEventListener("click", () => {
+      const blob = new Blob([bibtex], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
   });
 }
 
-function setupChapterBar() {
-  const bar = document.querySelector(".chapter-bar");
-  if (!bar) return;
-
-  const links = Array.from(bar.querySelectorAll('a[href^="#"]'));
-  const chapters = links
-    .map(link => {
-      const id = link.getAttribute("href").slice(1);
-      return { link, section: document.getElementById(id) };
-    })
-    .filter(chapter => chapter.section);
-  if (!chapters.length) return;
-
-  const firstSection = document.querySelector(".story-page main > section");
-
-  const setActive = activeSection => {
-    bar.classList.toggle("is-hidden", activeSection === firstSection);
-    chapters.forEach(({ link, section }) => {
-      if (section === activeSection) {
-        link.setAttribute("aria-current", "location");
-        link.scrollIntoView({ block: "nearest", inline: "nearest" });
-      } else {
-        link.removeAttribute("aria-current");
-      }
-    });
-  };
-
-  links.forEach(link => {
-    link.addEventListener("click", () => {
-      const id = link.getAttribute("href").slice(1);
-      const chapter = chapters.find(item => item.section.id === id);
-      if (chapter) setActive(chapter.section);
-    });
-  });
-
-  if (!("IntersectionObserver" in window)) {
-    const hashId = window.location.hash.slice(1);
-    const initialChapter = chapters.find(({ section }) => section.id === hashId);
-    setActive(initialChapter ? initialChapter.section : firstSection);
-    return;
-  }
-
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        setActive(entry.target);
-      }
-    });
-  }, { threshold: 0.01, rootMargin: "-42% 0px -52% 0px" });
-
-  if (firstSection) observer.observe(firstSection);
-  chapters.forEach(({ section }) => observer.observe(section));
-  const hashId = window.location.hash.slice(1);
-  const initialChapter = chapters.find(({ section }) => section.id === hashId);
-  setActive(initialChapter ? initialChapter.section : firstSection);
-}
-
-setupChapterBar();
 setupReveal();
 setupFitHeadings();
 setupBibtexDownload();
