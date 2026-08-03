@@ -547,7 +547,8 @@ h3 {
   .tool-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .insight-grid {
+  .insight-grid,
+  .cgfr-story .insight-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .cgfr-tool-grid {
@@ -580,6 +581,7 @@ h3 {
   }
   .concept-grid,
   .insight-grid,
+  .cgfr-story .insight-grid,
   .tool-grid {
     grid-template-columns: 1fr;
   }
