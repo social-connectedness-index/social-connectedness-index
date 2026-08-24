@@ -87,28 +87,24 @@ function setupFitHeadings() {
   scheduleFit();
 }
 
-function setupBibtexDownload() {
+function setupBibtexLinks() {
   const buttons = Array.from(document.querySelectorAll(".bibtex-btn"));
   if (!buttons.length) return;
   const isCgfrPage = document.body.classList.contains("cgfr-story");
   const bibtex = isCgfrPage ? CGFR_BIBTEX : SCI_BIBTEX;
-  const filename = isCgfrPage ? "cross-gender-friending-ratio.bib" : "social-connectedness-index.bib";
 
   buttons.forEach(button => {
     button.addEventListener("click", () => {
       const blob = new Blob([bibtex], { type: "text/plain;charset=utf-8" });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const opened = window.open(url, "_blank");
+      if (opened) opened.opener = null;
+      if (!opened) window.location.href = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
     });
   });
 }
 
 setupReveal();
 setupFitHeadings();
-setupBibtexDownload();
+setupBibtexLinks();
