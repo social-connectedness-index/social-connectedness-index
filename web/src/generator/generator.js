@@ -18,6 +18,7 @@ import { encodeMp4 } from "../shared/video.js";
 import { downloadSvg } from "./export_vector.js";
 import { createTour } from "../shared/tour.js";
 import { EXPORT_CREDIT } from "../shared/credits.js";
+import { DATA_STORIES } from "./stories.js";
 // Sub-regional groupings shared with the Connected Communities (cluster) app, so the
 // same ready-made groupings (DACH, Nordic, Andean, …) are offered here under "Regions
 // to show". The broad continents + sub-continental groups they also reference already
@@ -132,6 +133,207 @@ let regionalPresets = {};
 
 const escHtml = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const escAttr = (s) => escHtml(s).replace(/"/g, "&quot;");
+
+function renderDataStories() {
+  const host = $("storyList");
+  if (!host) return;
+  host.innerHTML = DATA_STORIES.map((story) => `
+    <details class="story-example" data-story="${escAttr(story.id)}">
+      <summary class="story-summary">
+        <span class="story-summary-copy">
+          <span class="story-title">${escHtml(story.title)}</span>
+          <span class="story-setup">${escHtml(story.setup)}</span>
+        </span>
+      </summary>
+      <div class="story-details">
+        <p>${escHtml(story.body)}</p>
+        <div class="story-actions">
+          <button class="story-load" type="button" data-story-guide="${escAttr(story.id)}">Show step-by-step</button>
+          <button class="story-map" type="button" data-story-map="${escAttr(story.id)}">View map</button>
+        </div>
+      </div>
+    </details>
+  `).join("");
+  host.addEventListener("click", (e) => {
+    const guideBtn = e.target.closest("[data-story-guide]");
+    if (guideBtn && host.contains(guideBtn)) {
+      startDataStoryGuide(guideBtn.dataset.storyGuide).catch(() => {});
+      return;
+    }
+    const mapBtn = e.target.closest("[data-story-map]");
+    if (mapBtn && host.contains(mapBtn)) {
+      renderDataStoryMap(mapBtn.dataset.storyMap).catch(() => {});
+      return;
+    }
+  });
+}
+
+function setActiveStory(id) {
+  for (const card of document.querySelectorAll("[data-story]")) {
+    const active = card.dataset.story === id;
+    card.classList.toggle("story-active", active);
+    if (active && "open" in card) card.open = true;
+    const btn = card.querySelector("[data-story-guide]");
+    if (btn) btn.textContent = active ? "Replay steps" : "Show step-by-step";
+  }
+}
+
+function closeStoriesModal() {
+  const modal = $("storiesModal");
+  if (modal) modal.hidden = true;
+}
+
+function storyGuideButton(id) {
+  return [...document.querySelectorAll("[data-story-guide]")].find((btn) => btn.dataset.storyGuide === id);
+}
+
+function storyMapButton(id) {
+  return [...document.querySelectorAll("[data-story-map]")].find((btn) => btn.dataset.storyMap === id);
+}
+
+function storyCard(id) {
+  return [...document.querySelectorAll("[data-story]")].find((card) => card.dataset.story === id);
+}
+
+function setStoryButtonsDisabled(id, disabled) {
+  for (const btn of [storyGuideButton(id), storyMapButton(id)]) {
+    if (btn) btn.disabled = disabled;
+  }
+}
+
+function storyStepValue(story, key) {
+  return (story.steps || []).find((step) => step[key] != null)?.[key] || "";
+}
+
+function resetStoryFields() {
+  if ($("searchA")) $("searchA").value = "";
+  if ($("searchB")) $("searchB").value = "";
+  if ($("searchCbsa")) $("searchCbsa").value = "";
+  if ($("countrySearch")) $("countrySearch").value = "";
+  if ($("advanced")) $("advanced").open = false;
+}
+
+async function renderDataStoryMap(id, opts = {}) {
+  const story = DATA_STORIES.find((s) => s.id === id);
+  if (!story) return;
+  const btn = storyMapButton(id);
+  const prevText = btn ? btn.textContent : "";
+  closeStoriesModal();
+  if (btn) {
+    setStoryButtonsDisabled(id, true);
+    btn.textContent = "Loading map...";
+  }
+  try {
+    resetStoryFields();
+    await applyConfig(story.config);
+    const searchA = storyStepValue(story, "searchA");
+    const searchB = storyStepValue(story, "searchB");
+    const searchCbsa = storyStepValue(story, "searchCbsa");
+    if ($("searchA") && searchA) {
+      $("searchA").value = searchA;
+      renderSourceOptions();
+      if (story.config.source != null) $("sourceA").value = story.config.source;
+    }
+    if ($("searchB") && searchB) {
+      $("searchB").value = searchB;
+      renderSourceOptionsB();
+      if (story.config.sourceB != null) $("sourceB").value = story.config.sourceB;
+    }
+    if ($("searchCbsa") && searchCbsa) {
+      $("searchCbsa").value = searchCbsa;
+      renderCbsaOptions();
+      if (story.config.metro != null && $("destCbsa")) $("destCbsa").value = story.config.metro;
+    }
+    await generate();
+    setActiveStory(id);
+    if (!opts.keepView) $("mapWrap")?.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) {
+    showError(e);
+  } finally {
+    if (btn) btn.textContent = prevText || "View map";
+    setStoryButtonsDisabled(id, false);
+  }
+}
+
+async function startDataStoryGuide(id) {
+  const story = DATA_STORIES.find((s) => s.id === id);
+  if (!story) return;
+  const btn = storyGuideButton(id);
+  const prevText = btn ? btn.textContent : "";
+  closeStoriesModal();
+  if (btn) {
+    setStoryButtonsDisabled(id, true);
+    btn.disabled = true;
+    btn.textContent = "Starting...";
+  }
+  try {
+    resetStoryFields();
+    const run = { generated: false };
+    const storyTour = createTour(storyTourSteps(story, run), `sci_story_${story.id}_v1`, () => {
+      if (!run.generated) renderDataStoryMap(id, { keepView: true }).catch(showError);
+    });
+    storyTour.start();
+    setActiveStory(id);
+  } catch (e) {
+    showError(e);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      if (!storyCard(id)?.classList.contains("story-active")) {
+        btn.textContent = prevText || "Show step-by-step";
+      }
+    }
+    setStoryButtonsDisabled(id, false);
+  }
+}
+
+function storyStepConfig(story, step) {
+  if (!step.config) return null;
+  return step.config === "full" ? story.config : step.config;
+}
+
+async function applyStoryStep(story, step, run) {
+  const cfg = storyStepConfig(story, step);
+  if (cfg) await applyConfig(cfg);
+  if (step.searchA != null && $("searchA")) {
+    $("searchA").value = step.searchA;
+    renderSourceOptions();
+    if (cfg && cfg.source != null) $("sourceA").value = cfg.source;
+  }
+  if (step.searchB != null && $("searchB")) {
+    $("searchB").value = step.searchB;
+    renderSourceOptionsB();
+    if (cfg && cfg.sourceB != null) $("sourceB").value = cfg.sourceB;
+  }
+  if (step.searchCbsa != null && $("searchCbsa")) {
+    $("searchCbsa").value = step.searchCbsa;
+    renderCbsaOptions();
+    if (cfg && cfg.metro != null && $("destCbsa")) $("destCbsa").value = cfg.metro;
+  }
+  if (step.openAdvanced != null && $("advanced")) $("advanced").open = !!step.openAdvanced;
+  if (step.refreshBreaks) await refreshBreaksPreviewNow();
+  if (step.generate) {
+    await generate();
+    if (run && step.final !== false) run.generated = true;
+  }
+}
+
+async function refreshBreaksPreviewNow() {
+  if (compareMode() || breakScheme() === "custom") return;
+  const relVals = await previewRelValues();
+  const br = relVals ? breaksForScheme(breakScheme(), relVals) : null;
+  setBreaksBox(br ? br.join(", ") : "");
+  await autofillRefval();
+}
+
+function storyTourSteps(story, run) {
+  return (story.steps || []).map((step) => ({
+    title: step.title,
+    body: step.body,
+    targets: step.targets || null,
+    before: () => applyStoryStep(story, step, run),
+  }));
+}
 
 // Build `regionalPresets` from CLUSTER_PRESETS. Only the explicit {name,members}
 // dropdown items are taken — the {group} refs and continent buttons are already
@@ -1029,7 +1231,11 @@ async function generate() {
       const { rel } = normalize(sciData, active, parseFloat($("refq").value) || 0.25, absRef);
       const relVals = activeFeatures.map((f) => rel[f.properties.id]).filter((v) => v != null);
       if (relVals.length === 0) throw new Error("No SCI data for this region in the selected countries.");
-      const breaks = parseBreaks($("breaks").value) || autoBreaks(relVals);
+      const scheme = breakScheme();
+      const breaks = scheme === "custom"
+        ? (parseBreaks($("breaks").value) || autoBreaks(relVals))
+        : (breaksForScheme(scheme, relVals) || autoBreaks(relVals));
+      if (scheme !== "custom") setBreaksBox(breaks ? breaks.join(", ") : "");
       const bins = buildBins(relVals, breaks);
       const palette = interpolatePalette(palettes.single[$("palette").value], bins.nColors);
       colorById = colorsFor(rel, active, bins.allBreaks, palette);
@@ -1417,6 +1623,7 @@ async function init() {
   $("customCountries").innerHTML = countries
     .map((c) => `<label class="chk" data-name="${fold(c.name)}"><input type="checkbox" value="${c.id}" /> ${c.name}</label>`)
     .join("");
+  renderDataStories();
   stampChecklistOrder("group");
   stampChecklistOrder("customCountries");
   const paletteOpts = Object.keys(palettes.single).map((p) => `<option>${p}</option>`).join("");
@@ -1515,6 +1722,26 @@ async function init() {
     const close = panel.querySelector(".close-btn");
     if (close) close.addEventListener("click", () => { panel.hidden = true; sync(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") { panel.hidden = true; sync(); } });
+  })();
+
+  (function setupStoriesModal() {
+    const btn = $("storiesBtn"), modal = $("storiesModal");
+    if (!btn || !modal) return;
+    const close = () => {
+      modal.hidden = true;
+      btn.focus();
+    };
+    btn.addEventListener("click", () => {
+      modal.hidden = false;
+      modal.querySelector(".close-btn")?.focus();
+    });
+    modal.querySelector(".close-btn")?.addEventListener("click", close);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !modal.hidden) close();
+    });
   })();
 
   // Shareable / agent-driven deep links: when the URL carries recognized params
@@ -1647,7 +1874,10 @@ async function applyConfig(cfg = {}) {
   if (cfg.refq != null) $("refq").value = cfg.refq;
   if (cfg.refval != null && $("refval")) $("refval").value = cfg.refval;
   if (cfg.breakScheme && $("breakScheme")) $("breakScheme").value = cfg.breakScheme;
-  if (cfg.breaks != null) setBreaksBox(typeof cfg.breaks === "string" ? cfg.breaks : cfg.breaks.join(", "));
+  if (cfg.breaks != null) {
+    setBreaksBox(typeof cfg.breaks === "string" ? cfg.breaks : cfg.breaks.join(", "));
+    if ($("breakScheme")) $("breakScheme").value = "custom";
+  }
   if (cfg.compareBreaks != null && $("cbreaks")) $("cbreaks").value = cfg.compareBreaks;
   if (cfg.borders != null) $("borders").checked = !!cfg.borders;
   if (cfg.highlight != null) $("highlight").checked = !!cfg.highlight;
@@ -1666,6 +1896,10 @@ async function applyConfig(cfg = {}) {
     $("subtitle").classList.toggle("show-off", !$("subtitleOn").checked);
   }
   syncGeneratedText();
+  // syncGeneratedText may refresh auto-generated copy after source/region changes.
+  // Re-apply explicit text so deep links and story presets keep their own framing.
+  if (cfg.title != null) $("title").value = cfg.title;
+  if (cfg.subtitle != null) $("subtitle").value = cfg.subtitle;
   if (cfg.labelA != null && $("labelA")) {
     $("labelA").value = cfg.labelA;
   }

@@ -56,6 +56,11 @@ and **comparison** maps are supported; comparison maps pick a color per side
 (Region A / Region B, same named palettes as single maps, default Red / Blue) and
 render a diverging A -> white -> B scale.
 
+The Map Maker also has an **example data stories** picker. Each story is defined
+in `src/generator/stories.js` as narrative copy, a final generator config, and
+guided steps that highlight the controls used to make the map. Users can either
+walk through those steps or open the finished editable map directly.
+
 **Map types:** 18 of the standalone R tool's map types are available. Excluded
 from the web app: the six geoBoundaries types (`adm1`, `adm2`, and their
 `_country` / `country_` directions — duplicates of the GADM equivalents) and the
@@ -269,6 +274,7 @@ they live in `src/generator/` rather than `src/shared/`.)
 - `src/shared/tour.js` / `src/shared/tour.css` — shared first-run guided-tour engine
 - `src/generator/generator.js` — Map Maker UI wiring, data loading (incl. range-fetch), state
 - `src/generator/generator.css` — Map Maker layout and controls
+- `src/generator/stories.js` — Map Maker example data-story presets
 - `src/generator/sci.js` — rendering math ported from R (normalize, breaks, palette, labels, comparison)
 - `src/generator/export_vector.js` — SVG download (reuses `shared/render.js`'s SVG backend)
 - `src/explore/explore.js` — Interactive Explorer (MapLibre; per-source SCI fetch + client-side binning for both levels)

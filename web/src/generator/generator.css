@@ -38,7 +38,7 @@ body { display: flex; height: 100vh; overflow: hidden; }
 
 /* ---- title-row "i" / "?" buttons — same icon-only style as the Interactive
    Explorer + Cluster tools: small circles sitting after the title. ---- */
-.panel-head { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 6px; }
+.panel-head { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 3px; }
 .panel-head h1 { flex: 0 1 auto; margin-bottom: 0; }
 .panel-head .icon-btn {
   flex: none; padding: 0; background: transparent; border: none; cursor: pointer;
@@ -63,6 +63,178 @@ body { display: flex; height: 100vh; overflow: hidden; }
 .section-label {
   font-weight: 600; color: #2a3942; margin-bottom: 4px;
   font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* ---- example stories ----------------------------------------------------- */
+.stories-open-btn {
+  width: 100%;
+  margin: 2px 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #b9d0da;
+  border-radius: 7px;
+  background: #eef5f8;
+  color: #10617b;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+.stories-open-btn:hover {
+  background: #e3eff4;
+  border-color: #9fc7d6;
+}
+.stories-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.44);
+}
+.stories-modal[hidden] {
+  display: none;
+}
+.stories-dialog {
+  position: relative;
+  width: min(860px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 32px));
+  overflow-y: auto;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #d7e0e5;
+  border-radius: 10px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+.stories-dialog .close-btn {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #9aa6ad;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+.stories-dialog .close-btn:hover {
+  color: #1879d5;
+}
+.stories-head {
+  padding-right: 30px;
+  margin-bottom: 14px;
+}
+.stories-head p {
+  margin: 0;
+}
+.stories-head p:not(.section-label) {
+  margin-top: 4px;
+  color: #64727c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.story-list {
+  display: grid;
+  gap: 8px;
+}
+.story-example {
+  background: #f7fbfc;
+  border: 1px solid #d7e4ea;
+  border-left: 4px solid #10617b;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.story-example.story-active {
+  background: #eef7fa;
+  border-color: #9fc7d6;
+  border-left-color: #0d4f64;
+}
+.story-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.story-summary::-webkit-details-marker {
+  display: none;
+}
+.story-summary::after {
+  content: "Show";
+  flex: 0 0 auto;
+  color: #1879d5;
+  font-size: 12px;
+  font-weight: 700;
+}
+.story-example[open] .story-summary::after {
+  content: "Hide";
+}
+.story-summary-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.story-title {
+  color: #10617b;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.story-setup {
+  color: #6a7480;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.story-details {
+  padding: 0 12px 12px;
+}
+.story-details p {
+  margin: 0 0 10px;
+  color: #44525c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.story-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+.story-load,
+.story-map {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #10617b;
+  border-radius: 7px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.story-load {
+  background: #10617b;
+  color: #fff;
+}
+.story-load:hover {
+  background: #0d4f64;
+  border-color: #0d4f64;
+}
+.story-map {
+  background: #fff;
+  color: #10617b;
+}
+.story-map:hover {
+  background: #eef5f8;
+  border-color: #0d4f64;
+}
+.story-load:disabled,
+.story-map:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 #panel label {
   display: block; font-size: 13px; margin: 8px 0 3px; color: #4a5862;
@@ -340,4 +512,13 @@ Disabled lab credit styles for now.
   }
   #mapWrap { flex: none; overflow: visible; padding: 16px; }
   #about { left: 8px; right: 8px; width: auto; }
+  .stories-modal {
+    align-items: stretch;
+    padding: 8px;
+  }
+  .stories-dialog {
+    width: 100%;
+    max-height: calc(100vh - 16px);
+    padding: 16px;
+  }
 }

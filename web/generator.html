@@ -22,6 +22,9 @@
                 aria-label="Show the tutorial"><span class="tour-launch-icon" aria-hidden="true">?</span></button>
       </div>
 
+      <button id="storiesBtn" class="stories-open-btn" type="button"
+              aria-haspopup="dialog" aria-controls="storiesModal">Data Stories</button>
+
       <div class="section-label">Map configuration</div>
       <div id="mapModeToggle" class="mode-toggle">
         <label><input type="radio" name="mapMode" value="single" checked /> Single region</label>
@@ -200,6 +203,17 @@
       <a class="panel-data-link" href="https://data.humdata.org/dataset/social-connectedness-index"
          target="_blank" rel="noopener">Download the data</a>
     </aside>
+
+    <div id="storiesModal" class="stories-modal" hidden>
+      <div class="stories-dialog" role="dialog" aria-modal="true" aria-labelledby="storiesTitle">
+        <button type="button" class="close-btn" aria-label="Close">×</button>
+        <div class="stories-head">
+          <p class="section-label" id="storiesTitle">Example data stories</p>
+          <p>Choose a story to see how the map is made, or open the finished map directly.</p>
+        </div>
+        <div id="storyList" class="story-list"></div>
+      </div>
+    </div>
 
     <!-- About panel (toggled by the "i" button; styled to match the other tools). -->
     <div id="about" hidden>

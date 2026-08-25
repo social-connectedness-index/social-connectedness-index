@@ -27,6 +27,8 @@ export function createTour(steps, seenKey, onEnd) {
   let idx = 0;
   let nodes = null;   // { blocker, spotlight, pop, dots, title, body, back, next }
   let rafId = 0;
+  let pendingStep = false;
+  let runId = 0;
 
   // ---- DOM helpers --------------------------------------------------------
 
@@ -136,14 +138,28 @@ export function createTour(steps, seenKey, onEnd) {
     }
   }
 
-  function showStep() {
+  async function showStep() {
+    const thisRun = runId;
     const step = steps[idx];
-    if (step.before) { try { step.before(); } catch (e) { /* non-fatal */ } }
+    pendingStep = true;
+    nodes.back.disabled = true;
+    nodes.next.disabled = true;
+    if (step.before) {
+      try {
+        await step.before();
+      } catch (e) {
+        /* non-fatal */
+      }
+    }
+    if (!nodes || thisRun !== runId) return;
     nodes.title.textContent = step.title;
     nodes.body.textContent = step.body;
     renderDots();
     nodes.back.style.visibility = idx === 0 ? "hidden" : "visible";
     nodes.next.textContent = idx === steps.length - 1 ? "Done" : "Next →";
+    nodes.back.disabled = false;
+    nodes.next.disabled = false;
+    pendingStep = false;
 
     const sel = step.targets;
     if (sel && sel.length) {
@@ -154,6 +170,7 @@ export function createTour(steps, seenKey, onEnd) {
   }
 
   function go(dir) {
+    if (pendingStep) return;
     const n = idx + dir;
     if (n < 0) return;
     if (n >= steps.length) { end(); return; }
@@ -169,6 +186,8 @@ export function createTour(steps, seenKey, onEnd) {
 
   function end() {
     if (!nodes) return;
+    runId++;
+    pendingStep = false;
     window.removeEventListener("resize", reposition);
     window.removeEventListener("scroll", reposition, true);
     document.removeEventListener("keydown", onKey);
@@ -185,6 +204,8 @@ export function createTour(steps, seenKey, onEnd) {
   function start() {
     if (nodes) return;
     idx = 0;
+    runId++;
+    pendingStep = false;
     nodes = buildDOM();
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", reposition);
